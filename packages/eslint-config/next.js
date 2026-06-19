@@ -1,12 +1,13 @@
-module.exports = {
-  extends: ["./base.js", "plugin:react/recommended", "plugin:react-hooks/recommended", "plugin:@next/next/recommended"],
-  settings: {
-    react: {
-      version: "detect"
-    }
-  },
-  rules: {
-    "react/react-in-jsx-scope": "off"
-  }
-};
+const nextPlugin = require("@next/eslint-plugin-next");
+const react = require("./react.js");
 
+module.exports = [
+  ...react,
+  nextPlugin.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "@next/next/no-html-link-for-pages": "off"
+    }
+  }
+];

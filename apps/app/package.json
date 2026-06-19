@@ -3,12 +3,27 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "echo \"apps/app is reserved for the main user product. Scaffold Next.js here when product UI work starts.\"",
-    "build": "echo \"No main app build configured yet.\"",
-    "lint": "echo \"No main app lint configured yet.\"",
-    "typecheck": "echo \"No main app typecheck configured yet.\"",
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"No main app tests configured yet.\"",
-    "format": "echo \"No main app format configured yet.\""
+    "format": "prettier --check ."
+  },
+  "dependencies": {
+    "@agriculture/design-tokens": "workspace:*",
+    "@agriculture/types": "workspace:*",
+    "@agriculture/ui": "workspace:*",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@agriculture/eslint-config": "workspace:*",
+    "@agriculture/typescript-config": "workspace:*",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
   }
 }
-

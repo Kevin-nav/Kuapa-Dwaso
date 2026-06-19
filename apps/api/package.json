@@ -2,13 +2,28 @@
   "name": "@agriculture/api",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "echo \"apps/api is reserved for the NestJS API. Scaffold NestJS here when backend implementation starts.\"",
-    "build": "echo \"No API build configured yet.\"",
-    "lint": "echo \"No API lint configured yet.\"",
-    "typecheck": "echo \"No API typecheck configured yet.\"",
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"No API tests configured yet.\"",
-    "format": "echo \"No API format configured yet.\""
+    "format": "prettier --check ."
+  },
+  "dependencies": {
+    "@agriculture/types": "workspace:*",
+    "@nestjs/common": "^11.1.27",
+    "@nestjs/core": "^11.1.27",
+    "@nestjs/platform-fastify": "^11.1.27",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@agriculture/eslint-config": "workspace:*",
+    "@agriculture/typescript-config": "workspace:*",
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }
-

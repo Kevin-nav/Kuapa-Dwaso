@@ -5,6 +5,7 @@
   "main": "base.js",
   "exports": {
     "./base": "./base.js",
+    "./react": "./react.js",
     "./next": "./next.js",
     "./nest": "./nest.js"
   },

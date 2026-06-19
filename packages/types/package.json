@@ -1,6 +1,25 @@
 {
   "name": "@agriculture/types",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No shared type tests configured yet.\"",
+    "format": "prettier --check ."
+  },
+  "devDependencies": {
+    "@agriculture/eslint-config": "workspace:*",
+    "@agriculture/typescript-config": "workspace:*",
+    "typescript": "^6.0.3"
+  }
 }
-

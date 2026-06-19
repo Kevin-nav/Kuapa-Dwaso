@@ -3,12 +3,26 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "echo \"apps/admin is reserved for the admin console. Scaffold Next.js here when admin UI work starts.\"",
-    "build": "echo \"No admin build configured yet.\"",
-    "lint": "echo \"No admin lint configured yet.\"",
-    "typecheck": "echo \"No admin typecheck configured yet.\"",
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"No admin tests configured yet.\"",
-    "format": "echo \"No admin format configured yet.\""
+    "format": "prettier --check ."
+  },
+  "dependencies": {
+    "@agriculture/dashboard-ui": "workspace:*",
+    "@agriculture/types": "workspace:*",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@agriculture/eslint-config": "workspace:*",
+    "@agriculture/typescript-config": "workspace:*",
+    "@types/node": "^26.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
   }
 }
-

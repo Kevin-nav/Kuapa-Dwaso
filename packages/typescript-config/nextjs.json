@@ -5,6 +5,7 @@
   "compilerOptions": {
     "allowJs": true,
     "declaration": false,
+    "declarationMap": false,
     "emitDeclarationOnly": false,
     "jsx": "preserve",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
@@ -14,4 +15,3 @@
     "plugins": [{ "name": "next" }]
   }
 }
-
