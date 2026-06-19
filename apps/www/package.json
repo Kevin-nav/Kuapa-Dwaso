@@ -1,0 +1,14 @@
+{
+  "name": "@agriculture/www",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"apps/www is reserved for the public site. Scaffold Next.js here when product UI work starts.\"",
+    "build": "echo \"No public site build configured yet.\"",
+    "lint": "echo \"No public site lint configured yet.\"",
+    "typecheck": "echo \"No public site typecheck configured yet.\"",
+    "test": "echo \"No public site tests configured yet.\"",
+    "format": "echo \"No public site format configured yet.\""
+  }
+}
+

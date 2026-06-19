@@ -1,0 +1,5 @@
+# Convex
+
+Convex owns core application data, realtime workflows, queries, and mutations.
+
+Keep persistent application state here rather than creating a separate conflicting data model inside the API.

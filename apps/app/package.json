@@ -1,0 +1,14 @@
+{
+  "name": "@agriculture/app",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"apps/app is reserved for the main user product. Scaffold Next.js here when product UI work starts.\"",
+    "build": "echo \"No main app build configured yet.\"",
+    "lint": "echo \"No main app lint configured yet.\"",
+    "typecheck": "echo \"No main app typecheck configured yet.\"",
+    "test": "echo \"No main app tests configured yet.\"",
+    "format": "echo \"No main app format configured yet.\""
+  }
+}
+

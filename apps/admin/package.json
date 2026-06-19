@@ -1,0 +1,14 @@
+{
+  "name": "@agriculture/admin",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"apps/admin is reserved for the admin console. Scaffold Next.js here when admin UI work starts.\"",
+    "build": "echo \"No admin build configured yet.\"",
+    "lint": "echo \"No admin lint configured yet.\"",
+    "typecheck": "echo \"No admin typecheck configured yet.\"",
+    "test": "echo \"No admin tests configured yet.\"",
+    "format": "echo \"No admin format configured yet.\""
+  }
+}
+

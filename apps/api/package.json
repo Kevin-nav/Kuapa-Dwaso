@@ -1,0 +1,14 @@
+{
+  "name": "@agriculture/api",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"apps/api is reserved for the NestJS API. Scaffold NestJS here when backend implementation starts.\"",
+    "build": "echo \"No API build configured yet.\"",
+    "lint": "echo \"No API lint configured yet.\"",
+    "typecheck": "echo \"No API typecheck configured yet.\"",
+    "test": "echo \"No API tests configured yet.\"",
+    "format": "echo \"No API format configured yet.\""
+  }
+}
+

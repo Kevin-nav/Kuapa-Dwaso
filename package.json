@@ -1,0 +1,35 @@
+{
+  "name": "agriculture-marketplace",
+  "private": true,
+  "packageManager": "pnpm@11.5.2",
+  "scripts": {
+    "dev": "turbo dev",
+    "dev:www": "pnpm --filter @agriculture/www dev",
+    "dev:app": "pnpm --filter @agriculture/app dev",
+    "dev:admin": "pnpm --filter @agriculture/admin dev",
+    "dev:api": "pnpm --filter @agriculture/api dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "format": "turbo format"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@next/eslint-plugin-next": "^16.2.9",
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.4",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.5.2"
+  }
+}
