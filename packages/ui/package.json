@@ -4,7 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
     "dist",

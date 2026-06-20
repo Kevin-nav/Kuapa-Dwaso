@@ -1,49 +1,67 @@
-:root {
-  color-scheme: light;
-  font-family:
-    Arial,
-    Helvetica,
-    sans-serif;
-  background: #f7f8f2;
-  color: #1f2a22;
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  --color-brand-field: #54735b;
+  --color-brand-ink: #1f2a22;
+  --color-brand-sky: #2f6f7d;
+  --color-brand-surface: #f7f8f2;
+  
+  --animate-fade-in-up: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-* {
-  box-sizing: border-box;
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+:root {
+  color-scheme: light;
+  background-color: var(--color-brand-surface);
+  color: var(--color-brand-ink);
 }
 
 body {
+  font-family: var(--font-sans);
   margin: 0;
+  overflow-x: hidden;
+  background-color: var(--color-brand-surface);
+  color: var(--color-brand-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.page-shell {
-  align-items: center;
-  display: flex;
-  min-height: 100vh;
-  padding: 32px;
+/* Glassmorphism details */
+.glass-panel {
+  background: rgba(247, 248, 242, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(84, 115, 91, 0.1);
 }
 
-.intro {
-  max-width: 680px;
+.glass-navbar {
+  background: rgba(247, 248, 242, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(84, 115, 91, 0.08);
 }
 
-.eyebrow {
-  color: #54735b;
-  font-size: 0.875rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  margin: 0 0 12px;
-  text-transform: uppercase;
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
-
-h1 {
-  font-size: clamp(2rem, 6vw, 4rem);
-  line-height: 1;
-  margin: 0 0 20px;
-}
-
-p {
-  font-size: 1.125rem;
-  line-height: 1.6;
-  margin: 0 0 24px;
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
