@@ -15,9 +15,6 @@ import {
   Database,
   ArrowUpRight,
   Leaf,
-  BarChart3,
-  Truck,
-  Shield,
 } from "lucide-react";
 import { DotField } from "@agriculture/ui";
 import gsap from "gsap";
@@ -26,69 +23,58 @@ import Image from "next/image";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ─── Animated Counter Hook ─── */
-function useAnimatedCounter(target: string, triggerRef: React.RefObject<HTMLElement | null>) {
-  const counterRef = useRef<HTMLSpanElement>(null);
+const launchMetrics = [
+  {
+    id: "launch-mvp",
+    value: "MVP",
+    label: "Marketplace Foundation",
+    description:
+      "Core crop listing, buyer discovery, and partner workflows are being readied before live volume is reported.",
+  },
+  {
+    id: "launch-pilot",
+    value: "Pilot",
+    label: "Grower Onboarding",
+    description:
+      "Early validation will focus on verified listings, transparent crop data, and operational feedback.",
+  },
+  {
+    id: "launch-sms",
+    value: "Mockable",
+    label: "SMS and Webhook Flows",
+    description:
+      "Low-bandwidth communication paths can be tested locally before provider rollout.",
+  },
+  {
+    id: "launch-data",
+    value: "Ready",
+    label: "Telemetry Model",
+    description:
+      "Soil, yield, and drone data structures are prepared for real integrations as pilots begin.",
+  },
+];
 
-  useEffect(() => {
-    if (!counterRef.current || !triggerRef.current) return;
-
-    // Parse the target into numeric and suffix parts
-    const numericMatch = target.match(/^([\d.]+)(.*)$/);
-    if (!numericMatch) return;
-
-    const endValue = parseFloat(numericMatch[1]);
-    const suffix = numericMatch[2] || "";
-    const hasDecimal = numericMatch[1].includes(".");
-
-    const obj = { value: 0 };
-
-    const tween = gsap.to(obj, {
-      value: endValue,
-      duration: 2,
-      ease: "power2.out",
-      scrollTrigger: {
-        trigger: triggerRef.current,
-        start: "top 85%",
-        once: true,
-      },
-      onUpdate: () => {
-        if (counterRef.current) {
-          counterRef.current.textContent = hasDecimal
-            ? obj.value.toFixed(1) + suffix
-            : Math.round(obj.value).toLocaleString() + suffix;
-        }
-      },
-    });
-
-    return () => {
-      tween.kill();
-    };
-  }, [target, triggerRef]);
-
-  return counterRef;
-}
-
-/* ─── Stat Item Component ─── */
-function StatItem({
-  target,
+function LaunchMetric({
+  value,
   label,
-  triggerRef,
+  description,
   id,
 }: {
-  target: string;
+  value: string;
   label: string;
-  triggerRef: React.RefObject<HTMLElement | null>;
+  description: string;
   id: string;
 }) {
-  const counterRef = useAnimatedCounter(target, triggerRef);
   return (
-    <div className="space-y-1.5 group" id={id}>
-      <p className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-display text-brand-field stat-counter">
-        <span ref={counterRef}>0</span>
+    <div className="space-y-2 text-left sm:text-center group" id={id}>
+      <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-display text-brand-field">
+        {value}
       </p>
-      <p className="text-xs sm:text-sm text-brand-surface/70 font-medium tracking-wide uppercase group-hover:text-brand-surface/90 transition-colors">
+      <p className="text-xs sm:text-sm text-brand-surface/85 font-semibold tracking-wide uppercase group-hover:text-brand-surface transition-colors">
         {label}
+      </p>
+      <p className="text-xs sm:text-sm text-brand-surface/60 leading-relaxed max-w-xs sm:mx-auto">
+        {description}
       </p>
     </div>
   );
@@ -201,7 +187,6 @@ export default function LandingPage() {
   const subtitleRef = useRef<HTMLParagraphElement>(null);
   const ctaButtonsRef = useRef<HTMLDivElement>(null);
   const heroImageRef = useRef<HTMLDivElement>(null);
-  const statsRef = useRef<HTMLElement>(null);
   const featuresRef = useRef<HTMLElement>(null);
   const featureCardsRef = useRef<HTMLDivElement>(null);
   const techRef = useRef<HTMLElement>(null);
@@ -403,7 +388,20 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-brand-surface text-brand-ink selection:bg-brand-field/20 selection:text-brand-field">
+    <div className="relative isolate min-h-screen flex flex-col font-sans bg-brand-surface text-brand-ink selection:bg-brand-field/20 selection:text-brand-field">
+      <div className="fixed inset-0 z-[5] pointer-events-none" aria-hidden="true">
+        <DotField
+          dotRadius={2.2}
+          dotSpacing={20}
+          cursorRadius={520}
+          bulgeStrength={80}
+          glowRadius={220}
+          gradientFrom="rgba(45, 138, 78, 0.48)"
+          gradientTo="rgba(13, 148, 136, 0.38)"
+          glowColor="rgba(45, 138, 78, 0.2)"
+        />
+      </div>
+
       {/* ═══ HEADER ═══ */}
       <header
         ref={headerRef}
@@ -521,20 +519,9 @@ export default function LandingPage() {
       )}
 
       {/* ═══ MAIN CONTENT ═══ */}
-      <main className="flex-grow">
+      <main className="relative flex-grow">
         {/* ─── HERO SECTION ─── */}
-        <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center py-16 sm:py-20 overflow-hidden bg-brand-surface">
-          {/* Interactive Dot Canvas Background */}
-          <div className="absolute inset-0 z-0 pointer-events-auto">
-            <DotField
-              dotRadius={2.5}
-              dotSpacing={18}
-              cursorRadius={500}
-              bulgeStrength={90}
-              glowRadius={200}
-            />
-          </div>
-
+        <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center py-16 sm:py-20 overflow-hidden">
           {/* Dark gradient overlay for dot contrast */}
           <div className="hero-gradient-overlay absolute inset-0 z-[1]" />
 
@@ -637,38 +624,14 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ─── STATS STRIP ─── */}
-        <section
-          ref={statsRef}
-          className="bg-brand-ink text-brand-surface py-10 sm:py-14 relative overflow-hidden"
-        >
+        {/* ─── LAUNCH READINESS STRIP ─── */}
+        <section className="bg-brand-ink/90 text-brand-surface py-10 sm:py-14 relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(84,115,91,0.15),transparent_40%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(47,111,125,0.1),transparent_40%)]" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 md:gap-4 text-center relative z-10">
-            <StatItem
-              target="12K+"
-              label="Registered Growers"
-              triggerRef={statsRef}
-              id="stat-growers"
-            />
-            <StatItem
-              target="450K"
-              label="Tons Traded"
-              triggerRef={statsRef}
-              id="stat-traded"
-            />
-            <StatItem
-              target="25K"
-              label="IoT Field Nodes"
-              triggerRef={statsRef}
-              id="stat-sensors"
-            />
-            <StatItem
-              target="99.8%"
-              label="Fulfillment Rate"
-              triggerRef={statsRef}
-              id="stat-delivery"
-            />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7 sm:gap-8 md:gap-6 relative z-10">
+            {launchMetrics.map((metric) => (
+              <LaunchMetric key={metric.id} {...metric} />
+            ))}
           </div>
         </section>
 
@@ -676,9 +639,9 @@ export default function LandingPage() {
         <section
           id="features"
           ref={featuresRef}
-          className="py-16 sm:py-24 bg-gradient-to-b from-brand-surface/30 to-brand-surface"
+          className="py-16 sm:py-24 bg-gradient-to-b from-brand-surface/45 to-brand-surface/82"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16 relative z-10">
             {/* Section Header */}
             <div className="section-header max-w-3xl mx-auto text-center space-y-4">
               <h2 className="text-xs font-bold text-brand-field uppercase tracking-wider font-display">
@@ -821,9 +784,9 @@ export default function LandingPage() {
         <section
           id="technology"
           ref={techRef}
-          className="py-16 sm:py-24 bg-brand-surface border-t border-brand-field/10"
+          className="py-16 sm:py-24 bg-brand-surface/82 border-t border-brand-field/10"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-16 items-center">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-16 items-center relative z-10">
             {/* Left Column: Visual Showcase */}
             <div
               ref={techImageRef}
@@ -897,9 +860,9 @@ export default function LandingPage() {
         {/* ─── CTA BANNER ─── */}
         <section
           ref={ctaBannerRef}
-          className="py-16 sm:py-24 relative overflow-hidden bg-brand-surface"
+          className="py-16 sm:py-24 relative overflow-hidden bg-brand-surface/78"
         >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="cta-inner relative rounded-2xl sm:rounded-3xl overflow-hidden bg-brand-ink text-brand-surface px-6 py-12 sm:p-16 md:p-20 shadow-2xl border border-brand-field/20">
               {/* Animated gradient mesh */}
               <div className="absolute inset-0 cta-gradient-mesh" />
@@ -948,8 +911,8 @@ export default function LandingPage() {
       </main>
 
       {/* ═══ FOOTER ═══ */}
-      <footer className="bg-brand-ink text-brand-surface/80 border-t border-brand-surface/10 py-12 sm:py-16 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      <footer className="bg-brand-ink/94 text-brand-surface/80 border-t border-brand-surface/10 py-12 sm:py-16 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-10">
           {/* Footer top row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-8 md:gap-8">
             {/* Footer Logo & Brand info */}

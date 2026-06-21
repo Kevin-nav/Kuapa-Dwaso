@@ -1,4 +1,4 @@
-import { useEffect, useRef, memo, useId } from "react";
+import { useEffect, useRef, memo, useId, type HTMLAttributes } from "react";
 import { palette } from "@agriculture/design-tokens";
 
 const TWO_PI = Math.PI * 2;
@@ -22,7 +22,7 @@ interface Dot {
   y: number;
 }
 
-export interface DotFieldProps {
+export interface DotFieldProps extends HTMLAttributes<HTMLDivElement> {
   dotRadius?: number;
   dotSpacing?: number;
   cursorRadius?: number;
@@ -35,7 +35,6 @@ export interface DotFieldProps {
   gradientFrom?: string;
   gradientTo?: string;
   glowColor?: string;
-  [key: string]: unknown;
 }
 
 export const DotField = memo(
@@ -52,6 +51,8 @@ export const DotField = memo(
     gradientFrom = hexToRgba(palette.field, 0.8), // Forest green with opacity
     gradientTo = hexToRgba(palette.sky, 0.7),     // Sky teal with opacity
     glowColor = hexToRgba(palette.field, 0.25),    // Ambient glow with opacity
+    className,
+    style,
     ...rest
   }: DotFieldProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,7 +67,7 @@ export const DotField = memo(
       speed: 0,
     });
     const rafRef = useRef<number | null>(null);
-    const sizeRef = useRef({ w: 0, h: 0, offsetX: 0, offsetY: 0 });
+    const sizeRef = useRef({ w: 0, h: 0 });
     const glowOpacity = useRef(0);
     const engagement = useRef(0);
     const propsRef = useRef<Record<string, unknown>>({});
@@ -92,7 +93,8 @@ export const DotField = memo(
       const canvas = canvasRef.current;
       const glowEl = glowRef.current;
       if (!canvas) return;
-      const ctx = canvas.getContext("2d", { alpha: true });
+      const canvasEl = canvas;
+      const ctx = canvasEl.getContext("2d", { alpha: true });
       if (!ctx) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       let resizeTimer: ReturnType<typeof setTimeout>;
@@ -117,8 +119,6 @@ export const DotField = memo(
         sizeRef.current = {
           w,
           h,
-          offsetX: rect.left + window.scrollX,
-          offsetY: rect.top + window.scrollY,
         };
 
         buildDots(w, h);
@@ -153,10 +153,14 @@ export const DotField = memo(
         dotsRef.current = dots;
       }
 
+      function updatePointerPosition(clientX: number, clientY: number) {
+        const rect = (canvasEl.parentElement ?? canvasEl).getBoundingClientRect();
+        mouseRef.current.x = clientX - rect.left;
+        mouseRef.current.y = clientY - rect.top;
+      }
+
       function onMouseMove(e: MouseEvent) {
-        const s = sizeRef.current;
-        mouseRef.current.x = e.pageX - s.offsetX;
-        mouseRef.current.y = e.pageY - s.offsetY;
+        updatePointerPosition(e.clientX, e.clientY);
       }
 
       let lastTouchTime = 0;
@@ -166,17 +170,13 @@ export const DotField = memo(
         lastTouchTime = now;
         const touch = e.touches[0];
         if (!touch) return;
-        const s = sizeRef.current;
-        mouseRef.current.x = touch.pageX - s.offsetX;
-        mouseRef.current.y = touch.pageY - s.offsetY;
+        updatePointerPosition(touch.clientX, touch.clientY);
       }
 
       function onTouchStart(e: TouchEvent) {
         const touch = e.touches[0];
         if (!touch) return;
-        const s = sizeRef.current;
-        mouseRef.current.x = touch.pageX - s.offsetX;
-        mouseRef.current.y = touch.pageY - s.offsetY;
+        updatePointerPosition(touch.clientX, touch.clientY);
       }
 
       function onTouchEnd() {
@@ -314,6 +314,7 @@ export const DotField = memo(
       if (canvas.parentElement) {
         resizeObserver.observe(canvas.parentElement);
       }
+      doResize();
 
       window.addEventListener("resize", resize);
       window.addEventListener("mousemove", onMouseMove, { passive: true });
@@ -338,7 +339,6 @@ export const DotField = memo(
         window.removeEventListener("touchend", onTouchEnd);
         resizeObserver.disconnect();
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -346,7 +346,17 @@ export const DotField = memo(
     }, [dotRadius, dotSpacing]);
 
     return (
-      <div className="w-full h-full relative" {...rest}>
+      <div
+        {...rest}
+        className={className}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "hidden",
+          ...style,
+        }}
+      >
         <canvas
           ref={canvasRef}
           style={{
