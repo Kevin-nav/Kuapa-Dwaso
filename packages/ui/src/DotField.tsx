@@ -49,9 +49,9 @@ export const DotField = memo(
     glowRadius = 160,
     sparkle = false,
     waveAmplitude = 0,
-    gradientFrom = hexToRgba(palette.field, 0.55), // Forest green with opacity
-    gradientTo = hexToRgba(palette.sky, 0.45),     // Sky teal with opacity
-    glowColor = hexToRgba(palette.field, 0.15),    // Ambient glow with opacity
+    gradientFrom = hexToRgba(palette.field, 0.8), // Forest green with opacity
+    gradientTo = hexToRgba(palette.sky, 0.7),     // Sky teal with opacity
+    glowColor = hexToRgba(palette.field, 0.25),    // Ambient glow with opacity
     ...rest
   }: DotFieldProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -159,6 +159,31 @@ export const DotField = memo(
         mouseRef.current.y = e.pageY - s.offsetY;
       }
 
+      let lastTouchTime = 0;
+      function onTouchMove(e: TouchEvent) {
+        const now = performance.now();
+        if (now - lastTouchTime < 16) return;
+        lastTouchTime = now;
+        const touch = e.touches[0];
+        if (!touch) return;
+        const s = sizeRef.current;
+        mouseRef.current.x = touch.pageX - s.offsetX;
+        mouseRef.current.y = touch.pageY - s.offsetY;
+      }
+
+      function onTouchStart(e: TouchEvent) {
+        const touch = e.touches[0];
+        if (!touch) return;
+        const s = sizeRef.current;
+        mouseRef.current.x = touch.pageX - s.offsetX;
+        mouseRef.current.y = touch.pageY - s.offsetY;
+      }
+
+      function onTouchEnd() {
+        mouseRef.current.x = -9999;
+        mouseRef.current.y = -9999;
+      }
+
       function updateMouseSpeed() {
         const m = mouseRef.current;
         const dx = m.prevX - m.x;
@@ -188,7 +213,12 @@ export const DotField = memo(
         if (engagement.current < 0.001) engagement.current = 0;
         const eng = engagement.current;
 
-        glowOpacity.current += (eng - glowOpacity.current) * 0.08;
+        // Idle ambient wave - gentle breathing when no interaction
+        const isIdle = eng < 0.01;
+        const idleWave = isIdle ? Math.sin(t * 0.5) * 0.3 + 0.7 : 1.0;
+
+        const targetGlow = Math.max(eng, 0.12);
+        glowOpacity.current += (targetGlow - glowOpacity.current) * 0.08;
 
         if (glowEl) {
           glowEl.setAttribute("cx", String(m.x));
@@ -258,15 +288,18 @@ export const DotField = memo(
           if (p.sparkle) {
             const hash = ((i * 2654435761) ^ (frameCount >> 3)) >>> 0;
             if (hash % 100 < 3) {
-              ctx!.moveTo(drawX + rad * 1.8, drawY);
-              ctx!.arc(drawX, drawY, rad * 1.8, 0, TWO_PI);
+              const sparkleRad = rad * 1.8 * idleWave;
+              ctx!.moveTo(drawX + sparkleRad, drawY);
+              ctx!.arc(drawX, drawY, sparkleRad, 0, TWO_PI);
             } else {
-              ctx!.moveTo(drawX + rad, drawY);
-              ctx!.arc(drawX, drawY, rad, 0, TWO_PI);
+              const drawRad = rad * idleWave;
+              ctx!.moveTo(drawX + drawRad, drawY);
+              ctx!.arc(drawX, drawY, drawRad, 0, TWO_PI);
             }
           } else {
-            ctx!.moveTo(drawX + rad, drawY);
-            ctx!.arc(drawX, drawY, rad, 0, TWO_PI);
+            const drawRad = rad * idleWave;
+            ctx!.moveTo(drawX + drawRad, drawY);
+            ctx!.arc(drawX, drawY, drawRad, 0, TWO_PI);
           }
         }
 
@@ -284,6 +317,9 @@ export const DotField = memo(
 
       window.addEventListener("resize", resize);
       window.addEventListener("mousemove", onMouseMove, { passive: true });
+      window.addEventListener("touchmove", onTouchMove, { passive: true });
+      window.addEventListener("touchstart", onTouchStart, { passive: true });
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
       rafRef.current = requestAnimationFrame(tick);
 
       rebuildRef.current = () => {
@@ -297,6 +333,9 @@ export const DotField = memo(
         clearTimeout(resizeTimer);
         window.removeEventListener("resize", resize);
         window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("touchstart", onTouchStart);
+        window.removeEventListener("touchend", onTouchEnd);
         resizeObserver.disconnect();
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,6 +354,7 @@ export const DotField = memo(
             inset: 0,
             width: "100%",
             height: "100%",
+            willChange: "transform",
           }}
         />
         <svg
