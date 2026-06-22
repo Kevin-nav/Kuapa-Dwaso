@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as auditLogs from "../auditLogs.js";
 import type * as health from "../health.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +19,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auditLogs: typeof auditLogs;
   health: typeof health;
+  users: typeof users;
 }>;
 
 /**

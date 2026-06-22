@@ -293,7 +293,18 @@ importers:
         specifier: ^17.6.0
         version: 17.6.0
 
-  packages/permissions: {}
+  packages/permissions:
+    dependencies:
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@kuapa-dwaso/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/sms-flows: {}
 
@@ -351,7 +362,18 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/validators: {}
+  packages/validators:
+    dependencies:
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@kuapa-dwaso/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
 packages:
 
