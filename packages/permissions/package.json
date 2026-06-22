@@ -1,6 +1,26 @@
 {
   "name": "@kuapa-dwaso/permissions",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No permission tests configured yet.\"",
+    "format": "prettier --check ."
+  },
+  "dependencies": {
+    "@kuapa-dwaso/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@kuapa-dwaso/typescript-config": "workspace:*",
+    "typescript": "^6.0.3"
+  }
 }
-
