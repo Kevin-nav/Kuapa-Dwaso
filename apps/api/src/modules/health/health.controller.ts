@@ -1,5 +1,5 @@
 import { Controller, Get } from "@nestjs/common";
-import type { HealthCheckResponse } from "@agriculture/types";
+import type { HealthCheckResponse } from "@kuapa-dwaso/types";
 
 @Controller("health")
 export class HealthController {

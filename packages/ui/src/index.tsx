@@ -1,4 +1,4 @@
-import { palette, spacing } from "@agriculture/design-tokens";
+import { palette, spacing } from "@kuapa-dwaso/design-tokens";
 
 export type ButtonProps = {
   label: string;

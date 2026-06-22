@@ -1,5 +1,5 @@
-import type { MarketplaceAudience } from "@agriculture/types";
-import { Button } from "@agriculture/ui";
+import type { MarketplaceAudience } from "@kuapa-dwaso/types";
+import { Button } from "@kuapa-dwaso/ui";
 
 const audience: MarketplaceAudience = "farmer";
 

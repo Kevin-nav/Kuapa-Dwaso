@@ -1,13 +1,16 @@
 {
-  "name": "agriculture-marketplace",
+  "name": "kuapa-dwaso",
   "private": true,
   "packageManager": "pnpm@11.5.2",
   "scripts": {
     "dev": "turbo dev",
-    "dev:www": "pnpm --filter @agriculture/www dev",
-    "dev:app": "pnpm --filter @agriculture/app dev",
-    "dev:admin": "pnpm --filter @agriculture/admin dev",
-    "dev:api": "pnpm --filter @agriculture/api dev",
+    "dev:www": "pnpm --filter @kuapa-dwaso/www dev",
+    "dev:app": "pnpm --filter @kuapa-dwaso/app dev",
+    "dev:admin": "pnpm --filter @kuapa-dwaso/admin dev",
+    "dev:api": "pnpm --filter @kuapa-dwaso/api dev",
+    "convex:dev": "convex dev",
+    "convex:dev:once": "convex dev --once",
+    "convex:deploy": "convex deploy",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
@@ -32,5 +35,8 @@
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=11.5.2"
+  },
+  "dependencies": {
+    "convex": "1.41.0"
   }
 }

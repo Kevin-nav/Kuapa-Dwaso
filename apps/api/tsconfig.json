@@ -1,5 +1,5 @@
 {
-  "extends": "@agriculture/typescript-config/nestjs.json",
+  "extends": "@kuapa-dwaso/typescript-config/nestjs.json",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",

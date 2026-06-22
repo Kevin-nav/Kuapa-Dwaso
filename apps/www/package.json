@@ -1,5 +1,5 @@
 {
-  "name": "@agriculture/www",
+  "name": "@kuapa-dwaso/www",
   "private": true,
   "version": "0.0.0",
   "scripts": {
@@ -11,8 +11,8 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@agriculture/design-tokens": "workspace:*",
-    "@agriculture/ui": "workspace:*",
+    "@kuapa-dwaso/design-tokens": "workspace:*",
+    "@kuapa-dwaso/ui": "workspace:*",
     "gsap": "^3.12.5",
     "lucide-react": "^0.475.0",
     "next": "^16.2.9",
@@ -20,8 +20,8 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@agriculture/eslint-config": "workspace:*",
-    "@agriculture/typescript-config": "workspace:*",
+    "@kuapa-dwaso/eslint-config": "workspace:*",
+    "@kuapa-dwaso/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",

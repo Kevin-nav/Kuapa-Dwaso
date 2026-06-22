@@ -1,5 +1,5 @@
 {
-  "extends": "@agriculture/typescript-config/nextjs.json",
+  "extends": "@kuapa-dwaso/typescript-config/nextjs.json",
   "compilerOptions": {
     "incremental": true,
     "paths": {

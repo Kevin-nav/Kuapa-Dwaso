@@ -1,5 +1,5 @@
-import { DashboardStatusPanel } from "@agriculture/dashboard-ui";
-import type { MarketplaceAudience } from "@agriculture/types";
+import { DashboardStatusPanel } from "@kuapa-dwaso/dashboard-ui";
+import type { MarketplaceAudience } from "@kuapa-dwaso/types";
 
 const audience: MarketplaceAudience = "admin";
 

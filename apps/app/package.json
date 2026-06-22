@@ -1,5 +1,5 @@
 {
-  "name": "@agriculture/app",
+  "name": "@kuapa-dwaso/app",
   "private": true,
   "version": "0.0.0",
   "scripts": {
@@ -11,16 +11,17 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@agriculture/design-tokens": "workspace:*",
-    "@agriculture/types": "workspace:*",
-    "@agriculture/ui": "workspace:*",
+    "@kuapa-dwaso/design-tokens": "workspace:*",
+    "@kuapa-dwaso/types": "workspace:*",
+    "@kuapa-dwaso/ui": "workspace:*",
+    "convex": "1.41.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@agriculture/eslint-config": "workspace:*",
-    "@agriculture/typescript-config": "workspace:*",
+    "@kuapa-dwaso/eslint-config": "workspace:*",
+    "@kuapa-dwaso/typescript-config": "workspace:*",
     "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

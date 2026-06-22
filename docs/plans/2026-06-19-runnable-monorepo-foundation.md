@@ -34,7 +34,7 @@
 **Steps:**
 1. Add minimal Next.js app-router files for each app.
 2. Set unique dev ports and independent page copy.
-3. Use shared UI only where appropriate; keep `apps/www` away from `@agriculture/dashboard-ui`.
+3. Use shared UI only where appropriate; keep `apps/www` away from `@kuapa-dwaso/dashboard-ui`.
 4. Run `corepack pnpm build`.
 
 ### Task 3: API App

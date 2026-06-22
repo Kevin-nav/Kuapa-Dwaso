@@ -1,5 +1,5 @@
 import { useEffect, useRef, memo, useId, type HTMLAttributes } from "react";
-import { palette } from "@agriculture/design-tokens";
+import { palette } from "@kuapa-dwaso/design-tokens";
 
 const TWO_PI = Math.PI * 2;
 

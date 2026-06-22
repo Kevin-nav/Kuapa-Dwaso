@@ -1,5 +1,5 @@
 {
-  "name": "@agriculture/eslint-config",
+  "name": "@kuapa-dwaso/eslint-config",
   "private": true,
   "version": "0.0.0",
   "main": "base.js",

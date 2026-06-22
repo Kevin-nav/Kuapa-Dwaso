@@ -1,3 +1,3 @@
-import nestConfig from "@agriculture/eslint-config/nest";
+import nestConfig from "@kuapa-dwaso/eslint-config/nest";
 
 export default nestConfig;

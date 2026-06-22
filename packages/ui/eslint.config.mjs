@@ -1,3 +1,3 @@
-import reactConfig from "@agriculture/eslint-config/react";
+import reactConfig from "@kuapa-dwaso/eslint-config/react";
 
 export default reactConfig;

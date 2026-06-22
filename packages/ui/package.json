@@ -1,5 +1,5 @@
 {
-  "name": "@agriculture/ui",
+  "name": "@kuapa-dwaso/ui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -22,11 +22,11 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@agriculture/design-tokens": "workspace:*"
+    "@kuapa-dwaso/design-tokens": "workspace:*"
   },
   "devDependencies": {
-    "@agriculture/eslint-config": "workspace:*",
-    "@agriculture/typescript-config": "workspace:*",
+    "@kuapa-dwaso/eslint-config": "workspace:*",
+    "@kuapa-dwaso/typescript-config": "workspace:*",
     "@types/react": "^19.2.17",
     "typescript": "^6.0.3"
   },

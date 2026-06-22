@@ -16,7 +16,7 @@ import {
   ArrowUpRight,
   Leaf,
 } from "lucide-react";
-import { DotField } from "@agriculture/ui";
+import { DotField } from "@kuapa-dwaso/ui";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Image from "next/image";
@@ -884,7 +884,7 @@ export default function LandingPage() {
                 </h2>
 
                 <p className="text-sm sm:text-base md:text-lg text-brand-surface/85 max-w-xl mx-auto leading-relaxed">
-                  Join AgriMarket today. Sign up as a grower, register as a
+                  Join KuapaDwaso today. Sign up as a grower, register as a
                   commercial buyer, or integrate your agronomic telemetry node.
                 </p>
 
@@ -930,7 +930,7 @@ export default function LandingPage() {
                 </span>
               </a>
               <p className="text-xs sm:text-sm text-brand-surface/65 max-w-sm leading-relaxed">
-                AgriMarket is a premium digital trading platform providing
+                KuapaDwaso is a premium digital trading platform providing
                 telemetry-backed security, traceability log verification, and
                 fair marketplace exchange.
               </p>
@@ -1068,7 +1068,7 @@ export default function LandingPage() {
 
           {/* Footer bottom */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-brand-surface/50">
-            <p>© {new Date().getFullYear()} AgriMarket Inc. All rights reserved.</p>
+            <p>© {new Date().getFullYear()} KuapaDwaso Inc. All rights reserved.</p>
             <div className="flex items-center space-x-4">
               <span>Built with precision agriculture technology</span>
               <Leaf className="w-3.5 h-3.5 text-brand-field" />

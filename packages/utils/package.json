@@ -1,5 +1,5 @@
 {
-  "name": "@agriculture/utils",
+  "name": "@kuapa-dwaso/utils",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -18,8 +18,8 @@
     "format": "prettier --check ."
   },
   "devDependencies": {
-    "@agriculture/eslint-config": "workspace:*",
-    "@agriculture/typescript-config": "workspace:*",
+    "@kuapa-dwaso/eslint-config": "workspace:*",
+    "@kuapa-dwaso/typescript-config": "workspace:*",
     "typescript": "^6.0.3"
   }
 }

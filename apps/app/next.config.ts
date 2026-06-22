@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@agriculture/design-tokens", "@agriculture/types", "@agriculture/ui"]
+  transpilePackages: ["@kuapa-dwaso/design-tokens", "@kuapa-dwaso/types", "@kuapa-dwaso/ui"]
 };
 
 export default nextConfig;

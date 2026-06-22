@@ -1,3 +1,3 @@
-import baseConfig from "@agriculture/eslint-config/base";
+import baseConfig from "@kuapa-dwaso/eslint-config/base";
 
 export default baseConfig;

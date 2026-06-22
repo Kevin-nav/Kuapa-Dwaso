@@ -1,5 +1,5 @@
-import { palette } from "@agriculture/design-tokens";
-import { Button } from "@agriculture/ui";
+import { palette } from "@kuapa-dwaso/design-tokens";
+import { Button } from "@kuapa-dwaso/ui";
 
 export type DashboardStatusPanelProps = {
   eyebrow: string;
