@@ -91,3 +91,15 @@ export function isTransportRequestStatus(value: unknown): value is TransportRequ
 export function isTransportPayer(value: unknown): value is TransportPayer {
   return isOneOf(transportPayers, value);
 }
+
+export function isPositiveQuantity(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+export function isNonNegativeMoney(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+export function hasNonEmptyText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
