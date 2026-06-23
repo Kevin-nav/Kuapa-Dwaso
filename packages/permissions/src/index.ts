@@ -15,7 +15,23 @@ export function canCreateListing(role: MarketplaceRole): boolean {
   return marketplaceOperatorRoles.has(role);
 }
 
+export function canUpdateProduceListing(role: MarketplaceRole): boolean {
+  return marketplaceOperatorRoles.has(role);
+}
+
+export function canUpdateProduceListingStatus(role: MarketplaceRole): boolean {
+  return marketplaceOperatorRoles.has(role);
+}
+
 export function canCreateBulkLot(role: MarketplaceRole): boolean {
+  return agentLikeRoles.has(role);
+}
+
+export function canUpdateBulkLot(role: MarketplaceRole): boolean {
+  return agentLikeRoles.has(role);
+}
+
+export function canUpdateBulkLotStatus(role: MarketplaceRole): boolean {
   return agentLikeRoles.has(role);
 }
 
