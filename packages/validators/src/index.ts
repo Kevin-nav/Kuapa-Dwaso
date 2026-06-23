@@ -2,8 +2,10 @@ import {
   agentStatuses,
   approvalActionTypes,
   approvalStatuses,
+  auditEntityTypes,
   bulkLotStatuses,
   dealStatuses,
+  disputeStatuses,
   farmerVerificationStatuses,
   listingStatuses,
   marketplaceRoles,
@@ -16,8 +18,10 @@ import {
   type AgentStatus,
   type ApprovalActionType,
   type ApprovalStatus,
+  type AuditEntityType,
   type BulkLotStatus,
   type DealStatus,
+  type DisputeStatus,
   type FarmerVerificationStatus,
   type ListingStatus,
   type MarketplaceRole,
@@ -26,12 +30,12 @@ import {
   type RegistrationSource,
   type TransportPayer,
   type TransportRequestStatus,
-  type UserStatus
+  type UserStatus,
 } from "@kuapa-dwaso/types";
 
 function isOneOf<const Values extends readonly string[]>(
   values: Values,
-  value: unknown
+  value: unknown,
 ): value is Values[number] {
   return typeof value === "string" && values.includes(value);
 }
@@ -48,11 +52,15 @@ export function isAgentStatus(value: unknown): value is AgentStatus {
   return isOneOf(agentStatuses, value);
 }
 
-export function isFarmerVerificationStatus(value: unknown): value is FarmerVerificationStatus {
+export function isFarmerVerificationStatus(
+  value: unknown,
+): value is FarmerVerificationStatus {
   return isOneOf(farmerVerificationStatuses, value);
 }
 
-export function isRegistrationSource(value: unknown): value is RegistrationSource {
+export function isRegistrationSource(
+  value: unknown,
+): value is RegistrationSource {
   return isOneOf(registrationSources, value);
 }
 
@@ -76,7 +84,9 @@ export function isPaymentStatus(value: unknown): value is PaymentStatus {
   return isOneOf(paymentStatuses, value);
 }
 
-export function isApprovalActionType(value: unknown): value is ApprovalActionType {
+export function isApprovalActionType(
+  value: unknown,
+): value is ApprovalActionType {
   return isOneOf(approvalActionTypes, value);
 }
 
@@ -84,7 +94,17 @@ export function isApprovalStatus(value: unknown): value is ApprovalStatus {
   return isOneOf(approvalStatuses, value);
 }
 
-export function isTransportRequestStatus(value: unknown): value is TransportRequestStatus {
+export function isAuditEntityType(value: unknown): value is AuditEntityType {
+  return isOneOf(auditEntityTypes, value);
+}
+
+export function isDisputeStatus(value: unknown): value is DisputeStatus {
+  return isOneOf(disputeStatuses, value);
+}
+
+export function isTransportRequestStatus(
+  value: unknown,
+): value is TransportRequestStatus {
   return isOneOf(transportRequestStatuses, value);
 }
 
