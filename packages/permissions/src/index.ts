@@ -11,6 +11,22 @@ export function canCreateFarmerProfile(role: MarketplaceRole): boolean {
   return marketplaceOperatorRoles.has(role);
 }
 
+export function canCompleteFarmerProfile(role: MarketplaceRole): boolean {
+  return marketplaceOperatorRoles.has(role);
+}
+
+export function canAssignFarmerToAgent(role: MarketplaceRole): boolean {
+  return role === "admin";
+}
+
+export function canVerifyFarmer(role: MarketplaceRole): boolean {
+  return role === "admin";
+}
+
+export function canRejectFarmer(role: MarketplaceRole): boolean {
+  return role === "admin";
+}
+
 export function canCreateListing(role: MarketplaceRole): boolean {
   return marketplaceOperatorRoles.has(role);
 }
