@@ -1,4 +1,10 @@
-export const marketplaceRoles = ["farmer", "agent", "buyer", "transporter", "admin"] as const;
+export const marketplaceRoles = [
+  "farmer",
+  "agent",
+  "buyer",
+  "transporter",
+  "admin",
+] as const;
 export type MarketplaceRole = (typeof marketplaceRoles)[number];
 
 export type MarketplaceAudience = "public" | MarketplaceRole;
@@ -10,14 +16,30 @@ export type HealthCheckResponse = {
   status: HealthStatus;
 };
 
-export const userStatuses = ["pending", "active", "suspended", "rejected", "deactivated"] as const;
+export const userStatuses = [
+  "pending",
+  "active",
+  "suspended",
+  "rejected",
+  "deactivated",
+] as const;
 export type UserStatus = (typeof userStatuses)[number];
 
-export const agentStatuses = ["pending", "approved", "rejected", "suspended"] as const;
+export const agentStatuses = [
+  "pending",
+  "approved",
+  "rejected",
+  "suspended",
+] as const;
 export type AgentStatus = (typeof agentStatuses)[number];
 
-export const farmerVerificationStatuses = ["pending", "verified", "rejected"] as const;
-export type FarmerVerificationStatus = (typeof farmerVerificationStatuses)[number];
+export const farmerVerificationStatuses = [
+  "pending",
+  "verified",
+  "rejected",
+] as const;
+export type FarmerVerificationStatus =
+  (typeof farmerVerificationStatuses)[number];
 
 export const registrationSources = ["sms", "agent", "web"] as const;
 export type RegistrationSource = (typeof registrationSources)[number];
@@ -34,7 +56,7 @@ export const listingStatuses = [
   "sold",
   "expired",
   "disputed",
-  "cancelled"
+  "cancelled",
 ] as const;
 export type ListingStatus = (typeof listingStatuses)[number];
 
@@ -48,7 +70,7 @@ export const bulkLotStatuses = [
   "in_transit",
   "completed",
   "cancelled",
-  "disputed"
+  "disputed",
 ] as const;
 export type BulkLotStatus = (typeof bulkLotStatuses)[number];
 
@@ -62,7 +84,7 @@ export const dealStatuses = [
   "delivered",
   "completed",
   "cancelled",
-  "disputed"
+  "disputed",
 ] as const;
 export type DealStatus = (typeof dealStatuses)[number];
 
@@ -75,7 +97,7 @@ export const paymentStatuses = [
   "released",
   "failed",
   "refunded",
-  "disputed"
+  "disputed",
 ] as const;
 export type PaymentStatus = (typeof paymentStatuses)[number];
 
@@ -85,11 +107,16 @@ export const approvalActionTypes = [
   "CONFIRM_PAYMENT",
   "CHANGE_PRICE",
   "CHANGE_PHONE",
-  "REMOVE_FROM_BULK_LOT"
+  "REMOVE_FROM_BULK_LOT",
 ] as const;
 export type ApprovalActionType = (typeof approvalActionTypes)[number];
 
-export const approvalStatuses = ["pending", "approved", "rejected", "expired"] as const;
+export const approvalStatuses = [
+  "pending",
+  "approved",
+  "rejected",
+  "expired",
+] as const;
 export type ApprovalStatus = (typeof approvalStatuses)[number];
 
 export const transportRequestStatuses = [
@@ -101,11 +128,16 @@ export const transportRequestStatuses = [
   "in_transit",
   "delivered",
   "cancelled",
-  "issue_reported"
+  "issue_reported",
 ] as const;
 export type TransportRequestStatus = (typeof transportRequestStatuses)[number];
 
-export const transportPayers = ["buyer_pays", "seller_pays", "shared", "included_in_price"] as const;
+export const transportPayers = [
+  "buyer_pays",
+  "seller_pays",
+  "shared",
+  "included_in_price",
+] as const;
 export type TransportPayer = (typeof transportPayers)[number];
 
 export const auditEntityTypes = [
@@ -121,7 +153,7 @@ export const auditEntityTypes = [
   "approval_request",
   "dispute",
   "notification",
-  "app_setting"
+  "app_setting",
 ] as const;
 export type AuditEntityType = (typeof auditEntityTypes)[number];
 
@@ -142,3 +174,48 @@ export type AuditLogInput = AuditActor &
     after?: Record<string, unknown>;
     metadata?: Record<string, unknown>;
   };
+
+export type RequestingActorInput = {
+  requestingUserId?: string;
+  requestingActorRole?: MarketplaceRole;
+};
+
+export type VerifiedActorInput = {
+  actorId: string;
+  actorUserId?: string;
+  actorRole: MarketplaceRole;
+};
+
+export const disputeStatuses = [
+  "open",
+  "under_review",
+  "resolved",
+  "cancelled",
+] as const;
+export type DisputeStatus = (typeof disputeStatuses)[number];
+
+export type PlatformSummaryCounts = {
+  farmers: number;
+  agents: number;
+  buyers: number;
+  listings: number;
+  bulkLots: number;
+  deals: number;
+  transportRequests: number;
+  disputes: number;
+  openDisputes: number;
+};
+
+export type HotspotRecord = {
+  cropType: string;
+  area: string;
+  unit: string;
+  supplyScore: number;
+  demandScore: number;
+  opportunityScore: number;
+  activeListings: number;
+  activeBulkLots: number;
+  activeDeals: number;
+  activeTransportRequests: number;
+  explanation: string[];
+};

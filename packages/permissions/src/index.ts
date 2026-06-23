@@ -31,7 +31,27 @@ export function canViewAuditLogs(role: MarketplaceRole): boolean {
   return role === "admin";
 }
 
-export function requiresFarmerApproval(actionType: ApprovalActionType): boolean {
+export function canViewAdminObservability(role: MarketplaceRole): boolean {
+  return role === "admin";
+}
+
+export function canCreateDispute(role: MarketplaceRole): boolean {
+  return (
+    role === "farmer" ||
+    role === "agent" ||
+    role === "buyer" ||
+    role === "transporter" ||
+    role === "admin"
+  );
+}
+
+export function canManageDisputes(role: MarketplaceRole): boolean {
+  return role === "admin";
+}
+
+export function requiresFarmerApproval(
+  actionType: ApprovalActionType,
+): boolean {
   return (
     actionType === "ACCEPT_DEAL" ||
     actionType === "MARK_PICKED_UP" ||
