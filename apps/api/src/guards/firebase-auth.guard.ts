@@ -1,17 +1,25 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { getApiEnvironment } from "../config/env.js";
-import type { RequestWithPrincipal } from "../lib/auth-principal.js";
+import type { AuthPrincipal, RequestWithPrincipal } from "../lib/auth-principal.js";
+import { ConvexUserProfilesProvider } from "../providers/convex-user-profiles.provider.js";
+import { FirebaseAdminTokenVerifier } from "../providers/firebase-auth.provider.js";
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  constructor(
+    private readonly tokenVerifier: FirebaseAdminTokenVerifier,
+    private readonly userProfiles: ConvexUserProfilesProvider
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const env = getApiEnvironment();
     const request = context.switchToHttp().getRequest<RequestWithPrincipal>();
 
-    if (env.firebaseAuthDisabled) {
+    if (env.auth.disabled) {
       request.user = {
         authProviderId: "dev-auth-disabled",
-        roles: ["admin"]
+        roles: ["admin"],
+        status: "active"
       };
       return true;
     }
@@ -21,7 +29,32 @@ export class FirebaseAuthGuard implements CanActivate {
       throw new UnauthorizedException("Missing bearer token.");
     }
 
-    throw new UnauthorizedException("Firebase token verification is not configured yet.");
+    const verifiedToken = await this.tokenVerifier.verifyIdToken(token);
+    const userProfile = await this.userProfiles.getByAuthProviderId(verifiedToken.authProviderId);
+    if (userProfile === null) {
+      throw new ForbiddenException("Authenticated user profile is not registered.");
+    }
+
+    const principal: AuthPrincipal = {
+      authProviderId: verifiedToken.authProviderId,
+      userId: userProfile.userId,
+      roles: [userProfile.role],
+      status: userProfile.status
+    };
+
+    const email = userProfile.email ?? verifiedToken.email;
+    if (email !== undefined) {
+      principal.email = email;
+    }
+
+    const phoneNumber = userProfile.phoneNumber ?? verifiedToken.phoneNumber;
+    if (phoneNumber !== undefined) {
+      principal.phoneNumber = phoneNumber;
+    }
+
+    request.user = principal;
+
+    return true;
   }
 }
 
