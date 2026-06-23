@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@kuapa-dwaso/permissions':
+        specifier: workspace:*
+        version: link:packages/permissions
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:packages/types
       convex:
         specifier: 1.41.0
         version: 1.41.0(react@19.2.7)

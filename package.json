@@ -37,6 +37,8 @@
     "pnpm": ">=11.5.2"
   },
   "dependencies": {
+    "@kuapa-dwaso/permissions": "workspace:*",
+    "@kuapa-dwaso/types": "workspace:*",
     "convex": "1.41.0"
   }
 }
