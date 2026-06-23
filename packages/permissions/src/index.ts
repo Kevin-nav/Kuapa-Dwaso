@@ -1,10 +1,16 @@
 import type { ApprovalActionType, MarketplaceRole } from "@kuapa-dwaso/types";
 
+const marketplaceOperatorRoles = new Set<MarketplaceRole>(["agent", "admin"]);
+
 export const permissionKeys = [
   "agentApplications:manage",
   "farmerProfiles:create",
   "listings:create",
+  "listings:update",
+  "listings:updateStatus",
   "bulkLots:create",
+  "bulkLots:update",
+  "bulkLots:updateStatus",
   "offers:submit",
   "transport:manage",
   "auditLogs:view",
@@ -16,7 +22,16 @@ const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
   farmer: new Set(),
   buyer: new Set(["offers:submit"]),
   transporter: new Set(["transport:manage"]),
-  agent: new Set(["farmerProfiles:create", "listings:create", "bulkLots:create", "transport:manage"]),
+  agent: new Set([
+    "farmerProfiles:create",
+    "listings:create",
+    "listings:update",
+    "listings:updateStatus",
+    "bulkLots:create",
+    "bulkLots:update",
+    "bulkLots:updateStatus",
+    "transport:manage"
+  ]),
   admin: new Set(permissionKeys)
 };
 
@@ -63,8 +78,24 @@ export function canCreateListing(role: MarketplaceRole): boolean {
   return roleHasPermission(role, "listings:create");
 }
 
+export function canUpdateProduceListing(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "listings:update");
+}
+
+export function canUpdateProduceListingStatus(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "listings:updateStatus");
+}
+
 export function canCreateBulkLot(role: MarketplaceRole): boolean {
   return roleHasPermission(role, "bulkLots:create");
+}
+
+export function canUpdateBulkLot(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "bulkLots:update");
+}
+
+export function canUpdateBulkLotStatus(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "bulkLots:updateStatus");
 }
 
 export function canSubmitOffer(role: MarketplaceRole): boolean {
