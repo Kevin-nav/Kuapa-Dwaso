@@ -8,9 +8,21 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
+import type * as agents from "../agents.js";
 import type * as auditLogs from "../auditLogs.js";
+import type * as auth from "../auth.js";
+import type * as bulkLots from "../bulkLots.js";
+import type * as buyers from "../buyers.js";
+import type * as deals from "../deals.js";
+import type * as disputes from "../disputes.js";
+import type * as farmers from "../farmers.js";
 import type * as health from "../health.js";
+import type * as hotspots from "../hotspots.js";
+import type * as listings from "../listings.js";
+import type * as observabilityAccess from "../observabilityAccess.js";
 import type * as users from "../users.js";
+import type * as workflowHelpers from "../workflowHelpers.js";
 
 import type {
   ApiFromModules,
@@ -19,9 +31,21 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
+  agents: typeof agents;
   auditLogs: typeof auditLogs;
+  auth: typeof auth;
+  bulkLots: typeof bulkLots;
+  buyers: typeof buyers;
+  deals: typeof deals;
+  disputes: typeof disputes;
+  farmers: typeof farmers;
   health: typeof health;
+  hotspots: typeof hotspots;
+  listings: typeof listings;
+  observabilityAccess: typeof observabilityAccess;
   users: typeof users;
+  workflowHelpers: typeof workflowHelpers;
 }>;
 
 /**

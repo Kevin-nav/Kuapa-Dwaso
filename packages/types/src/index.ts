@@ -83,6 +83,7 @@ export const dealStatuses = [
   "in_transit",
   "delivered",
   "completed",
+  "rejected",
   "cancelled",
   "disputed",
 ] as const;
@@ -218,4 +219,50 @@ export type HotspotRecord = {
   activeDeals: number;
   activeTransportRequests: number;
   explanation: string[];
+};
+
+export type BuyerProfileInput = {
+  userId: string;
+  displayName: string;
+  phoneNumber?: string;
+  organizationName?: string;
+  preferredLocations: string[];
+};
+
+export type BuyerBulkLotSearchFilters = {
+  cropType?: string;
+  locationArea?: string;
+  minimumQuantity?: number;
+  grade?: ProduceGrade;
+  maximumPricePerUnit?: number;
+  availableOnOrAfter?: number;
+  availableOnOrBefore?: number;
+  limit?: number;
+};
+
+export type BuyerBulkLotSummary = {
+  id: string;
+  cropType: string;
+  locationArea: string;
+  totalQuantity: number;
+  availableQuantity: number;
+  unit: string;
+  farmerCount: number;
+  grade: ProduceGrade;
+  priceRange?: {
+    min: number;
+    max: number;
+  };
+  pickupWindowStart: number;
+  pickupWindowEnd: number;
+  status: "active" | "buyer_interest" | "negotiation";
+  transportReady: boolean;
+  agentId: string;
+};
+
+export type BuyerOfferInput = {
+  bulkLotId: string;
+  quantity: number;
+  offerPricePerUnit?: number;
+  clientRequestId?: string;
 };

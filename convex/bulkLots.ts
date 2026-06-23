@@ -1,4 +1,10 @@
-import { canCreateBulkLot, canUpdateBulkLot, canUpdateBulkLotStatus } from "@kuapa-dwaso/permissions";
+import {
+  calculateBulkLotAvailableQuantity,
+  canCreateBulkLot,
+  canUpdateBulkLot,
+  canUpdateBulkLotStatus,
+  isQuantityHoldingDealStatus
+} from "@kuapa-dwaso/permissions";
 import type { BulkLotStatus, MarketplaceRole } from "@kuapa-dwaso/types";
 import {
   assertListingCanEnterBulkLot,
@@ -8,7 +14,7 @@ import {
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -52,6 +58,8 @@ const activeMembershipBulkLotStatuses = new Set([
   "transport_pending",
   "in_transit"
 ]);
+
+const buyerVisibleStatuses = new Set<BulkLotStatus>(["active", "buyer_interest", "negotiation"]);
 
 function assertPermission(allowed: boolean, message: string): void {
   if (!allowed) {
@@ -208,6 +216,35 @@ async function recalculateAndPatchBulkLot(
   });
 
   return await getRequiredBulkLot(ctx, bulkLot._id);
+}
+
+async function getAvailableQuantity(ctx: QueryCtx, bulkLot: Doc<"bulkLots">): Promise<number> {
+  const deals = await ctx.db
+    .query("deals")
+    .withIndex("by_bulk_lot", (q) => q.eq("bulkLotId", bulkLot._id))
+    .collect();
+  const quantityHoldingDeals = deals.filter((deal) => isQuantityHoldingDealStatus(deal.status));
+
+  return calculateBulkLotAvailableQuantity(bulkLot.totalQuantity, quantityHoldingDeals);
+}
+
+function toBuyerSummary(bulkLot: Doc<"bulkLots">, availableQuantity: number) {
+  return {
+    id: bulkLot._id,
+    cropType: bulkLot.cropType,
+    locationArea: bulkLot.locationArea,
+    totalQuantity: bulkLot.totalQuantity,
+    availableQuantity,
+    unit: bulkLot.unit,
+    farmerCount: bulkLot.farmerCount,
+    grade: bulkLot.grade,
+    priceRange: bulkLot.priceRange,
+    pickupWindowStart: bulkLot.pickupWindowStart,
+    pickupWindowEnd: bulkLot.pickupWindowEnd,
+    status: bulkLot.status,
+    transportReady: bulkLot.transportReady,
+    agentId: bulkLot.agentId
+  };
 }
 
 export const createBulkLot = mutation({
@@ -440,41 +477,65 @@ export const updateBulkLotStatus = mutation({
   }
 });
 
-export const listBulkLotsForBuyers = query({
+export const searchActiveForBuyers = query({
   args: {
     cropType: v.optional(v.string()),
     locationArea: v.optional(v.string()),
-    status: v.optional(bulkLotStatus),
+    minimumQuantity: v.optional(v.number()),
+    grade: v.optional(produceGrade),
+    maximumPricePerUnit: v.optional(v.number()),
+    availableOnOrAfter: v.optional(v.number()),
+    availableOnOrBefore: v.optional(v.number()),
     limit: v.optional(v.number())
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const status = args.status ?? "active";
-    const limit = args.limit ?? 100;
-    let bulkLots: Doc<"bulkLots">[];
+    const limit = Math.min(args.limit ?? 50, 100);
+    const cropType = args.cropType;
+    const locationArea = args.locationArea;
+    const candidates =
+      cropType !== undefined && locationArea !== undefined
+        ? await ctx.db
+            .query("bulkLots")
+            .withIndex("by_crop_location_status", (q) =>
+              q.eq("cropType", cropType).eq("locationArea", locationArea)
+            )
+            .collect()
+        : await ctx.db.query("bulkLots").withIndex("by_status", (q) => q.eq("status", "active")).collect();
 
-    if (args.cropType !== undefined && args.locationArea !== undefined) {
-      bulkLots = await ctx.db
-        .query("bulkLots")
-        .withIndex("by_crop_location_status", (q) =>
-          q.eq("cropType", args.cropType as string).eq("locationArea", args.locationArea as string).eq("status", status as BulkLotStatus)
-        )
-        .take(limit);
-    } else if (args.status !== undefined) {
-      bulkLots = await ctx.db
-        .query("bulkLots")
-        .withIndex("by_status", (q) => q.eq("status", status as BulkLotStatus))
-        .take(limit);
-    } else {
-      bulkLots = await ctx.db
-        .query("bulkLots")
-        .withIndex("by_status", (q) => q.eq("status", "active"))
-        .take(limit);
+    const summaries = [];
+
+    for (const bulkLot of candidates) {
+      if (!buyerVisibleStatuses.has(bulkLot.status)) {
+        continue;
+      }
+
+      const availableQuantity = await getAvailableQuantity(ctx, bulkLot);
+
+      if (args.minimumQuantity !== undefined && availableQuantity < args.minimumQuantity) {
+        continue;
+      }
+
+      summaries.push(toBuyerSummary(bulkLot, availableQuantity));
     }
 
-    return bulkLots
-      .filter((bulkLot) => bulkLot.status === status)
-      .filter((bulkLot) => args.cropType === undefined || bulkLot.cropType === args.cropType)
-      .filter((bulkLot) => args.locationArea === undefined || bulkLot.locationArea === args.locationArea);
+    return summaries
+      .filter((bulkLot) => buyerVisibleStatuses.has(bulkLot.status))
+      .filter((bulkLot) => (args.cropType === undefined ? true : bulkLot.cropType === args.cropType))
+      .filter((bulkLot) => (args.locationArea === undefined ? true : bulkLot.locationArea === args.locationArea))
+      .filter((bulkLot) => (args.minimumQuantity === undefined ? true : bulkLot.availableQuantity >= args.minimumQuantity))
+      .filter((bulkLot) => (args.grade === undefined ? true : bulkLot.grade === args.grade))
+      .filter((bulkLot) =>
+        args.maximumPricePerUnit === undefined || bulkLot.priceRange === undefined
+          ? true
+          : bulkLot.priceRange.min <= args.maximumPricePerUnit
+      )
+      .filter((bulkLot) =>
+        args.availableOnOrAfter === undefined ? true : bulkLot.pickupWindowEnd >= args.availableOnOrAfter
+      )
+      .filter((bulkLot) =>
+        args.availableOnOrBefore === undefined ? true : bulkLot.pickupWindowStart <= args.availableOnOrBefore
+      )
+      .slice(0, limit);
   }
 });

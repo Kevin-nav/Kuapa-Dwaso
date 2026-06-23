@@ -62,6 +62,7 @@ const dealStatus = v.union(
   v.literal("in_transit"),
   v.literal("delivered"),
   v.literal("completed"),
+  v.literal("rejected"),
   v.literal("cancelled"),
   v.literal("disputed")
 );
@@ -238,7 +239,13 @@ export default defineSchema({
     cropType: v.string(),
     quantity: v.number(),
     unit: v.string(),
+    clientRequestId: v.optional(v.string()),
     offerPricePerUnit: v.optional(v.number()),
+    counterPricePerUnit: v.optional(v.number()),
+    counteredByRole: v.optional(v.union(v.literal("buyer"), v.literal("agent"), v.literal("admin"))),
+    buyerNote: v.optional(v.string()),
+    agentNote: v.optional(v.string()),
+    statusReason: v.optional(v.string()),
     finalPricePerUnit: v.optional(v.number()),
     totalAmount: v.optional(v.number()),
     status: dealStatus,
@@ -247,6 +254,7 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index("by_buyer", ["buyerId"])
+    .index("by_buyer_bulk_lot_client_request", ["buyerId", "bulkLotId", "clientRequestId"])
     .index("by_agent", ["agentId"])
     .index("by_bulk_lot", ["bulkLotId"])
     .index("by_status", ["status"])
