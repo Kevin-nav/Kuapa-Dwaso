@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@kuapa-dwaso/permissions':
+        specifier: workspace:*
+        version: link:packages/permissions
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:packages/types
+      '@kuapa-dwaso/utils':
+        specifier: workspace:*
+        version: link:packages/utils
       convex:
         specifier: 1.41.0
         version: 1.41.0(react@19.2.7)
@@ -351,6 +360,10 @@ importers:
         version: 6.0.3
 
   packages/utils:
+    dependencies:
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       '@kuapa-dwaso/eslint-config':
         specifier: workspace:*
