@@ -149,6 +149,7 @@ export default defineSchema({
     .index("by_farmer_code", ["farmerCode"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_assigned_agent", ["assignedAgentId"])
+    .index("by_assigned_agent_verification_status", ["assignedAgentId", "verificationStatus"])
     .index("by_verification_status", ["verificationStatus"]),
 
   agents: defineTable({
