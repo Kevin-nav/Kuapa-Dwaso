@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { resolveActor } from "./auth";
+import { auditSnapshot, insertAuditLog, type Actor } from "./workflowHelpers";
 
 const dealStatus = v.union(
   v.literal("offer_received"),
@@ -133,23 +134,39 @@ function getCounterActorRole(actor: Doc<"users">): DealCounterActorRole {
 
 async function auditDealChange(
   ctx: MutationCtx,
-  actor: Doc<"users">,
+  actor: Actor,
   action: string,
   dealId: Id<"deals">,
   before: Doc<"deals"> | null,
   after: Doc<"deals">,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  await ctx.db.insert("auditLogs", {
-    actorId: actor._id,
-    actorRole: actor.role,
+  await insertAuditLog(ctx, {
+    actor,
     action,
     entityType: "deal",
     entityId: dealId,
-    after,
-    createdAt: Date.now(),
-    ...(before === null ? {} : { before }),
-    ...(metadata === undefined ? {} : { metadata })
+    before: before === null ? undefined : auditSnapshot(before),
+    after: auditSnapshot(after),
+    metadata
+  });
+}
+
+async function auditBulkLotStatusChange(
+  ctx: MutationCtx,
+  actor: Actor,
+  before: Doc<"bulkLots">,
+  after: Doc<"bulkLots">,
+  metadata?: Record<string, unknown>
+): Promise<void> {
+  await insertAuditLog(ctx, {
+    actor,
+    action: "bulk_lot.status_updated",
+    entityType: "bulk_lot",
+    entityId: before._id,
+    before: auditSnapshot(before),
+    after: auditSnapshot(after),
+    metadata
   });
 }
 
@@ -251,6 +268,14 @@ export const createOffer = mutation({
         status: "buyer_interest",
         updatedAt: now
       });
+      const afterBulkLot = await ctx.db.get(bulkLot._id);
+      if (afterBulkLot !== null) {
+        await auditBulkLotStatusChange(ctx, actor, bulkLot, afterBulkLot, {
+          source: "convex.deals.createOffer",
+          reason: "buyer_offer_received",
+          dealId
+        });
+      }
     }
 
     const after = await ctx.db.get(dealId);
@@ -302,6 +327,9 @@ export const listDeals = query({
               : await ctx.db.query("deals").take(limit);
 
     const filtered = deals
+      .filter((deal) => (args.buyerId === undefined ? true : deal.buyerId === args.buyerId))
+      .filter((deal) => (args.agentId === undefined ? true : deal.agentId === args.agentId))
+      .filter((deal) => (args.bulkLotId === undefined ? true : deal.bulkLotId === args.bulkLotId))
       .filter((deal) => (args.status === undefined ? true : deal.status === args.status))
       .slice(0, limit);
 

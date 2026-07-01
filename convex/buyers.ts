@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { resolveActor } from "./auth";
+import { auditSnapshot, insertAuditLog, type Actor } from "./workflowHelpers";
 
 const userStatus = v.union(
   v.literal("pending"),
@@ -14,27 +15,25 @@ const userStatus = v.union(
 
 async function auditBuyerChange(
   ctx: MutationCtx,
-  actor: Doc<"users">,
+  actor: Actor,
   action: string,
   buyerId: Id<"buyers">,
   before: Doc<"buyers"> | null,
   after: Doc<"buyers">
 ): Promise<void> {
-  await ctx.db.insert("auditLogs", {
-    actorId: actor._id,
-    actorRole: actor.role,
+  await insertAuditLog(ctx, {
+    actor,
     action,
     entityType: "buyer",
     entityId: buyerId,
-    after,
+    before: before === null ? undefined : auditSnapshot(before),
+    after: auditSnapshot(after),
     metadata: {
       source: "convex.buyers.createOrUpdateProfile",
       profileUserId: after.userId,
       previousStatus: before?.status,
       nextStatus: after.status
-    },
-    ...(before === null ? {} : { before }),
-    createdAt: Date.now()
+    }
   });
 }
 

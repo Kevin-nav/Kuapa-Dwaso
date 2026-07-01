@@ -211,6 +211,29 @@ Convex one-shot preparation succeeded and confirmed new indexes, including:
 
 Keep Wave 3, but adjust its order.
 
+## Wave 2 Integration Notes
+
+The Wave 2 integration pass tightened the merged Wave 1 backend without starting Wave 3 feature work.
+
+Integration findings:
+
+- Listings and bulk lots still accepted an unverified `{ actorId, actorRole }` input while adjacent identity, agent, farmer, buyer, and deal flows resolved actors from `actorUserId`.
+- Listing and bulk lot audit writes repeated local helper code despite the shared `workflowHelpers.insertAuditLog` helper.
+- A bulk lot could be created directly in any bulk lot status, including terminal statuses, while still marking member listings as `in_bulk_lot`.
+- Buyer offer creation moved active bulk lots into `buyer_interest`, but the bulk lot status side effect was not audited.
+- Deal listing queries selected one index path but did not consistently apply every optional filter in the returned shape.
+
+Applied integration changes:
+
+- Listing, bulk lot, buyer, and deal mutations now share the verified actor/audit helper path where practical.
+- Listing and bulk lot writes verify that non-admin agents are operating on their own approved agent profile.
+- Bulk lots can only be created as `forming` or `active`; buyer interest remains driven by buyer offer activity.
+- Buyer offer creation audits both the created deal and the active-to-`buyer_interest` bulk lot transition.
+- Deal list filtering now applies buyer, agent, bulk lot, and status filters consistently after selecting a candidate index.
+- Permission tests now explicitly pin the `accepted_pending_farmer_approval` handoff and rejected/cancelled/disputed terminal behavior.
+
+Wave 3 priorities do not need to change beyond the current recommendation: build the approval engine first, then transport coordination, then payments. The integration pass reinforces that approval requests are the missing bridge from pending farmer approval to trusted deal acceptance.
+
 Recommended next order:
 
 1. **Wave 2 integration pass**

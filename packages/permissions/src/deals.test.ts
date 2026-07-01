@@ -10,11 +10,16 @@ test("deal status transitions require farmer approval before accepted", () => {
   assert.equal(canTransitionDealStatus("offer_received", "accepted"), false);
   assert.equal(canTransitionDealStatus("offer_received", "accepted_pending_farmer_approval"), true);
   assert.equal(canTransitionDealStatus("accepted_pending_farmer_approval", "accepted"), false);
+  assert.equal(canTransitionDealStatus("accepted_pending_farmer_approval", "rejected"), true);
+  assert.equal(canTransitionDealStatus("accepted_pending_farmer_approval", "cancelled"), true);
+  assert.equal(canTransitionDealStatus("accepted_pending_farmer_approval", "disputed"), true);
 });
 
 test("terminal offer states cannot be reopened", () => {
   assert.equal(canTransitionDealStatus("cancelled", "offer_received"), false);
   assert.equal(canTransitionDealStatus("rejected", "countered"), false);
+  assert.equal(canTransitionDealStatus("disputed", "countered"), false);
+  assert.equal(canTransitionDealStatus("disputed", "completed"), false);
 });
 
 test("quantity availability subtracts active, completed, and disputed deal quantities", () => {

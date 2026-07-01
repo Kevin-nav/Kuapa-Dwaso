@@ -11,23 +11,12 @@ import {
   calculateBulkLotFromListings,
   type BulkLotListingSnapshot
 } from "@kuapa-dwaso/utils";
+import type { BulkLotStatus } from "@kuapa-dwaso/types";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-
-const marketplaceRole = v.union(
-  v.literal("farmer"),
-  v.literal("agent"),
-  v.literal("buyer"),
-  v.literal("transporter"),
-  v.literal("admin")
-);
-
-const actor = v.object({
-  actorId: v.string(),
-  actorRole: marketplaceRole
-});
+import { auditSnapshot, getActor, insertAuditLog, type Actor } from "./workflowHelpers";
 
 const produceGrade = v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("mixed"));
 
@@ -43,11 +32,6 @@ const bulkLotStatus = v.union(
   v.literal("cancelled"),
   v.literal("disputed")
 );
-
-type AuditActor = {
-  actorId: string;
-  actorRole: MarketplaceRole;
-};
 
 const activeMembershipBulkLotStatuses = new Set([
   "forming",
@@ -80,6 +64,12 @@ function assertNoDuplicateListingIds(listingIds: Id<"produceListings">[]): void 
 function assertPickupWindow(pickupWindowStart: number, pickupWindowEnd: number): void {
   if (pickupWindowEnd < pickupWindowStart) {
     throw new Error("Bulk lot pickup window end must be after the start.");
+  }
+}
+
+function assertInitialBulkLotStatus(status: BulkLotStatus): void {
+  if (status !== "forming" && status !== "active") {
+    throw new Error("Bulk lots can only be created as forming or active.");
   }
 }
 
@@ -142,7 +132,7 @@ async function getRequiredListings(
   return listings as Doc<"produceListings">[];
 }
 
-async function assertApprovedAgent(ctx: MutationCtx, agentId: Id<"agents">): Promise<void> {
+async function assertApprovedAgent(ctx: MutationCtx | QueryCtx, agentId: Id<"agents">): Promise<Doc<"agents">> {
   const agent = await ctx.db.get(agentId);
 
   if (agent === null) {
@@ -152,11 +142,28 @@ async function assertApprovedAgent(ctx: MutationCtx, agentId: Id<"agents">): Pro
   if (agent.status !== "approved") {
     throw new Error("Only approved agents can manage bulk lots.");
   }
+
+  return agent;
 }
 
-async function createAuditLog(
+async function assertActorCanManageAgent(ctx: MutationCtx | QueryCtx, actor: Actor, agentId: Id<"agents">): Promise<void> {
+  if (actor.role === "admin") {
+    return;
+  }
+
+  if (actor.role !== "agent") {
+    throw new Error("Only admins and assigned agents can manage bulk lots.");
+  }
+
+  const agent = await assertApprovedAgent(ctx, agentId);
+  if (agent.userId !== actor._id) {
+    throw new Error("Agents can only manage bulk lots for their own approved agent profile.");
+  }
+}
+
+async function auditWorkflowChange(
   ctx: MutationCtx,
-  auditActor: AuditActor,
+  actor: Actor,
   action: string,
   entityType: "bulk_lot" | "produce_listing",
   entityId: string,
@@ -164,16 +171,14 @@ async function createAuditLog(
   after: Record<string, unknown> | undefined,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  await ctx.db.insert("auditLogs", {
-    actorId: auditActor.actorId,
-    actorRole: auditActor.actorRole,
+  await insertAuditLog(ctx, {
+    actor,
     action,
     entityType,
     entityId,
     before,
     after,
-    metadata,
-    createdAt: Date.now()
+    metadata
   });
 }
 
@@ -249,7 +254,7 @@ function toBuyerSummary(bulkLot: Doc<"bulkLots">, availableQuantity: number) {
 
 export const createBulkLot = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     agentId: v.id("agents"),
     listingIds: v.array(v.id("produceListings")),
     grade: v.optional(produceGrade),
@@ -260,10 +265,14 @@ export const createBulkLot = mutation({
   },
   returns: v.id("bulkLots"),
   handler: async (ctx, args) => {
-    assertPermission(canCreateBulkLot(args.actor.actorRole), "You do not have permission to create bulk lots.");
+    const actor = await getActor(ctx, args.actorUserId);
+    const status = args.status ?? "forming";
+    assertPermission(canCreateBulkLot(actor.role), "You do not have permission to create bulk lots.");
     assertNoDuplicateListingIds(args.listingIds);
     assertPickupWindow(args.pickupWindowStart, args.pickupWindowEnd);
+    assertInitialBulkLotStatus(status);
     await assertApprovedAgent(ctx, args.agentId);
+    await assertActorCanManageAgent(ctx, actor, args.agentId);
     await assertListingsAreNotInOtherActiveBulkLots(ctx, args.listingIds);
 
     const listings = await getRequiredListings(ctx, args.listingIds);
@@ -286,7 +295,7 @@ export const createBulkLot = mutation({
       priceRange: calculation.priceRange,
       pickupWindowStart: args.pickupWindowStart,
       pickupWindowEnd: args.pickupWindowEnd,
-      status: args.status ?? "forming",
+      status,
       transportReady: args.transportReady ?? false,
       createdAt: now,
       updatedAt: now
@@ -298,13 +307,13 @@ export const createBulkLot = mutation({
         updatedAt: now
       });
       const after = await ctx.db.get(listing._id);
-      await createAuditLog(ctx, args.actor, "listing.added_to_bulk_lot", "produce_listing", listing._id, listing, after ?? undefined, {
+      await auditWorkflowChange(ctx, actor, "listing.added_to_bulk_lot", "produce_listing", listing._id, auditSnapshot(listing), after ?? undefined, {
         bulkLotId
       });
     }
 
     const bulkLot = await getRequiredBulkLot(ctx, bulkLotId);
-    await createAuditLog(ctx, args.actor, "bulk_lot.created", "bulk_lot", bulkLotId, undefined, bulkLot);
+    await auditWorkflowChange(ctx, actor, "bulk_lot.created", "bulk_lot", bulkLotId, undefined, auditSnapshot(bulkLot));
 
     return bulkLotId;
   }
@@ -312,15 +321,17 @@ export const createBulkLot = mutation({
 
 export const addListingToBulkLot = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     bulkLotId: v.id("bulkLots"),
     listingId: v.id("produceListings")
   },
   returns: v.id("bulkLots"),
   handler: async (ctx, args) => {
-    assertPermission(canUpdateBulkLot(args.actor.actorRole), "You do not have permission to update bulk lots.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canUpdateBulkLot(actor.role), "You do not have permission to update bulk lots.");
 
     const beforeBulkLot = await getRequiredBulkLot(ctx, args.bulkLotId);
+    await assertActorCanManageAgent(ctx, actor, beforeBulkLot.agentId);
     if (beforeBulkLot.listingIds.includes(args.listingId)) {
       throw new Error("Listing is already in this bulk lot.");
     }
@@ -345,17 +356,17 @@ export const addListingToBulkLot = mutation({
     const afterListing = await ctx.db.get(args.listingId);
     const afterBulkLot = await recalculateAndPatchBulkLot(ctx, beforeBulkLot, nextListingIds);
 
-    await createAuditLog(
+    await auditWorkflowChange(
       ctx,
-      args.actor,
+      actor,
       "listing.added_to_bulk_lot",
       "produce_listing",
       args.listingId,
-      listing,
+      auditSnapshot(listing),
       afterListing ?? undefined,
       { bulkLotId: args.bulkLotId }
     );
-    await createAuditLog(ctx, args.actor, "bulk_lot.listing_added", "bulk_lot", args.bulkLotId, beforeBulkLot, afterBulkLot, {
+    await auditWorkflowChange(ctx, actor, "bulk_lot.listing_added", "bulk_lot", args.bulkLotId, auditSnapshot(beforeBulkLot), auditSnapshot(afterBulkLot), {
       listingId: args.listingId
     });
 
@@ -365,16 +376,18 @@ export const addListingToBulkLot = mutation({
 
 export const removeListingFromBulkLot = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     bulkLotId: v.id("bulkLots"),
     listingId: v.id("produceListings"),
     reason: v.optional(v.string())
   },
   returns: v.id("bulkLots"),
   handler: async (ctx, args) => {
-    assertPermission(canUpdateBulkLot(args.actor.actorRole), "You do not have permission to update bulk lots.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canUpdateBulkLot(actor.role), "You do not have permission to update bulk lots.");
 
     const beforeBulkLot = await getRequiredBulkLot(ctx, args.bulkLotId);
+    await assertActorCanManageAgent(ctx, actor, beforeBulkLot.agentId);
     if (beforeBulkLot.status !== "forming" && beforeBulkLot.status !== "active") {
       throw new Error("Listings can only be removed from forming or active bulk lots.");
     }
@@ -410,24 +423,24 @@ export const removeListingFromBulkLot = mutation({
     const afterListing = await ctx.db.get(args.listingId);
     const afterBulkLot = await recalculateAndPatchBulkLot(ctx, beforeBulkLot, nextListingIds);
 
-    await createAuditLog(
+    await auditWorkflowChange(
       ctx,
-      args.actor,
+      actor,
       "listing.removed_from_bulk_lot",
       "produce_listing",
       args.listingId,
-      listing,
+      auditSnapshot(listing),
       afterListing ?? undefined,
       { bulkLotId: args.bulkLotId, reason: args.reason ?? "" }
     );
-    await createAuditLog(
+    await auditWorkflowChange(
       ctx,
-      args.actor,
+      actor,
       "bulk_lot.listing_removed",
       "bulk_lot",
       args.bulkLotId,
-      beforeBulkLot,
-      afterBulkLot,
+      auditSnapshot(beforeBulkLot),
+      auditSnapshot(afterBulkLot),
       { listingId: args.listingId, reason: args.reason ?? "" }
     );
 
@@ -437,16 +450,18 @@ export const removeListingFromBulkLot = mutation({
 
 export const recalculateBulkLot = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     bulkLotId: v.id("bulkLots")
   },
   returns: v.id("bulkLots"),
   handler: async (ctx, args) => {
-    assertPermission(canUpdateBulkLot(args.actor.actorRole), "You do not have permission to update bulk lots.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canUpdateBulkLot(actor.role), "You do not have permission to update bulk lots.");
 
     const beforeBulkLot = await getRequiredBulkLot(ctx, args.bulkLotId);
+    await assertActorCanManageAgent(ctx, actor, beforeBulkLot.agentId);
     const afterBulkLot = await recalculateAndPatchBulkLot(ctx, beforeBulkLot, beforeBulkLot.listingIds);
-    await createAuditLog(ctx, args.actor, "bulk_lot.recalculated", "bulk_lot", args.bulkLotId, beforeBulkLot, afterBulkLot);
+    await auditWorkflowChange(ctx, actor, "bulk_lot.recalculated", "bulk_lot", args.bulkLotId, auditSnapshot(beforeBulkLot), auditSnapshot(afterBulkLot));
 
     return args.bulkLotId;
   }
@@ -454,22 +469,24 @@ export const recalculateBulkLot = mutation({
 
 export const updateBulkLotStatus = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     bulkLotId: v.id("bulkLots"),
     status: bulkLotStatus,
     reason: v.optional(v.string())
   },
   returns: v.id("bulkLots"),
   handler: async (ctx, args) => {
-    assertPermission(canUpdateBulkLotStatus(args.actor.actorRole), "You do not have permission to update bulk lot status.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canUpdateBulkLotStatus(actor.role), "You do not have permission to update bulk lot status.");
 
     const before = await getRequiredBulkLot(ctx, args.bulkLotId);
+    await assertActorCanManageAgent(ctx, actor, before.agentId);
     await ctx.db.patch(args.bulkLotId, {
       status: args.status,
       updatedAt: Date.now()
     });
     const after = await getRequiredBulkLot(ctx, args.bulkLotId);
-    await createAuditLog(ctx, args.actor, "bulk_lot.status_updated", "bulk_lot", args.bulkLotId, before, after, {
+    await auditWorkflowChange(ctx, actor, "bulk_lot.status_updated", "bulk_lot", args.bulkLotId, auditSnapshot(before), auditSnapshot(after), {
       reason: args.reason ?? ""
     });
 

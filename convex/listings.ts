@@ -1,22 +1,10 @@
 import { canCreateListing, canUpdateProduceListing, canUpdateProduceListingStatus } from "@kuapa-dwaso/permissions";
-import type { ListingStatus, MarketplaceRole, ProduceGrade } from "@kuapa-dwaso/types";
+import type { ListingStatus, ProduceGrade } from "@kuapa-dwaso/types";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
-
-const marketplaceRole = v.union(
-  v.literal("farmer"),
-  v.literal("agent"),
-  v.literal("buyer"),
-  v.literal("transporter"),
-  v.literal("admin")
-);
-
-const actor = v.object({
-  actorId: v.string(),
-  actorRole: marketplaceRole
-});
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { auditSnapshot, getActor, insertAuditLog, type Actor } from "./workflowHelpers";
 
 const produceGrade = v.union(v.literal("A"), v.literal("B"), v.literal("C"), v.literal("mixed"));
 
@@ -45,11 +33,6 @@ const listingWriteFields = {
   availableUntil: v.number(),
   images: v.array(v.string()),
   lastVerifiedAt: v.optional(v.number())
-};
-
-type AuditActor = {
-  actorId: string;
-  actorRole: MarketplaceRole;
 };
 
 type ListingPatch = Partial<{
@@ -101,7 +84,7 @@ async function getRequiredListing(ctx: MutationCtx, listingId: Id<"produceListin
 }
 
 async function assertFarmerAndAgentExist(
-  ctx: MutationCtx,
+  ctx: MutationCtx | QueryCtx,
   farmerId: Id<"farmers">,
   agentId: Id<"agents">
 ): Promise<void> {
@@ -120,25 +103,38 @@ async function assertFarmerAndAgentExist(
   }
 }
 
-async function createAuditLog(
+async function assertActorCanManageAgent(ctx: QueryCtx | MutationCtx, actor: Actor, agentId: Id<"agents">): Promise<void> {
+  if (actor.role === "admin") {
+    return;
+  }
+
+  if (actor.role !== "agent") {
+    throw new Error("Only admins and assigned agents can manage produce listings.");
+  }
+
+  const agent = await ctx.db.get(agentId);
+  if (agent === null || agent.userId !== actor._id || agent.status !== "approved") {
+    throw new Error("Agents can only manage listings for their own approved agent profile.");
+  }
+}
+
+async function auditListingChange(
   ctx: MutationCtx,
-  auditActor: AuditActor,
+  actor: Actor,
   action: string,
   entityId: string,
   before: Record<string, unknown> | undefined,
   after: Record<string, unknown> | undefined,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  await ctx.db.insert("auditLogs", {
-    actorId: auditActor.actorId,
-    actorRole: auditActor.actorRole,
+  await insertAuditLog(ctx, {
+    actor,
     action,
     entityType: "produce_listing",
     entityId,
     before,
     after,
-    metadata,
-    createdAt: Date.now()
+    metadata
   });
 }
 
@@ -152,7 +148,7 @@ function isExpiredCandidate(status: ListingStatus): boolean {
 
 export const createListing = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     farmerId: v.id("farmers"),
     agentId: v.id("agents"),
     ...listingWriteFields,
@@ -160,10 +156,12 @@ export const createListing = mutation({
   },
   returns: v.id("produceListings"),
   handler: async (ctx, args) => {
-    assertPermission(canCreateListing(args.actor.actorRole), "You do not have permission to create listings.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canCreateListing(actor.role), "You do not have permission to create listings.");
     assertPositiveQuantity(args.quantity);
     assertAvailabilityWindow(args.availableFrom, args.availableUntil);
     await assertFarmerAndAgentExist(ctx, args.farmerId, args.agentId);
+    await assertActorCanManageAgent(ctx, actor, args.agentId);
 
     const now = Date.now();
     const images = normalizeImages(args.images);
@@ -190,7 +188,7 @@ export const createListing = mutation({
     });
 
     const listing = await ctx.db.get(listingId);
-    await createAuditLog(ctx, args.actor, "listing.created", listingId, undefined, listing ?? undefined, {
+    await auditListingChange(ctx, actor, "listing.created", listingId, undefined, listing ?? undefined, {
       imageCount: images.length
     });
 
@@ -200,7 +198,7 @@ export const createListing = mutation({
 
 export const updateListing = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     listingId: v.id("produceListings"),
     cropType: v.optional(v.string()),
     quantity: v.optional(v.number()),
@@ -217,9 +215,11 @@ export const updateListing = mutation({
   },
   returns: v.id("produceListings"),
   handler: async (ctx, args) => {
-    assertPermission(canUpdateProduceListing(args.actor.actorRole), "You do not have permission to update listings.");
+    const actor = await getActor(ctx, args.actorUserId);
+    assertPermission(canUpdateProduceListing(actor.role), "You do not have permission to update listings.");
 
     const before = await getRequiredListing(ctx, args.listingId);
+    await assertActorCanManageAgent(ctx, actor, before.agentId);
     const quantity = args.quantity ?? before.quantity;
     const availableFrom = args.availableFrom ?? before.availableFrom;
     const availableUntil = args.availableUntil ?? before.availableUntil;
@@ -246,7 +246,7 @@ export const updateListing = mutation({
 
     await ctx.db.patch(args.listingId, patch);
     const after = await getRequiredListing(ctx, args.listingId);
-    await createAuditLog(ctx, args.actor, "listing.updated", args.listingId, before, after);
+    await auditListingChange(ctx, actor, "listing.updated", args.listingId, auditSnapshot(before), auditSnapshot(after));
 
     return args.listingId;
   }
@@ -254,25 +254,27 @@ export const updateListing = mutation({
 
 export const updateListingStatus = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     listingId: v.id("produceListings"),
     status: listingStatus,
     reason: v.optional(v.string())
   },
   returns: v.id("produceListings"),
   handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
     assertPermission(
-      canUpdateProduceListingStatus(args.actor.actorRole),
+      canUpdateProduceListingStatus(actor.role),
       "You do not have permission to update listing status."
     );
 
     const before = await getRequiredListing(ctx, args.listingId);
+    await assertActorCanManageAgent(ctx, actor, before.agentId);
     await ctx.db.patch(args.listingId, {
       status: args.status,
       updatedAt: Date.now()
     });
     const after = await getRequiredListing(ctx, args.listingId);
-    await createAuditLog(ctx, args.actor, "listing.status_updated", args.listingId, before, after, {
+    await auditListingChange(ctx, actor, "listing.status_updated", args.listingId, auditSnapshot(before), auditSnapshot(after), {
       reason: args.reason ?? ""
     });
 
@@ -282,18 +284,20 @@ export const updateListingStatus = mutation({
 
 export const expireListing = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     listingId: v.id("produceListings"),
     now: v.optional(v.number())
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
     assertPermission(
-      canUpdateProduceListingStatus(args.actor.actorRole),
+      canUpdateProduceListingStatus(actor.role),
       "You do not have permission to expire listings."
     );
 
     const listing = await getRequiredListing(ctx, args.listingId);
+    await assertActorCanManageAgent(ctx, actor, listing.agentId);
     const timestamp = args.now ?? Date.now();
 
     if (!isExpiredCandidate(listing.status) || listing.availableUntil >= timestamp) {
@@ -305,7 +309,7 @@ export const expireListing = mutation({
       updatedAt: timestamp
     });
     const after = await getRequiredListing(ctx, args.listingId);
-    await createAuditLog(ctx, args.actor, "listing.expired", args.listingId, listing, after);
+    await auditListingChange(ctx, actor, "listing.expired", args.listingId, auditSnapshot(listing), auditSnapshot(after));
 
     return true;
   }
@@ -313,14 +317,15 @@ export const expireListing = mutation({
 
 export const markExpiredListings = mutation({
   args: {
-    actor,
+    actorUserId: v.id("users"),
     now: v.optional(v.number()),
     limit: v.optional(v.number())
   },
   returns: v.number(),
   handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
     assertPermission(
-      canUpdateProduceListingStatus(args.actor.actorRole),
+      canUpdateProduceListingStatus(actor.role),
       "You do not have permission to expire listings."
     );
 
@@ -331,12 +336,13 @@ export const markExpiredListings = mutation({
       .take(args.limit ?? 100);
 
     for (const listing of candidates) {
+      await assertActorCanManageAgent(ctx, actor, listing.agentId);
       await ctx.db.patch(listing._id, {
         status: "expired",
         updatedAt: timestamp
       });
       const after = await ctx.db.get(listing._id);
-      await createAuditLog(ctx, args.actor, "listing.expired", listing._id, listing, after ?? undefined);
+      await auditListingChange(ctx, actor, "listing.expired", listing._id, auditSnapshot(listing), after ?? undefined);
     }
 
     return candidates.length;
