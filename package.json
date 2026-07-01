@@ -39,6 +39,7 @@
   "dependencies": {
     "@kuapa-dwaso/permissions": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
+    "@kuapa-dwaso/utils": "workspace:*",
     "convex": "1.41.0"
   }
 }

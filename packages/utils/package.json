@@ -14,8 +14,11 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No utility tests configured yet.\"",
+    "test": "node --test test/*.test.mjs",
     "format": "prettier --check ."
+  },
+  "dependencies": {
+    "@kuapa-dwaso/types": "workspace:*"
   },
   "devDependencies": {
     "@kuapa-dwaso/eslint-config": "workspace:*",
