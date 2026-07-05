@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logo Concept Showcase - Farmer-to-Buyer Digital Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-bg: #f8faf7;
+      --color-card-bg: #ffffff;
+      --color-text-primary: #0f1f14;
+      --color-text-secondary: #506655;
+      --color-primary: #2d8a4e;
+      --color-primary-light: #38a85c;
+      --color-accent: #d4a843;
+      --color-border: #dde3d5;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+      --shadow-md: 0 10px 15px -3px rgba(45, 138, 78, 0.05), 0 4px 6px -2px rgba(45, 138, 78, 0.02);
+      --shadow-hover: 0 20px 25px -5px rgba(45, 138, 78, 0.1), 0 10px 10px -5px rgba(45, 138, 78, 0.04);
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      padding: 4rem 2rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1200px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background-color: rgba(45, 138, 78, 0.1);
+      color: var(--color-primary);
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      border: 1px solid rgba(45, 138, 78, 0.15);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-text-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 1.125rem;
+      color: var(--color-text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .logo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      margin-bottom: 4rem;
+    }
+
+    .logo-card {
+      background-color: var(--color-card-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      padding: 2rem;
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .logo-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--shadow-hover);
+      border-color: rgba(45, 138, 78, 0.3);
+    }
+
+    .logo-card.starred::after {
+      content: '★ RECOMMENDED';
+      position: absolute;
+      top: 16px;
+      right: -32px;
+      background: linear-gradient(135deg, var(--color-accent) 0%, #b3862b 100%);
+      color: white;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 0.35rem 2.5rem;
+      transform: rotate(45deg);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      letter-spacing: 0.05em;
+    }
+
+    .canvas {
+      width: 100%;
+      aspect-ratio: 1;
+      max-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #fafbfa;
+      border-radius: var(--radius-md);
+      margin-bottom: 1.5rem;
+      border: 1px dashed var(--color-border);
+      transition: var(--transition);
+    }
+
+    .logo-card:hover .canvas {
+      background-color: #f0f4f1;
+      border-color: rgba(45, 138, 78, 0.2);
+    }
+
+    .canvas svg {
+      width: 120px;
+      height: 120px;
+      transition: var(--transition);
+    }
+
+    .logo-card:hover .canvas svg {
+      transform: scale(1.08);
+    }
+
+    .info {
+      text-align: center;
+      width: 100%;
+    }
+
+    .concept-number {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--color-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.25rem;
+    }
+
+    .concept-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .concept-description {
+      font-size: 0.875rem;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--color-text-secondary);
+      font-size: 0.875rem;
+      border-top: 1px solid var(--color-border);
+      padding-top: 2rem;
+      margin-top: 2rem;
+    }
+
+    footer a {
+      color: var(--color-primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Brand Identity Concepts
+      </div>
+      <h1>Logo Concepts Showcase</h1>
+      <p class="subtitle">Exploring visual styles for the Farmer-to-Buyer Digital Marketplace. Styled with the brand's primary field green (#2d8a4e).</p>
+    </header>
+
+    <main class="logo-grid">
+      <!-- Concept 1 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="80" r="12" fill="#2d8a4e"/>
+            <circle cx="90" cy="40" r="12" fill="#2d8a4e"/>
+            <path d="M 40 71 Q 60 55 80 49" stroke="#2d8a4e" stroke-width="6" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 1</div>
+          <h2 class="concept-title">Abstract Connection</h2>
+          <p class="concept-description">Visual representation of connecting two distinct points (farmers and buyers) through a bridge of trade.</p>
+        </div>
+      </section>
+
+      <!-- Concept 2 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 60 15 Q 95 30 90 65 Q 85 95 60 100 Q 35 95 30 65 Q 25 30 60 15 Z" fill="#2d8a4e"/>
+            <path d="M 60 90 L 60 40" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+            <path d="M 48 52 L 60 38 L 72 52" stroke="#ffffff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 2</div>
+          <h2 class="concept-title">Leaf &amp; Arrow Hybrid</h2>
+          <p class="concept-description">A natural green leaf combined with a upward-pointing arrow, symbolizing growth and successful logistics.</p>
+        </div>
+      </section>
+
+      <!-- Concept 3 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="60" cy="60" r="45" fill="#2d8a4e"/>
+            <path d="M 60 85 L 60 55" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+            <path d="M 60 58 Q 60 38 42 36 Q 42 56 60 58 Z" fill="#ffffff"/>
+            <path d="M 60 66 Q 60 48 78 46 Q 78 64 60 66 Z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 3</div>
+          <h2 class="concept-title">Negative Space Sprout</h2>
+          <p class="concept-description">A clean, high-contrast white sprout shape carved out of a solid green field circle.</p>
+        </div>
+      </section>
+
+      <!-- Concept 4 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5"/>
+            <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65"/>
+            <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8"/>
+            <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85"/>
+            <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9"/>
+            <circle cx="88" cy="60" r="22" fill="#2d8a4e"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 4</div>
+          <h2 class="concept-title">Geometric Aggregation</h2>
+          <p class="concept-description">Small individual producer nodes converging into a larger, aggregated bulk supply lot.</p>
+        </div>
+      </section>
+
+      <!-- Concept 5 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 40 100 L 40 30" stroke="#2d8a4e" stroke-width="12" stroke-linecap="round"/>
+            <path d="M 40 62 L 72 62" stroke="#2d8a4e" stroke-width="12" stroke-linecap="round"/>
+            <path d="M 40 30 L 68 30" stroke="#2d8a4e" stroke-width="12" stroke-linecap="round"/>
+            <path d="M 68 36 Q 68 14 92 12 Q 92 34 68 36 Z" fill="#2d8a4e"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 5</div>
+          <h2 class="concept-title">F-Lettermark</h2>
+          <p class="concept-description">A bold, structural "F" lettermark where the top arm blossoms into an organic leaf terminal.</p>
+        </div>
+      </section>
+
+      <!-- Concept 6 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 60 20 Q 100 20 100 52 Q 100 84 60 84 L 45 84 L 30 100 L 33 82 Q 20 74 20 52 Q 20 20 60 20 Z" fill="#2d8a4e"/>
+            <path d="M 60 70 L 60 48" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+            <path d="M 60 52 Q 60 36 46 34 Q 46 50 60 52 Z" fill="#ffffff"/>
+            <path d="M 60 58 Q 60 44 74 42 Q 74 56 60 58 Z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 6</div>
+          <h2 class="concept-title">Chat Bubble Sprout</h2>
+          <p class="concept-description">A chat bubble housing a growing sprout, emphasizing SMS-based conversational connectivity.</p>
+        </div>
+      </section>
+
+      <!-- Concept 7 -->
+      <section class="logo-card">
+        <div class="canvas">
+          <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 22 95 Q 40 60 60 65 Q 82 70 92 38" stroke="#2d8a4e" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="1 12"/>
+            <circle cx="22" cy="95" r="8" fill="#2d8a4e"/>
+            <circle cx="60" cy="65" r="6" fill="#2d8a4e"/>
+            <path d="M 92 40 Q 90 14 112 10 Q 114 36 92 40 Z" fill="#2d8a4e"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="concept-number">Concept 7</div>
+          <h2 class="concept-title">Route &amp; Path</h2>
+          <p class="concept-description">A dashed route line with logistics waypoints, concluding with an organic leaf at the destination.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>Created for the Farmer-to-Buyer Digital Marketplace System. Brand colors loaded from <a href="../packages/design-tokens/src/index.ts">design-tokens</a>.</p>
+    </footer>
+  </div>
+</body>
+</html>

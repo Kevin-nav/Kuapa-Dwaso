@@ -1,1081 +1,622 @@
-"use client";
-
-import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  Sprout,
-  TrendingUp,
-  Droplets,
-  Activity,
-  ArrowRight,
-  Globe,
-  Users,
-  Menu,
-  X,
-  CheckCircle,
-  Database,
-  ArrowUpRight,
-  Leaf,
-} from "lucide-react";
-import { DotField } from "@kuapa-dwaso/ui";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Image from "next/image";
+import type { ReactNode } from "react";
 
-gsap.registerPlugin(ScrollTrigger);
+const proofPoints = [
+  ["Agent-verified", "Every listing checked in person"],
+  ["Any phone", "Full access via SMS. No data needed"],
+  ["Bulk-first", "Aggregated lots sized for wholesale"],
+  ["Pilot live", "Operating in the Western Region"],
+] as const;
 
-const launchMetrics = [
+const steps = [
   {
-    id: "launch-mvp",
-    value: "MVP",
-    label: "Marketplace Foundation",
-    description:
-      "Core crop listing, buyer discovery, and partner workflows are being readied before live volume is reported.",
+    title: "Farmers list their harvest",
+    body: "Through a local agent or a single SMS, farmers post what they have: crop, quantity, and location.",
   },
   {
-    id: "launch-pilot",
-    value: "Pilot",
-    label: "Grower Onboarding",
-    description:
-      "Early validation will focus on verified listings, transparent crop data, and operational feedback.",
+    title: "Agents verify and bundle",
+    body: "Trusted agents visit in person, confirm the goods, and combine smaller harvests into wholesale-ready lots.",
   },
   {
-    id: "launch-sms",
-    value: "Mockable",
-    label: "SMS and Webhook Flows",
-    description:
-      "Low-bandwidth communication paths can be tested locally before provider rollout.",
+    title: "Buyers purchase with confidence",
+    body: "Wholesale buyers browse verified, aggregated lots and deal in quantities that make the trip worthwhile.",
   },
-  {
-    id: "launch-data",
-    value: "Ready",
-    label: "Telemetry Model",
-    description:
-      "Soil, yield, and drone data structures are prepared for real integrations as pilots begin.",
-  },
-];
+] as const;
 
-function LaunchMetric({
-  value,
-  label,
-  description,
-  id,
-}: {
-  value: string;
-  label: string;
-  description: string;
-  id: string;
-}) {
+const audiences = [
+  {
+    title: "For Growers",
+    href: "/growers",
+    icon: <SproutIcon />,
+    body: "Sell your harvest at fair bulk prices without leaving the farm. List by SMS or through your local agent.",
+  },
+  {
+    title: "For Buyers",
+    href: "/buyers",
+    icon: <CrateIcon />,
+    body: "Source verified, aggregated produce lots in one place. Skip the middleman guesswork and buy at scale.",
+  },
+  {
+    title: "For Partners",
+    href: "/partners",
+    icon: <NetworkIcon />,
+    body: "NGOs, agronomy services, and lenders can plug into a real network of verified farmers and transactions.",
+  },
+] as const;
+
+const navLinks = [
+  ["How it works", "#how"],
+  ["Agents", "#agents"],
+  ["Buyers", "#buyers"],
+] as const;
+
+export default function LandingPage() {
   return (
-    <div className="space-y-2 text-left sm:text-center group" id={id}>
-      <p className="text-2xl sm:text-3xl lg:text-4xl font-extrabold font-display text-brand-field">
-        {value}
-      </p>
-      <p className="text-xs sm:text-sm text-brand-surface/85 font-semibold tracking-wide uppercase group-hover:text-brand-surface transition-colors">
-        {label}
-      </p>
-      <p className="text-xs sm:text-sm text-brand-surface/60 leading-relaxed max-w-xs sm:mx-auto">
-        {description}
-      </p>
+    <div className="min-h-screen bg-brand-surface text-brand-ink">
+      <SiteHeader />
+      <main>
+        <HeroSection />
+        <ProofBar />
+        <SectionCurve />
+        <SmsSection />
+        <HowItWorks />
+        <AgentStory />
+        <AudienceCards />
+        <FinalCta />
+      </main>
+      <SiteFooter />
     </div>
   );
 }
 
-/* ─── Feature Card Data ─── */
-const featureCards = [
-  {
-    id: "feature-card-growers",
-    icon: Sprout,
-    iconBg: "bg-brand-field",
-    iconColor: "text-brand-surface",
-    checkColor: "text-brand-field",
-    title: "For Modern Growers",
-    description:
-      "List your crops directly to major distributors, set fair target pricing, track field moisture, and manage logistics effortlessly.",
-    features: [
-      "Direct-to-Buyer crop listings",
-      "IoT soil and yield telemetry",
-      "Automated payout contracts",
-    ],
-    linkText: "Grower platform details",
-    linkHref: "/grower-info",
-    linkColor: "text-brand-field",
-    glowColor: "bg-brand-field/5 group-hover:bg-brand-field/10",
-  },
-  {
-    id: "feature-card-buyers",
-    icon: Users,
-    iconBg: "bg-brand-sky",
-    iconColor: "text-brand-surface",
-    checkColor: "text-brand-sky",
-    title: "For Crop Buyers",
-    description:
-      "Access verified grower profiles, browse high-resolution crop catalogs, review soil health, and place high-volume purchasing agreements securely.",
-    features: [
-      "Verified quality certificates",
-      "Real-time logistics shipping tracking",
-      "Source transparency mapping",
-    ],
-    linkText: "Buyer sourcing details",
-    linkHref: "/buyer-info",
-    linkColor: "text-brand-sky",
-    glowColor: "bg-brand-sky/5 group-hover:bg-brand-sky/10",
-  },
-  {
-    id: "feature-card-partners",
-    icon: TrendingUp,
-    iconBg: "bg-brand-ink",
-    iconColor: "text-brand-field",
-    checkColor: "text-brand-field",
-    title: "For Agronomy Partners",
-    description:
-      "Deploy precision analytical services, connect smart IoT nodes to our platform, integrate drone crop data, and provide smart supply contracts.",
-    features: [
-      "Developer API telemetry streaming",
-      "Drone scan data upload",
-      "Yield analytics reporting",
-    ],
-    linkText: "Agronomy partner APIs",
-    linkHref: "/partner-info",
-    linkColor: "text-brand-ink",
-    glowColor: "bg-brand-ink/5 group-hover:bg-brand-ink/10",
-  },
-];
-
-/* ─── Tech Feature Data ─── */
-const techFeatures = [
-  {
-    icon: Droplets,
-    iconBg: "bg-brand-field/10",
-    iconColor: "text-brand-field",
-    title: "Soil Diagnostics",
-    description:
-      "Soil moisture, pH balance, and temperature statistics are uploaded directly to verified buyers.",
-  },
-  {
-    icon: Activity,
-    iconBg: "bg-brand-sky/10",
-    iconColor: "text-brand-sky",
-    title: "NDVI Drone Imagery",
-    description:
-      "Multispectral drone imaging verifies canopy thickness and highlights field yield potential before harvest.",
-  },
-  {
-    icon: Database,
-    iconBg: "bg-brand-ink/10",
-    iconColor: "text-brand-field",
-    title: "Traceability Log",
-    description:
-      "Every shipment is linked to a permanent record tracking crop origins, soil health, and shipping timeline.",
-  },
-  {
-    icon: Globe,
-    iconBg: "bg-brand-field/10",
-    iconColor: "text-brand-field",
-    title: "Decentralized Logistics",
-    description:
-      "Connect automatically with verified agricultural freight carriers to schedule prompt delivery.",
-  },
-];
-
-export default function LandingPage() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeFeatureIdx, setActiveFeatureIdx] = useState(0);
-
-  // Animation refs
-  const headerRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  const subtitleRef = useRef<HTMLParagraphElement>(null);
-  const ctaButtonsRef = useRef<HTMLDivElement>(null);
-  const heroImageRef = useRef<HTMLDivElement>(null);
-  const featuresRef = useRef<HTMLElement>(null);
-  const featureCardsRef = useRef<HTMLDivElement>(null);
-  const techRef = useRef<HTMLElement>(null);
-  const techImageRef = useRef<HTMLDivElement>(null);
-  const techTextRef = useRef<HTMLDivElement>(null);
-  const ctaBannerRef = useRef<HTMLElement>(null);
-  const featureScrollRef = useRef<HTMLDivElement>(null);
-
-  // Handle mobile menu body scroll lock
-  useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [mobileMenuOpen]);
-
-  // Mobile feature carousel scroll tracking
-  const handleFeatureScroll = useCallback(() => {
-    const el = featureScrollRef.current;
-    if (!el) return;
-    const scrollLeft = el.scrollLeft;
-    const cardWidth = el.firstElementChild
-      ? (el.firstElementChild as HTMLElement).offsetWidth
-      : 1;
-    const idx = Math.round(scrollLeft / cardWidth);
-    setActiveFeatureIdx(Math.min(idx, featureCards.length - 1));
-  }, []);
-
-  useEffect(() => {
-    /* ─── Hero Entrance ─── */
-    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-    tl.fromTo(
-      headerRef.current,
-      { y: -30, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.8 }
-    );
-
-    if (titleRef.current) {
-      tl.fromTo(
-        titleRef.current,
-        { y: 40, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.8 },
-        "-=0.4"
-      );
-    }
-
-    tl.fromTo(
-      subtitleRef.current,
-      { y: 20, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.6 },
-      "-=0.5"
-    );
-
-    tl.fromTo(
-      ctaButtonsRef.current,
-      { y: 15, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.6 },
-      "-=0.4"
-    );
-
-    tl.fromTo(
-      heroImageRef.current,
-      { scale: 0.92, y: 30, opacity: 0, rotateY: -5 },
-      { scale: 1, y: 0, opacity: 1, rotateY: 0, duration: 1.0 },
-      "-=0.5"
-    );
-
-    /* ─── ScrollTrigger: Features Section ─── */
-    if (featuresRef.current) {
-      // Section header
-      const sectionHeader = featuresRef.current.querySelector(".section-header");
-      if (sectionHeader) {
-        gsap.fromTo(
-          sectionHeader,
-          { y: 40, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.8,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: sectionHeader,
-              start: "top 85%",
-              once: true,
-            },
-          }
-        );
-      }
-
-      // Feature cards (desktop stagger)
-      const cards = featuresRef.current.querySelectorAll(".feature-card-item");
-      if (cards.length) {
-        gsap.fromTo(
-          cards,
-          { y: 60, opacity: 0, scale: 0.95 },
-          {
-            y: 0,
-            opacity: 1,
-            scale: 1,
-            duration: 0.7,
-            stagger: 0.15,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: featureCardsRef.current,
-              start: "top 85%",
-              once: true,
-            },
-          }
-        );
-      }
-    }
-
-    /* ─── ScrollTrigger: Technology Section ─── */
-    if (techImageRef.current) {
-      gsap.fromTo(
-        techImageRef.current,
-        { x: -60, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.9,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: techRef.current,
-            start: "top 75%",
-            once: true,
-          },
-        }
-      );
-    }
-
-    if (techTextRef.current) {
-      gsap.fromTo(
-        techTextRef.current,
-        { x: 60, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.9,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: techRef.current,
-            start: "top 75%",
-            once: true,
-          },
-        }
-      );
-
-      // Stagger tech cards
-      const techCards = techTextRef.current.querySelectorAll(".tech-card");
-      if (techCards.length) {
-        gsap.fromTo(
-          techCards,
-          { y: 30, opacity: 0 },
-          {
-            y: 0,
-            opacity: 1,
-            duration: 0.6,
-            stagger: 0.1,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: techTextRef.current,
-              start: "top 80%",
-              once: true,
-            },
-          }
-        );
-      }
-    }
-
-    /* ─── ScrollTrigger: CTA Banner ─── */
-    if (ctaBannerRef.current) {
-      gsap.fromTo(
-        ctaBannerRef.current.querySelector(".cta-inner"),
-        { scale: 0.92, opacity: 0 },
-        {
-          scale: 1,
-          opacity: 1,
-          duration: 0.9,
-          ease: "power3.out",
-          scrollTrigger: {
-            trigger: ctaBannerRef.current,
-            start: "top 80%",
-            once: true,
-          },
-        }
-      );
-    }
-
-    return () => {
-      tl.kill();
-      ScrollTrigger.getAll().forEach((t) => t.kill());
-    };
-  }, []);
-
+function SiteHeader() {
   return (
-    <div className="relative isolate min-h-screen flex flex-col font-sans bg-brand-surface text-brand-ink selection:bg-brand-field/20 selection:text-brand-field">
-      <div className="fixed inset-0 z-[5] pointer-events-none" aria-hidden="true">
-        <DotField
-          dotRadius={2.2}
-          dotSpacing={20}
-          cursorRadius={520}
-          bulgeStrength={80}
-          glowRadius={220}
-          gradientFrom="rgba(45, 138, 78, 0.48)"
-          gradientTo="rgba(13, 148, 136, 0.38)"
-          glowColor="rgba(45, 138, 78, 0.2)"
-        />
-      </div>
+    <header className="sticky top-0 z-50 border-b border-brand-line bg-brand-surface">
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
+        <a href="/" className="flex items-center gap-2.5" aria-label="Kuapa Dwaso home">
+          <Logo className="h-8 w-8" />
+          <span className="font-display text-lg font-bold text-brand-ink">
+            Kuapa Dwaso
+          </span>
+        </a>
 
-      {/* ═══ HEADER ═══ */}
-      <header
-        ref={headerRef}
-        className="sticky top-0 z-50 w-full glass-navbar transition-all duration-300"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
-          {/* Logo */}
+        <div className="hidden items-center gap-8 md:flex">
+          {navLinks.map(([label, href]) => (
+            <a key={href} href={href} className="nav-link">
+              {label}
+            </a>
+          ))}
           <a
-            href="#"
-            className="flex items-center space-x-2.5 group"
-            id="nav-logo"
+            href="/join"
+            className="rounded-full bg-brand-field px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-field-light"
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-brand-field flex items-center justify-center text-brand-surface shadow-md group-hover:scale-105 group-hover:shadow-lg transition-all duration-300">
-              <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
-            </div>
-            <span className="text-lg sm:text-xl font-bold font-display tracking-tight text-brand-ink">
-              Agri<span className="text-brand-field">Market</span>
-            </span>
+            Join the pilot
           </a>
+        </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-8">
-            {["Features", "Technology", "About Us", "Partners"].map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase().replace(/\s/g, "-")}`}
-                className="text-sm font-medium link-underline hover:text-brand-field transition-colors"
-                id={`link-${item.toLowerCase().replace(/\s/g, "-")}`}
-              >
-                {item}
-              </a>
-            ))}
-          </nav>
+        <a
+          href="/join"
+          className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden"
+        >
+          Join
+        </a>
+      </nav>
+    </header>
+  );
+}
 
-          {/* Action Buttons */}
-          <div className="hidden md:flex items-center space-x-4">
-            <a
-              href="/login"
-              className="text-sm font-semibold hover:text-brand-field transition-colors px-4 py-2"
-              id="btn-login-desktop"
-            >
-              Sign In
+function HeroSection() {
+  return (
+    <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
+      <Image
+        src="/image1.png"
+        alt="Kuapa Dwaso agents speaking with a plantain vendor at a market in Ghana"
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-[66%_center] sm:object-[70%_center]"
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(100deg, rgba(15, 31, 20, 0.94) 0%, rgba(15, 31, 20, 0.8) 34%, rgba(15, 31, 20, 0.18) 64%, rgba(15, 31, 20, 0.38) 100%)",
+        }}
+      />
+      <div className="relative mx-auto w-full max-w-6xl px-5 pb-14 pt-28 sm:px-6 sm:pb-20 sm:pt-40">
+        <div className="max-w-xl">
+          <p className="eyebrow text-brand-gold">Now piloting in Western Region, Ghana</p>
+          <h1 className="mt-4 font-display text-[length:var(--text-hero)] font-bold leading-[1.05] text-white">
+            The market is already here.
+            <br />
+            <span className="text-[#7dd8a0]">We connect it.</span>
+          </h1>
+          <p className="mt-6 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
+            Kuapa Dwaso links smallholder farmers to wholesale buyers through
+            trusted local agents and a simple SMS line that works on any phone.
+          </p>
+          <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
+            <a href="/agents" className="btn-primary">
+              Become an agent
             </a>
-            <a
-              href="/get-started"
-              className="btn-magnetic bg-brand-field hover:bg-brand-field-light text-brand-surface text-sm font-semibold px-5 py-2.5 rounded-xl flex items-center space-x-2"
-              id="btn-get-started-desktop"
-            >
-              <span>Get Started</span>
-              <ArrowUpRight className="w-4 h-4" />
+            <a href="/buyers" className="btn-ghost">
+              Buy in bulk
             </a>
-          </div>
-
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="text-brand-ink focus:outline-none p-2 rounded-lg hover:bg-brand-field/10 transition-colors"
-              aria-label="Toggle menu"
-              id="btn-mobile-menu-toggle"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
           </div>
         </div>
-      </header>
+      </div>
+    </section>
+  );
+}
 
-      {/* ═══ MOBILE NAV OVERLAY ═══ */}
-      {mobileMenuOpen && (
-        <>
-          <div
-            className="mobile-nav-backdrop md:hidden"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden="true"
+function ProofBar() {
+  return (
+    <section className="border-b border-brand-line bg-brand-surface">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-5 gap-y-8 px-5 py-9 sm:px-6 sm:py-10 md:grid-cols-4">
+        {proofPoints.map(([title, sub]) => (
+          <div key={title}>
+            <p className="font-display text-lg font-bold text-brand-ink">{title}</p>
+            <p className="mt-1 text-sm leading-relaxed text-brand-ink/60">{sub}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SectionCurve() {
+  return (
+    <svg
+      viewBox="0 0 1440 80"
+      preserveAspectRatio="none"
+      className="block h-12 w-full bg-brand-surface md:h-20"
+      aria-hidden="true"
+    >
+      <path
+        d="M0 80 C 360 20, 720 60, 1080 30 S 1440 50, 1440 50 L1440 80Z"
+        fill="#0f1f14"
+      />
+    </svg>
+  );
+}
+
+function SmsSection() {
+  return (
+    <section className="bg-brand-ink pb-20 pt-10 text-white sm:pb-24 sm:pt-16">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-2 lg:gap-16">
+        <div>
+          <p className="eyebrow text-[#7dd8a0]">No smartphone required</p>
+          <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
+            If your phone can text,
+            <br />
+            you can trade.
+          </h2>
+          <p className="mt-6 max-w-md text-base leading-relaxed text-white/70 sm:text-lg">
+            Farmers register, check offers, and approve sales with simple SMS
+            commands. No app, no data bundle, no fuss.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            {["JOIN", "STATUS", "YES / NO", "HELP"].map((command) => (
+              <code
+                key={command}
+                className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 font-mono text-sm text-[#7dd8a0]"
+              >
+                {command}
+              </code>
+            ))}
+          </div>
+        </div>
+        <PhoneMockup />
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  return (
+    <section id="how" className="bg-brand-surface py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <p className="eyebrow">How it works</p>
+        <h2 className="mt-4 max-w-xl font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
+          From farm gate to wholesale, in three steps.
+        </h2>
+
+        <div className="mt-12 grid gap-10 lg:mt-16 lg:grid-cols-2 lg:gap-20">
+          <ol className="space-y-10 sm:space-y-12">
+            {steps.map((step, index) => (
+              <li key={step.title} className="flex gap-5 sm:gap-6">
+                <span className="step-number">{index + 1}</span>
+                <div>
+                  <h3 className="font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 max-w-md text-base leading-relaxed text-brand-ink/70">
+                    {step.body}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <figure className="relative overflow-hidden rounded-2xl bg-brand-line">
+            <Image
+              src="/image3.png"
+              alt="Agents verifying produce quantities with a vendor at her stall"
+              width={1440}
+              height={960}
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="aspect-[4/3] h-full w-full object-cover object-[52%_center]"
+            />
+            <figcaption className="absolute bottom-0 w-full bg-gradient-to-t from-brand-ink/85 to-transparent p-5 pt-12 text-sm leading-relaxed text-white/90">
+              Agents confirm quantity and quality on the ground before a lot
+              goes live.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AgentStory() {
+  return (
+    <section id="agents" className="overflow-hidden bg-[#faf6ef] py-20 sm:py-24">
+      <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
+        <figure className="relative isolate">
+          <Image
+            src="/image2.png"
+            alt="Two Kuapa Dwaso agents laughing with a market vendor under a red umbrella"
+            width={1440}
+            height={960}
+            sizes="(max-width: 1024px) 100vw, 52vw"
+            className="relative z-10 aspect-[4/3] w-full rounded-2xl object-cover object-[50%_center]"
           />
-          <div className="md:hidden mobile-nav-drawer fixed top-16 left-0 right-0 z-50 glass-panel p-6 shadow-2xl border-t border-brand-field/10">
-            <nav className="flex flex-col space-y-3">
-              {["Features", "Technology", "About Us", "Partners"].map(
-                (item) => (
-                  <a
-                    key={item}
-                    href={`#${item.toLowerCase().replace(/\s/g, "-")}`}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-base font-semibold hover:text-brand-field p-3 rounded-xl hover:bg-brand-field/5 transition-colors"
-                    id={`link-${item.toLowerCase().replace(/\s/g, "-")}-mobile`}
-                  >
-                    {item}
-                  </a>
-                )
-              )}
-              <hr className="border-brand-field/10 my-1" />
-              <div className="flex flex-col space-y-3 pt-1">
-                <a
-                  href="/login"
-                  className="w-full text-center text-base font-semibold hover:text-brand-field p-3 rounded-xl border border-brand-field/20 transition-colors"
-                  id="btn-login-mobile"
-                >
-                  Sign In
-                </a>
-                <a
-                  href="/get-started"
-                  className="w-full text-center bg-brand-field hover:bg-brand-field-light text-brand-surface text-base font-semibold p-3 rounded-xl shadow-sm transition-all"
-                  id="btn-get-started-mobile"
-                >
-                  Get Started
-                </a>
-              </div>
-            </nav>
-          </div>
-        </>
-      )}
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-3 -right-3 z-0 h-full w-full rounded-2xl border-2 border-brand-clay/30 sm:-bottom-4 sm:-right-4"
+          />
+        </figure>
 
-      {/* ═══ MAIN CONTENT ═══ */}
-      <main className="relative flex-grow">
-        {/* ─── HERO SECTION ─── */}
-        <section className="relative min-h-[85vh] lg:min-h-[90vh] flex items-center justify-center py-16 sm:py-20 overflow-hidden">
-          {/* Dark gradient overlay for dot contrast */}
-          <div className="hero-gradient-overlay absolute inset-0 z-[1]" />
+        <div>
+          <p className="eyebrow text-brand-clay">The agent network</p>
+          <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
+            Trust is not built in an app. It is built at the stall.
+          </h2>
+          <p className="mt-6 text-base leading-relaxed text-brand-ink/70 sm:text-lg">
+            Our agents live in the communities they serve. They know which
+            farmer&apos;s plantain travels well and which buyer pays on time. Kuapa
+            Dwaso gives that local knowledge the reach of a national marketplace.
+          </p>
+          <blockquote className="mt-8 border-l-2 border-brand-clay pl-5">
+            <p className="font-display text-xl font-semibold italic text-brand-ink">
+              &quot;The sellers already know me. Now I can bring them buyers from
+              anywhere.&quot;
+            </p>
+            <cite className="mt-2 block text-sm not-italic text-brand-ink/60">
+              Field agent, Western Region pilot
+            </cite>
+          </blockquote>
+          <a href="/agents" className="btn-primary mt-8">
+            Become an agent
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          {/* Grain texture for depth */}
-          <div className="grain-overlay z-[1]" />
-
-          {/* Hero Content Wrapper */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* LEFT: Image (shown first on mobile for visual hook) */}
-            <div
-              ref={heroImageRef}
-              className="lg:col-span-5 relative w-full flex justify-center order-first lg:order-last"
-            >
-              <div className="hero-image-tilt relative w-full max-w-sm sm:max-w-md lg:max-w-lg aspect-[4/3] lg:aspect-auto lg:h-[480px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-brand-field/10 bg-brand-surface/40 group">
-                <Image
-                  src="/hero-agriculture.png"
-                  alt="Modern smart agriculture field at sunrise with precision drone scanning crops"
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  priority
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  id="img-hero-showcase"
-                />
-
-                {/* Tech overlay card inside hero image */}
-                <div className="absolute bottom-4 sm:bottom-6 left-4 sm:left-6 right-4 sm:right-6 glass-panel p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-brand-field/10 shadow-lg flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-brand-field/15 flex items-center justify-center text-brand-field">
-                      <Activity className="w-5 h-5 animate-pulse-gentle" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] sm:text-[11px] font-bold tracking-wider text-brand-field uppercase">
-                        Crop Telemetry
-                      </p>
-                      <h4 className="text-xs sm:text-sm font-bold text-brand-ink">
-                        Automated Crop Yield Scan
-                      </h4>
-                    </div>
-                  </div>
-                  <span className="text-[10px] sm:text-xs font-semibold text-brand-field bg-brand-field/10 px-2 sm:px-2.5 py-1 rounded-full flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-field animate-pulse" />
-                    <span>Active</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT: Heading and Text */}
-            <div className="lg:col-span-7 flex flex-col justify-center text-left space-y-5 sm:space-y-6 order-last lg:order-first">
-              <div className="hero-badge inline-flex items-center space-x-2.5 rounded-full px-4 py-1.5 w-fit">
-                <Sprout className="w-4 h-4 text-brand-field" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-brand-field font-display">
-                  Digital Agriculture Ecosystem
-                </span>
-              </div>
-
-              <h1
-                ref={titleRef}
-                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold font-display leading-[1.08] tracking-tight text-brand-ink"
-                id="hero-main-title"
-              >
-                Cultivating the <br className="hidden sm:block" />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-field via-brand-field-light to-brand-sky inline-block">
-                  Future of Farming
-                </span>
-              </h1>
-
-              <p
-                ref={subtitleRef}
-                className="text-base sm:text-lg text-brand-ink/80 max-w-xl leading-relaxed"
-                id="hero-subtitle"
-              >
-                A high-fidelity digital marketplace connecting modern growers,
-                verified buyers, and crop partners. Trade smarter with precision
-                metrics and full transparency.
+function AudienceCards() {
+  return (
+    <section id="buyers" className="bg-brand-surface py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <p className="eyebrow">Who it is for</p>
+        <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
+          One marketplace, three ways in.
+        </h2>
+        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-3 md:gap-6">
+          {audiences.map((audience) => (
+            <a key={audience.title} href={audience.href} className="audience-card">
+              <span className="text-brand-field">{audience.icon}</span>
+              <h3 className="mt-5 font-display text-xl font-semibold text-brand-ink">
+                {audience.title}
+              </h3>
+              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
+                {audience.body}
               </p>
+              <span className="card-arrow">
+                Learn more
+                <ArrowIcon />
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-              {/* CTA Action Buttons */}
-              <div
-                ref={ctaButtonsRef}
-                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 pt-2"
-              >
-                <a
-                  href="/marketplace"
-                  className="btn-magnetic bg-brand-field hover:bg-brand-field-light text-brand-surface font-semibold px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl text-center flex items-center justify-center space-x-2.5"
-                  id="btn-enter-marketplace"
-                >
-                  <span>Explore Marketplace</span>
-                  <ArrowRight className="w-5 h-5" />
-                </a>
-                <a
-                  href="#technology"
-                  className="btn-magnetic glass-panel hover:bg-brand-field/5 border border-brand-field/15 hover:border-brand-field/25 text-brand-ink font-semibold px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl text-center"
-                  id="btn-learn-more"
-                >
-                  How It Works
-                </a>
-              </div>
-            </div>
+function FinalCta() {
+  return (
+    <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
+      <LeafPattern className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]" />
+      <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
+        <h2 className="font-display text-[length:var(--text-h2)] font-bold leading-tight text-white">
+          Join the pilot.
+        </h2>
+        <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
+          Whether you grow it, buy it, or move it, there is a place for you at
+          the market.
+        </p>
+        <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
+          <a href="/join" className="btn-light">
+            Get started
+          </a>
+          <a href="/contact" className="btn-ghost">
+            Talk to us
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="bg-brand-ink py-12 text-white sm:py-16">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <div className="grid gap-10 md:grid-cols-4">
+          <div className="md:col-span-1">
+            <a href="/" className="flex items-center gap-2.5">
+              <Logo className="h-8 w-8" />
+              <span className="font-display text-lg font-bold text-white">
+                Kuapa Dwaso
+              </span>
+            </a>
+            <p className="mt-4 text-sm leading-relaxed text-white/60">
+              Agent-verified produce lots for farmers, wholesale buyers, and
+              partners across Ghana.
+            </p>
           </div>
-        </section>
 
-        {/* ─── LAUNCH READINESS STRIP ─── */}
-        <section className="bg-brand-ink/90 text-brand-surface py-10 sm:py-14 relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(84,115,91,0.15),transparent_40%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(47,111,125,0.1),transparent_40%)]" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7 sm:gap-8 md:gap-6 relative z-10">
-            {launchMetrics.map((metric) => (
-              <LaunchMetric key={metric.id} {...metric} />
-            ))}
-          </div>
-        </section>
-
-        {/* ─── FEATURES / TARGET AUDIENCE ─── */}
-        <section
-          id="features"
-          ref={featuresRef}
-          className="py-16 sm:py-24 bg-gradient-to-b from-brand-surface/45 to-brand-surface/82"
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16 relative z-10">
-            {/* Section Header */}
-            <div className="section-header max-w-3xl mx-auto text-center space-y-4">
-              <h2 className="text-xs font-bold text-brand-field uppercase tracking-wider font-display">
-                Targeted Solutions
-              </h2>
-              <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-display text-brand-ink tracking-tight">
-                Designed for the Entire Agricultural Supply Chain
+          <FooterLinks
+            title="Product"
+            links={[
+              ["How it works", "#how"],
+              ["For growers", "/growers"],
+              ["For buyers", "/buyers"],
+              ["For agents", "/agents"],
+            ]}
+          />
+          <FooterLinks
+            title="Company"
+            links={[
+              ["About", "/about"],
+              ["Partners", "/partners"],
+              ["Contact", "/contact"],
+              ["Join the pilot", "/join"],
+            ]}
+          />
+          <div>
+            <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
+              SMS access
+            </h3>
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-5">
+              <p className="text-sm text-white/60">No internet? Text</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-[#7dd8a0]">
+                JOIN to 1945
               </p>
-              <p className="text-sm sm:text-base md:text-lg text-brand-ink/75 max-w-xl mx-auto leading-relaxed">
-                Empowering growers, buyers, and partners with tailored tools
-                that streamline trade, logistics, and data collection.
-              </p>
-            </div>
-
-            {/* Feature Cards — Desktop Grid / Mobile Horizontal Scroll */}
-            <div
-              ref={featureCardsRef}
-              className="hidden md:grid md:grid-cols-3 gap-8"
-            >
-              {featureCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <div
-                    key={card.id}
-                    className="feature-card-item premium-card p-7 sm:p-8 rounded-3xl text-left flex flex-col justify-between group"
-                    id={card.id}
-                  >
-                    <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl transition-colors ${card.glowColor}" />
-                    <div className="space-y-6 relative z-10">
-                      <div
-                        className={`card-icon w-14 h-14 rounded-2xl ${card.iconBg} flex items-center justify-center ${card.iconColor} shadow-md`}
-                      >
-                        <Icon className="w-7 h-7" />
-                      </div>
-                      <div className="space-y-3">
-                        <h3 className="text-xl font-bold font-display text-brand-ink">
-                          {card.title}
-                        </h3>
-                        <p className="text-sm text-brand-ink/75 leading-relaxed">
-                          {card.description}
-                        </p>
-                      </div>
-                      <ul className="space-y-2.5 text-xs font-semibold text-brand-ink/90">
-                        {card.features.map((feature) => (
-                          <li
-                            key={feature}
-                            className="flex items-center space-x-2"
-                          >
-                            <CheckCircle
-                              className={`w-4 h-4 ${card.checkColor} flex-shrink-0`}
-                            />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <a
-                      href={card.linkHref}
-                      className={`mt-8 text-sm font-bold ${card.linkColor} flex items-center space-x-1 hover:space-x-2 transition-all`}
-                    >
-                      <span>{card.linkText}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </a>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Mobile Feature Carousel */}
-            <div className="md:hidden">
-              <div
-                ref={featureScrollRef}
-                className="feature-carousel flex gap-4 overflow-x-auto px-1 pb-4 -mx-1"
-                onScroll={handleFeatureScroll}
-              >
-                {featureCards.map((card) => {
-                  const Icon = card.icon;
-                  return (
-                    <div
-                      key={card.id}
-                      className="feature-card-item premium-card p-6 rounded-2xl text-left flex flex-col justify-between group w-[85vw] max-w-[340px]"
-                      id={`${card.id}-mobile`}
-                    >
-                      <div className="space-y-5 relative z-10">
-                        <div
-                          className={`card-icon w-12 h-12 rounded-xl ${card.iconBg} flex items-center justify-center ${card.iconColor} shadow-md`}
-                        >
-                          <Icon className="w-6 h-6" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold font-display text-brand-ink">
-                            {card.title}
-                          </h3>
-                          <p className="text-sm text-brand-ink/75 leading-relaxed">
-                            {card.description}
-                          </p>
-                        </div>
-                        <ul className="space-y-2 text-xs font-semibold text-brand-ink/90">
-                          {card.features.map((feature) => (
-                            <li
-                              key={feature}
-                              className="flex items-center space-x-2"
-                            >
-                              <CheckCircle
-                                className={`w-4 h-4 ${card.checkColor} flex-shrink-0`}
-                              />
-                              <span>{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <a
-                        href={card.linkHref}
-                        className={`mt-6 text-sm font-bold ${card.linkColor} flex items-center space-x-1`}
-                      >
-                        <span>{card.linkText}</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </a>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Scroll Indicators */}
-              <div className="flex items-center justify-center gap-2 pt-3">
-                {featureCards.map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`scroll-indicator ${
-                      activeFeatureIdx === idx ? "active" : ""
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ─── TECHNOLOGY SHOWCASE ─── */}
-        <section
-          id="technology"
-          ref={techRef}
-          className="py-16 sm:py-24 bg-brand-surface/82 border-t border-brand-field/10"
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10 sm:gap-16 items-center relative z-10">
-            {/* Left Column: Visual Showcase */}
-            <div
-              ref={techImageRef}
-              className="lg:col-span-6 relative flex justify-center order-last lg:order-first"
-            >
-              <div className="relative w-full max-w-lg aspect-[4/3] lg:aspect-auto lg:h-[500px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl border border-brand-field/10 group">
-                <Image
-                  src="/smart-farming-showcase.png"
-                  alt="Precision greenhouse hydroponics with telemetry sensors showing plant growth indices"
-                  fill
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  className="object-cover transition-transform duration-700 group-hover:scale-105"
-                  id="img-tech-showcase"
-                />
-
-                {/* Visual Accent */}
-                <div className="absolute inset-0 bg-gradient-to-t from-brand-ink/65 via-transparent to-transparent" />
-
-                {/* Telemetry statistics floating card */}
-                <div className="absolute top-4 sm:top-6 left-4 sm:left-6 glass-panel px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-brand-field/15 shadow-sm text-xs font-semibold text-brand-ink flex items-center space-x-2 animate-float">
-                  <span className="w-2.5 h-2.5 rounded-full bg-brand-field animate-pulse" />
-                  <span>Real-time Telemetry Active</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Text & Features list */}
-            <div ref={techTextRef} className="lg:col-span-6 space-y-6 sm:space-y-8 text-left">
-              <div className="space-y-3 sm:space-y-4">
-                <h2 className="text-xs font-bold text-brand-field uppercase tracking-wider font-display">
-                  Precision Agronomy
-                </h2>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-extrabold font-display tracking-tight text-brand-ink">
-                  Smarter Trade Backed by Concrete Yield Telemetry
-                </p>
-                <p className="text-sm sm:text-base text-brand-ink/75 leading-relaxed">
-                  We integrate data from active farm sensors, weather models,
-                  and drone mapping reports so that trade agreements are based on
-                  factual, verifiable quality.
-                </p>
-              </div>
-
-              {/* Small micro features */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                {techFeatures.map((feat) => {
-                  const Icon = feat.icon;
-                  return (
-                    <div
-                      key={feat.title}
-                      className="tech-card space-y-3 p-4 sm:p-5 rounded-2xl glass-panel border border-brand-field/8"
-                    >
-                      <div
-                        className={`w-10 h-10 rounded-xl ${feat.iconBg} flex items-center justify-center ${feat.iconColor}`}
-                      >
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <h4 className="text-sm sm:text-base font-bold font-display text-brand-ink">
-                        {feat.title}
-                      </h4>
-                      <p className="text-xs text-brand-ink/75 leading-relaxed">
-                        {feat.description}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ─── CTA BANNER ─── */}
-        <section
-          ref={ctaBannerRef}
-          className="py-16 sm:py-24 relative overflow-hidden bg-brand-surface/78"
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="cta-inner relative rounded-2xl sm:rounded-3xl overflow-hidden bg-brand-ink text-brand-surface px-6 py-12 sm:p-16 md:p-20 shadow-2xl border border-brand-field/20">
-              {/* Animated gradient mesh */}
-              <div className="absolute inset-0 cta-gradient-mesh" />
-
-              {/* Decorative corner elements */}
-              <div className="absolute top-0 right-0 w-72 sm:w-96 h-72 sm:h-96 bg-brand-field/10 rounded-full blur-3xl -mr-12 -mt-12" />
-              <div className="absolute bottom-0 left-0 w-72 sm:w-96 h-72 sm:h-96 bg-brand-sky/8 rounded-full blur-3xl -ml-12 -mb-12" />
-
-              {/* Grain texture */}
-              <div className="grain-overlay opacity-[0.02]" />
-
-              <div className="relative z-10 max-w-3xl mx-auto text-center space-y-6 sm:space-y-8">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-brand-field/15 flex items-center justify-center text-brand-field mx-auto animate-pulse-gentle">
-                  <Sprout className="w-7 h-7 sm:w-8 sm:h-8" />
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold font-display tracking-tight text-brand-surface">
-                  Ready to Cultivate Better Connections?
-                </h2>
-
-                <p className="text-sm sm:text-base md:text-lg text-brand-surface/85 max-w-xl mx-auto leading-relaxed">
-                  Join KuapaDwaso today. Sign up as a grower, register as a
-                  commercial buyer, or integrate your agronomic telemetry node.
-                </p>
-
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-                  <a
-                    href="/get-started"
-                    className="btn-magnetic w-full sm:w-auto bg-brand-field hover:bg-brand-field-light text-brand-surface font-semibold px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl text-center"
-                    id="btn-cta-signup"
-                  >
-                    Create Free Account
-                  </a>
-                  <a
-                    href="/contact"
-                    className="btn-magnetic w-full sm:w-auto bg-brand-surface/10 hover:bg-brand-surface/20 text-brand-surface border border-brand-surface/25 font-semibold px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl text-center"
-                    id="btn-cta-contact"
-                  >
-                    Schedule Platform Demo
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      {/* ═══ FOOTER ═══ */}
-      <footer className="bg-brand-ink/94 text-brand-surface/80 border-t border-brand-surface/10 py-12 sm:py-16 relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 relative z-10">
-          {/* Footer top row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-8 md:gap-8">
-            {/* Footer Logo & Brand info */}
-            <div className="md:col-span-5 space-y-4 text-left">
-              <a
-                href="#"
-                className="flex items-center space-x-2.5 group"
-                id="footer-logo"
-              >
-                <div className="w-8 h-8 rounded-lg bg-brand-field flex items-center justify-center text-brand-surface group-hover:scale-105 transition-transform duration-300">
-                  <Sprout className="w-5 h-5" />
-                </div>
-                <span className="text-lg font-bold font-display tracking-tight text-brand-surface">
-                  Agri<span className="text-brand-field">Market</span>
-                </span>
-              </a>
-              <p className="text-xs sm:text-sm text-brand-surface/65 max-w-sm leading-relaxed">
-                KuapaDwaso is a premium digital trading platform providing
-                telemetry-backed security, traceability log verification, and
-                fair marketplace exchange.
-              </p>
-            </div>
-
-            {/* Links Column 1: Platform */}
-            <div className="md:col-span-2 text-left space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-field font-display">
-                Platform
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm">
-                <li>
-                  <a
-                    href="/marketplace"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-market"
-                  >
-                    Explore Crops
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/logistics"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-logistics"
-                  >
-                    Freight Logistics
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/analytics"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-analytics"
-                  >
-                    Soil Analytics
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/pricing"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-pricing"
-                  >
-                    Pricing Models
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            {/* Links Column 2: Resources */}
-            <div className="md:col-span-3 text-left space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-field font-display">
-                Resources
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm">
-                <li>
-                  <a
-                    href="/developers"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-api"
-                  >
-                    API Documentation
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/sensors"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-iot"
-                  >
-                    IoT Node Config
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/blog"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-blog"
-                  >
-                    Smart Farming Blog
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/help"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-help"
-                  >
-                    Support Help Center
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            {/* Links Column 3: Legal */}
-            <div className="md:col-span-2 text-left space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-brand-field font-display">
-                Legal
-              </h4>
-              <ul className="space-y-2 text-xs sm:text-sm">
-                <li>
-                  <a
-                    href="/privacy"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-privacy"
-                  >
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/terms"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-terms"
-                  >
-                    Terms of Trade
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/cookies"
-                    className="link-underline hover:text-brand-field transition-colors"
-                    id="footer-link-cookies"
-                  >
-                    Cookie Settings
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Footer divider */}
-          <div className="footer-divider" />
-
-          {/* Footer bottom */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-brand-surface/50">
-            <p>© {new Date().getFullYear()} KuapaDwaso Inc. All rights reserved.</p>
-            <div className="flex items-center space-x-4">
-              <span>Built with precision agriculture technology</span>
-              <Leaf className="w-3.5 h-3.5 text-brand-field" />
             </div>
           </div>
         </div>
-      </footer>
+
+        <div className="mt-10 border-t border-white/10 pt-6 text-sm text-white/45">
+          <p>Copyright 2026 Kuapa Dwaso. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterLinks({
+  title,
+  links,
+}: {
+  title: string;
+  links: readonly (readonly [string, string])[];
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
+        {title}
+      </h3>
+      <ul className="mt-4 space-y-3 text-sm text-white/65">
+        {links.map(([label, href]) => (
+          <li key={href}>
+            <a href={href} className="transition-colors hover:text-white">
+              {label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
+  );
+}
+
+function PhoneMockup() {
+  return (
+    <div className="mx-auto w-full max-w-[270px] sm:max-w-[320px] lg:max-w-[360px]">
+      <svg
+        viewBox="0 0 260 480"
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-label="SMS conversation with Kuapa Dwaso on a keypad phone"
+        className="phone-shadow h-auto w-full"
+      >
+        <rect
+          x="10"
+          y="10"
+          width="240"
+          height="460"
+          rx="28"
+          fill="#1a2e20"
+          stroke="#3a5a45"
+          strokeWidth="2"
+        />
+        <rect x="105" y="26" width="50" height="6" rx="3" fill="#3a5a45" />
+        <rect x="28" y="44" width="204" height="240" rx="8" fill="#c8e6c9" />
+        <path d="M36 44h188a8 8 0 0 1 8 8v18H28V52a8 8 0 0 1 8-8Z" fill="#2d8a4e" />
+        <text x="130" y="61" textAnchor="middle" fontFamily="monospace" fontSize="11" fill="#fff">
+          Kuapa Dwaso - 1945
+        </text>
+
+        <MessageGroup>
+          <rect x="120" y="80" width="100" height="24" rx="6" fill="#2d8a4e" />
+          <text x="170" y="96" textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#fff">
+            JOIN
+          </text>
+        </MessageGroup>
+        <MessageGroup>
+          <rect x="40" y="112" width="160" height="52" rx="6" fill="#fff" />
+          <text x="48" y="128" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            Akwaaba! You are now
+          </text>
+          <text x="48" y="141" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            registered. Reply STATUS
+          </text>
+          <text x="48" y="154" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            to see your listings.
+          </text>
+        </MessageGroup>
+        <MessageGroup>
+          <rect x="120" y="172" width="100" height="24" rx="6" fill="#2d8a4e" />
+          <text x="170" y="188" textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#fff">
+            STATUS
+          </text>
+        </MessageGroup>
+        <MessageGroup>
+          <rect x="40" y="204" width="170" height="66" rx="6" fill="#fff" />
+          <text x="48" y="220" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            Plantain: 40 bunches
+          </text>
+          <text x="48" y="233" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            Offer: GHS 22/bunch
+          </text>
+          <text x="48" y="246" fontFamily="monospace" fontSize="9" fill="#0f1f14">
+            Buyer: Takoradi Foods
+          </text>
+          <text x="48" y="259" fontFamily="monospace" fontSize="9" fill="#2d8a4e" fontWeight="bold">
+            Reply YES to accept
+          </text>
+        </MessageGroup>
+
+        <circle cx="130" cy="322" r="24" fill="none" stroke="#3a5a45" strokeWidth="2" />
+        <circle cx="130" cy="322" r="10" fill="#3a5a45" />
+        <g fill="#233a2b" stroke="#3a5a45" strokeWidth="1">
+          {[
+            [42, 358],
+            [104, 358],
+            [166, 358],
+            [42, 384],
+            [104, 384],
+            [166, 384],
+            [42, 410],
+            [104, 410],
+            [166, 410],
+            [42, 436],
+            [104, 436],
+            [166, 436],
+          ].map(([x, y]) => (
+            <rect key={`${x}-${y}`} x={x} y={y} width="52" height="20" rx="6" />
+          ))}
+        </g>
+        <g fontFamily="monospace" fontSize="10" fill="#7dd8a0" textAnchor="middle">
+          {[
+            ["1", 68, 372],
+            ["2", 130, 372],
+            ["3", 192, 372],
+            ["4", 68, 398],
+            ["5", 130, 398],
+            ["6", 192, 398],
+            ["7", 68, 424],
+            ["8", 130, 424],
+            ["9", 192, 424],
+            ["*", 68, 450],
+            ["0", 130, 450],
+            ["#", 192, 450],
+          ].map(([label, x, y]) => (
+            <text key={label} x={x} y={y}>
+              {label}
+            </text>
+          ))}
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+function MessageGroup({ children }: { children: ReactNode }) {
+  return <g>{children}</g>;
+}
+
+function Logo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+      <rect width="32" height="32" rx="8" fill="#2d8a4e" />
+      <path d="M16 26c0-8 2-14 9-18-1 8-3 14-9 18Z" fill="#f5f7f0" opacity="0.95" />
+      <path d="M15 26c0-7-2-12-8-15 1 7 3 12 8 15Z" fill="#f5f7f0" opacity="0.6" />
+    </svg>
+  );
+}
+
+function SproutIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 21v-8" />
+      <path d="M12 13c0-4 2.5-7 7-7 0 4-2.5 7-7 7Z" />
+      <path d="M12 13c0-3-2-5.5-5.5-5.5 0 3 2 5.5 5.5 5.5Z" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function CrateIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 9h18l-1.5 11h-15L3 9Z" />
+      <path d="M8 9V6a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+function NetworkIcon() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <circle cx="12" cy="18" r="2.5" />
+      <path d="M7.8 7.8 10.5 16M16.2 7.8 13.5 16M8.5 6h7" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function LeafPattern({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className={className}>
+      <defs>
+        <pattern id="leaves" width="120" height="120" patternUnits="userSpaceOnUse">
+          <path d="M30 90c0-25 8-45 30-58-5 25-12 45-30 58Z" fill="none" stroke="#fff" strokeWidth="1.5" />
+          <path d="M85 55c0-18 6-32 21-41-3 18-8 32-21 41Z" fill="none" stroke="#fff" strokeWidth="1.5" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#leaves)" />
+    </svg>
   );
 }
