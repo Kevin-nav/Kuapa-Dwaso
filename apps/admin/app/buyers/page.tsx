@@ -1,7 +1,6 @@
 // apps/admin/app/buyers/page.tsx
 "use client";
 
-import React from "react";
 import { useAdminData, DataTable, StatusBadge, gray } from "@kuapa-dwaso/dashboard-ui";
 
 export default function BuyersPage() {

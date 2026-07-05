@@ -1,9 +1,9 @@
 // apps/admin/app/disputes/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAdminData, DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { AlertTriangle, CheckSquare, Eye, MessageSquare } from "lucide-react";
+import { CheckSquare } from "lucide-react";
 
 export default function DisputesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
@@ -105,7 +105,7 @@ export default function DisputesPage() {
           }
         ]}
         drawerTitle={(row) => row.title}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           if (!selectedDispute || selectedDispute.id !== row.id) {
             setSelectedDispute(row);
           }

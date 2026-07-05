@@ -1,9 +1,9 @@
 // apps/admin/app/fee-rules/page.tsx
 "use client";
 
-import React, { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { Plus, History, Scale, ShieldAlert, Award } from "lucide-react";
+import { useState } from "react";
+import { useAdminData, DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { Plus, History } from "lucide-react";
 
 export default function FeeRulesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
@@ -124,7 +124,7 @@ export default function FeeRulesPage() {
         searchKey="label"
         searchPlaceholder="Search fee descriptions..."
         drawerTitle={(row) => row.label}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           if (!selectedRule || selectedRule.code !== row.code) {
             setSelectedRule(row);
           }

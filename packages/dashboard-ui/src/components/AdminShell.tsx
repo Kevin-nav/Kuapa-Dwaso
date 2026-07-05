@@ -1,7 +1,7 @@
 // packages/dashboard-ui/src/components/AdminShell.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { palette, gray } from "@kuapa-dwaso/design-tokens";
@@ -21,7 +21,6 @@ import {
   AlertTriangle,
   History,
   BarChart3,
-  Menu,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -196,13 +195,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       transition: "all 0.15s ease",
                       justifyContent: isCollapsed ? "center" : "flex-start",
                     }}
-                    onMouseEnter={(e) => {
+                    onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => {
                       if (!isActive) {
                         e.currentTarget.style.color = "white";
                         e.currentTarget.style.backgroundColor = "rgba(45, 138, 78, 0.15)";
                       }
                     }}
-                    onMouseLeave={(e) => {
+                    onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => {
                       if (!isActive) {
                         e.currentTarget.style.color = "#94a3b8";
                         e.currentTarget.style.backgroundColor = "transparent";

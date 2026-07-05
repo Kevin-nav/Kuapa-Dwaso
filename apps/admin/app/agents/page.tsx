@@ -1,9 +1,9 @@
 // apps/admin/app/agents/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAdminData, DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { Check, ShieldAlert, BookOpen, Warehouse } from "lucide-react";
+import { Check, ShieldAlert, Warehouse } from "lucide-react";
 
 export default function AgentsPage() {
   const { agents, warehouses, actions } = useAdminData();
@@ -106,7 +106,7 @@ export default function AgentsPage() {
           }
         ]}
         drawerTitle={(row) => row.fullName}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           if (!selectedAgent || selectedAgent.id !== row.id) {
             setSelectedAgent(row);
           }

@@ -1,14 +1,15 @@
 // apps/admin/app/page.tsx
 "use client";
 
-import React from "react";
 import Link from "next/link";
+import { useState } from "react";
 import { useAdminData, MetricCard, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { AlertTriangle, Calendar, ChevronRight, Boxes } from "lucide-react";
+import { AlertTriangle, ChevronRight, Boxes } from "lucide-react";
 
 export default function OverviewPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { warehouses, inventory, disputes, auditLogs, actions } = useAdminData();
+  const { warehouses, inventory, disputes, auditLogs } = useAdminData();
+  const [now] = useState(() => Date.now());
 
   // Filter lists based on selected warehouse
   const filteredWarehouses = selectedWarehouseId === "all" 
@@ -26,11 +27,6 @@ export default function OverviewPage() {
           const batch = inventory.find(i => i.id === d.entityId);
           return batch?.warehouseId === selectedWarehouseId;
         }
-        if (d.entityType === "farmer") {
-          const farmer = actions ? MockDatabase_getFarmer(d.entityId, inventory) : null;
-          // fall back to true/false
-          return true;
-        }
         return true;
       });
 
@@ -43,7 +39,6 @@ export default function OverviewPage() {
   // Nearing Expiry items: sellByDate exists and is in the future but less than 30 days, or past (expired)
   const nearingExpiry = filteredInventory.filter(item => {
     if (!item.sellByDate) return false;
-    const daysLeft = (item.sellByDate - Date.now()) / (24 * 60 * 60 * 1000);
     return item.status === "available" || item.status === "partially_reserved" || item.status === "reserved";
   }).sort((a, b) => (a.sellByDate || 0) - (b.sellByDate || 0));
 
@@ -170,7 +165,7 @@ export default function OverviewPage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {nearingExpiry.slice(0, 3).map(batch => {
-                const daysLeft = batch.sellByDate ? Math.round((batch.sellByDate - Date.now()) / (24 * 60 * 60 * 1000)) : 0;
+                const daysLeft = batch.sellByDate ? Math.round((batch.sellByDate - now) / (24 * 60 * 60 * 1000)) : 0;
                 const isOverdue = daysLeft <= 0;
                 
                 return (
@@ -230,7 +225,7 @@ export default function OverviewPage() {
                 const whStock = inventory.filter(i => i.warehouseId === wh.id).reduce((sum, item) => sum + item.quantityAvailable, 0);
                 const percent = wh.storageCapacity ? Math.round((whStock / wh.storageCapacity) * 100) : 0;
                 
-                let barColor = palette.field;
+                let barColor: string = palette.field;
                 if (percent > 85) barColor = status.danger;
                 else if (percent > 65) barColor = status.warning;
                 
@@ -293,9 +288,4 @@ export default function OverviewPage() {
       </div>
     </div>
   );
-}
-
-// Simple helper to avoid crash
-function MockDatabase_getFarmer(farmerId: string, inventory: any[]) {
-  return null;
 }

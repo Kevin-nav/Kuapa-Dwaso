@@ -1,7 +1,6 @@
 // apps/admin/app/dispatch/page.tsx
 "use client";
 
-import React from "react";
 import { gray, palette } from "@kuapa-dwaso/dashboard-ui";
 import { Truck } from "lucide-react";
 

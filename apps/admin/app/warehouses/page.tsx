@@ -1,9 +1,9 @@
 // apps/admin/app/warehouses/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAdminData, DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { Plus, Edit3, Shield, Calendar, MapPin, BarChart2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export default function WarehousesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
@@ -117,7 +117,7 @@ export default function WarehousesPage() {
           }
         ]}
         drawerTitle={(row) => row.name}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           // If drawer loads, we keep local track of selection
           if (!selectedWarehouse || selectedWarehouse.id !== row.id) {
             setSelectedWarehouse(row);

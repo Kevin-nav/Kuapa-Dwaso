@@ -56,12 +56,14 @@ export const gray = {
   50: "#eef0f3",   // table header, zebra
   100:"#e2e6ea",   // hairlines / dividers
   300:"#c2c8d0",   // disabled borders
+  400:"#8b95a1",   // subdued disabled text
   500:"#6b7280",   // secondary/muted text
+  600:"#4b5563",   // stronger secondary text
   700:"#3a4048",   // body text
+  800:"#2b3037",   // emphasized body text
   900:"#20242a",   // headings (your existing)
 } as const;
 
 export const spacing = {
   controlPadding: "0.75rem 1rem",
 } as const;
-

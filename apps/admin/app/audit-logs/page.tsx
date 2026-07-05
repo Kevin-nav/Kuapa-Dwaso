@@ -1,9 +1,7 @@
 // apps/admin/app/audit-logs/page.tsx
 "use client";
 
-import React, { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { History, Shield, ArrowRight } from "lucide-react";
+import { useAdminData, DataTable, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 
 export default function AuditLogsPage() {
   const { auditLogs } = useAdminData();
@@ -85,7 +83,7 @@ export default function AuditLogsPage() {
           }
         ]}
         drawerTitle={(row) => `Action: ${row.action}`}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           // Compute keys that changed
           const keys = Array.from(new Set([
             ...Object.keys(row.before || {}),
@@ -133,8 +131,6 @@ export default function AuditLogsPage() {
                     {keys.map((key) => {
                       const beforeVal = row.before?.[key];
                       const afterVal = row.after?.[key];
-                      const isChanged = beforeVal !== afterVal;
-
                       return (
                         <div
                           key={key}

@@ -1,7 +1,6 @@
 // apps/admin/app/reports/page.tsx
 "use client";
 
-import React from "react";
 import { gray, palette } from "@kuapa-dwaso/dashboard-ui";
 import { BarChart3 } from "lucide-react";
 

@@ -1,9 +1,8 @@
 // apps/admin/app/farmers/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAdminData, DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { Check, ShieldAlert, Award, FileText, AlertCircle } from "lucide-react";
 
 export default function FarmersPage() {
   const { farmers, warehouses, inventory, disputes, actions } = useAdminData();
@@ -88,7 +87,7 @@ export default function FarmersPage() {
           }
         ]}
         drawerTitle={(row) => row.fullName}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           if (!selectedFarmer || selectedFarmer.id !== row.id) {
             setSelectedFarmer(row);
             setActiveTab("profile");

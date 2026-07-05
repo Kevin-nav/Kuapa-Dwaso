@@ -1,9 +1,8 @@
 // apps/admin/app/inventory/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useAdminData, DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
-import { AlertCircle, Calendar, RefreshCcw, Shield } from "lucide-react";
 
 export default function InventoryPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
@@ -20,7 +19,7 @@ export default function InventoryPage() {
     if (!row.sellByDate) return <span style={{ color: gray[400] }}>No date set</span>;
     
     const daysLeft = Math.round((row.sellByDate - Date.now()) / (24 * 60 * 60 * 1000));
-    let color = gray[700];
+    let color: string = gray[700];
     let icon = "";
     
     if (daysLeft <= 0) {
@@ -126,7 +125,7 @@ export default function InventoryPage() {
           }
         ]}
         drawerTitle={(row) => `Receipt ${row.receiptCode}`}
-        drawerContent={(row, onClose) => {
+        drawerContent={(row, _onClose) => {
           if (!selectedLot || selectedLot.id !== row.id) {
             setSelectedLot(row);
             setActiveTab("details");

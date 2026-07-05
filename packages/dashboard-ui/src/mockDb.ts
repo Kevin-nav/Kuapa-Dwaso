@@ -127,8 +127,9 @@ export type AuditLog = {
   action: string;
   entityType: string;
   entityId: string;
-  before?: any;
-  after?: any;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  notes?: string;
   createdAt: number;
 };
 
@@ -675,7 +676,14 @@ export class MockDatabase {
     this.addAuditLog("warehouse.status_updated", "warehouse", warehouseId, before, { status }, `Warehouse status updated to ${status}. Reason: ${reason || "none"}`);
   }
 
-  private static addAuditLog(action: string, entityType: string, entityId: string, before?: any, after?: any, notes?: string): void {
+  private static addAuditLog(
+    action: string,
+    entityType: string,
+    entityId: string,
+    before?: Record<string, unknown>,
+    after?: Record<string, unknown>,
+    notes?: string,
+  ): void {
     const logs = this.getAuditLogs();
     const newLog: AuditLog = {
       id: `log-${Date.now()}`,
@@ -685,10 +693,17 @@ export class MockDatabase {
       action,
       entityType,
       entityId,
-      before,
-      after,
       createdAt: Date.now(),
     };
+    if (before !== undefined) {
+      newLog.before = before;
+    }
+    if (after !== undefined) {
+      newLog.after = after;
+    }
+    if (notes !== undefined) {
+      newLog.notes = notes;
+    }
     logs.unshift(newLog);
     this.setStored("auditLogs", logs);
   }
