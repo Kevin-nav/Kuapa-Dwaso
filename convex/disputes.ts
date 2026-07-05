@@ -8,7 +8,7 @@ import {
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
   v.literal("buyer"),
   v.literal("transporter"),
   v.literal("admin"),
@@ -21,16 +21,18 @@ const disputeStatus = v.union(
   v.literal("cancelled"),
 );
 const disputeEntityType = v.union(
-  v.literal("user"),
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse"),
+  v.literal("warehouse_agent"),
+  v.literal("inventory_batch"),
+  v.literal("storage_receipt"),
+  v.literal("buyer_order"),
+  v.literal("sale_record"),
+  v.literal("dispatch"),
+  v.literal("storage_fee_ledger"),
   v.literal("buyer"),
-  v.literal("produce_listing"),
-  v.literal("bulk_lot"),
-  v.literal("deal"),
-  v.literal("transport_provider"),
-  v.literal("transport_request"),
-  v.literal("approval_request"),
+  v.literal("notification"),
+  v.literal("app_setting"),
 );
 const genericRecord = v.record(v.string(), v.any());
 const maxDisputeLimit = 200;
@@ -46,7 +48,7 @@ function requireNonBlank(value: string, label: string): void {
 }
 
 function assertCanCreateDispute(
-  role: "farmer" | "agent" | "buyer" | "transporter" | "admin",
+  role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
   if (!canCreateDispute(role)) {
     throw new Error("This role cannot create disputes.");
@@ -54,7 +56,7 @@ function assertCanCreateDispute(
 }
 
 function assertCanManageDisputes(
-  role: "farmer" | "agent" | "buyer" | "transporter" | "admin",
+  role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
   if (!canManageDisputes(role)) {
     throw new Error("Only admins can manage disputes.");
@@ -69,6 +71,7 @@ export const create = mutation({
     entityType: disputeEntityType,
     entityId: v.string(),
     openedByUserId: v.optional(v.id("users")),
+    warehouseId: v.optional(v.id("warehouses")),
     summary: v.string(),
     metadata: v.optional(genericRecord),
   },
@@ -81,22 +84,19 @@ export const create = mutation({
     requireNonBlank(args.summary, "Dispute summary");
 
     const now = Date.now();
-    const dispute = {
+    const disputeId = await ctx.db.insert("disputes", {
       entityType: args.entityType,
       entityId: args.entityId,
-      status: "open" as const,
+      status: "open",
+      openedByUserId: args.openedByUserId,
+      openedByRole: args.actorRole,
+      warehouseId: args.warehouseId,
       summary: args.summary,
       createdAt: now,
       updatedAt: now,
-    };
-    const disputeId = await ctx.db.insert(
-      "disputes",
-      args.openedByUserId === undefined
-        ? dispute
-        : { ...dispute, openedByUserId: args.openedByUserId },
-    );
+    });
 
-    const auditLog = {
+    await ctx.db.insert("auditLogs", {
       actorId: args.actorId,
       actorRole: args.actorRole,
       action: "dispute.created",
@@ -108,14 +108,9 @@ export const create = mutation({
         status: "open",
         summary: args.summary,
       },
+      metadata: args.metadata,
       createdAt: now,
-    };
-    await ctx.db.insert(
-      "auditLogs",
-      args.metadata === undefined
-        ? auditLog
-        : { ...auditLog, metadata: args.metadata },
-    );
+    });
 
     return disputeId;
   },
@@ -150,19 +145,15 @@ export const updateStatus = mutation({
     }
 
     const now = Date.now();
-    const patch = {
-      status: args.status,
-      updatedAt: now,
-    };
-    const disputePatch =
+    const patch =
       args.status === "resolved"
-        ? { ...patch, resolution, resolvedAt: now }
+        ? { status: args.status, resolution, resolvedAt: now, updatedAt: now }
         : resolution === undefined
-          ? patch
-          : { ...patch, resolution };
+          ? { status: args.status, updatedAt: now }
+          : { status: args.status, resolution, updatedAt: now };
 
-    await ctx.db.patch(args.disputeId, disputePatch);
-    const auditLog = {
+    await ctx.db.patch(args.disputeId, patch);
+    await ctx.db.insert("auditLogs", {
       actorId: args.actorId,
       actorRole: args.actorRole,
       action: "dispute.status_updated",
@@ -173,15 +164,10 @@ export const updateStatus = mutation({
         resolution: existing.resolution,
         resolvedAt: existing.resolvedAt,
       },
-      after: disputePatch,
+      after: patch,
+      metadata: args.metadata,
       createdAt: now,
-    };
-    await ctx.db.insert(
-      "auditLogs",
-      args.metadata === undefined
-        ? auditLog
-        : { ...auditLog, metadata: args.metadata },
-    );
+    });
 
     return args.disputeId;
   },
@@ -194,13 +180,14 @@ export const list = query({
     status: v.optional(disputeStatus),
     entityType: v.optional(disputeEntityType),
     entityId: v.optional(v.string()),
+    warehouseId: v.optional(v.id("warehouses")),
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
     assertCanManageDisputes(await resolveRequestingRole(ctx.db, args));
 
-    const { entityType, entityId, status } = args;
+    const { entityType, entityId, status, warehouseId } = args;
     const candidates =
       entityType !== undefined && entityId !== undefined
         ? await ctx.db
@@ -210,16 +197,23 @@ export const list = query({
             )
             .order("desc")
             .take(maxDisputeLimit)
-        : status !== undefined
+        : warehouseId !== undefined && status !== undefined
           ? await ctx.db
               .query("disputes")
-              .withIndex("by_status", (q) => q.eq("status", status))
+              .withIndex("by_warehouse_status", (q) => q.eq("warehouseId", warehouseId).eq("status", status))
               .order("desc")
               .take(maxDisputeLimit)
-          : await ctx.db.query("disputes").order("desc").take(maxDisputeLimit);
+          : status !== undefined
+            ? await ctx.db
+                .query("disputes")
+                .withIndex("by_status", (q) => q.eq("status", status))
+                .order("desc")
+                .take(maxDisputeLimit)
+            : await ctx.db.query("disputes").order("desc").take(maxDisputeLimit);
 
     return candidates
       .filter((dispute) => status === undefined || dispute.status === status)
+      .filter((dispute) => warehouseId === undefined || dispute.warehouseId === warehouseId)
       .filter(
         (dispute) =>
           entityType === undefined || dispute.entityType === entityType,

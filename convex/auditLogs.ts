@@ -5,7 +5,7 @@ import { resolveRequestingRole } from "./observabilityAccess";
 
 const actorRole = v.union(
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
   v.literal("buyer"),
   v.literal("transporter"),
   v.literal("admin"),
@@ -14,7 +14,7 @@ const actorRole = v.union(
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
   v.literal("buyer"),
   v.literal("transporter"),
   v.literal("admin"),
@@ -23,14 +23,20 @@ const marketplaceRole = v.union(
 const auditEntityType = v.union(
   v.literal("user"),
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
+  v.literal("warehouse"),
+  v.literal("inventory_batch"),
+  v.literal("storage_receipt"),
+  v.literal("inventory_reservation"),
+  v.literal("storage_fee_ledger"),
+  v.literal("storage_rate_rule"),
+  v.literal("fee_rule"),
   v.literal("buyer"),
-  v.literal("produce_listing"),
-  v.literal("bulk_lot"),
-  v.literal("deal"),
-  v.literal("transport_provider"),
-  v.literal("transport_request"),
-  v.literal("approval_request"),
+  v.literal("buyer_order"),
+  v.literal("buyer_order_charge"),
+  v.literal("sale_record"),
+  v.literal("sale_deduction"),
+  v.literal("dispatch"),
   v.literal("dispute"),
   v.literal("notification"),
   v.literal("app_setting"),
@@ -44,7 +50,7 @@ function clampLimit(limit: number | undefined): number {
 }
 
 function assertCanViewAuditLogs(
-  role: "farmer" | "agent" | "buyer" | "transporter" | "admin",
+  role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
   if (!canViewAuditLogs(role)) {
     throw new Error("Only admins can view audit logs.");
@@ -56,7 +62,7 @@ export const create = mutation({
     actorId: v.string(),
     actorRole,
     action: v.string(),
-    entityType: v.string(),
+    entityType: auditEntityType,
     entityId: v.string(),
     before: v.optional(genericRecord),
     after: v.optional(genericRecord),

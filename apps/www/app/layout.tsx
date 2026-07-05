@@ -4,30 +4,30 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kuapa Dwaso | Verified Produce Marketplace",
+  title: "Kuapa Dwaso | Warehouse Produce Aggregation",
   description:
-    "Kuapa Dwaso links smallholder farmers to wholesale buyers through trusted local agents and simple SMS access.",
+    "Kuapa Dwaso helps farmers store produce at community warehouses while buyers order verified warehouse stock.",
   keywords: [
     "agriculture",
-    "marketplace",
+    "warehouse aggregation",
     "Ghana",
     "smallholder farmers",
-    "SMS trading",
+    "produce storage",
     "produce buyers",
-    "plantain",
+    "dispatch",
   ],
   openGraph: {
-    title: "Kuapa Dwaso | Verified Produce Marketplace",
+    title: "Kuapa Dwaso | Warehouse Produce Aggregation",
     description:
-      "Agent-verified produce lots and SMS access for farmers, buyers, and partners.",
+      "Warehouse-verified produce inventory, storage receipts, buyer orders, sales, and dispatch tracking.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Kuapa Dwaso | Verified Produce Marketplace",
+    title: "Kuapa Dwaso | Warehouse Produce Aggregation",
     description:
-      "Trusted local agents connect farmers to bulk buyers, with SMS access for any phone.",
+      "Farmers store locally. Buyers order from verified warehouse stock.",
   },
 };
 

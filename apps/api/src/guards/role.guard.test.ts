@@ -51,7 +51,7 @@ describe("RoleGuard", () => {
   });
 
   it("allows matching required permissions", () => {
-    const handler = createDecoratedHandler(RequirePermissions("listings:create"));
+    const handler = createDecoratedHandler(RequirePermissions("inventory:create"));
     const guard = new RoleGuard(new Reflector());
 
     expect(
@@ -61,7 +61,7 @@ describe("RoleGuard", () => {
             headers: {},
             user: {
               authProviderId: "firebase-user-1",
-              roles: ["agent"],
+              roles: ["warehouse_agent"],
               status: "active"
             }
           },

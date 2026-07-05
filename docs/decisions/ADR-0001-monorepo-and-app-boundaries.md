@@ -8,11 +8,13 @@ Accepted
 
 Use a Corepack-managed pnpm workspace with Turborepo.
 
-Use separate app folders for the public site, main product app, admin console, and NestJS API:
+Use separate app folders for the public site, main product app, warehouse
+operations console, admin console, and NestJS API:
 
 ```text
 apps/www/
 apps/app/
+apps/ops/
 apps/admin/
 apps/api/
 ```
@@ -21,7 +23,9 @@ Use shared packages for UI, dashboard UI, design tokens, types, validators, perm
 
 ## Rationale
 
-Separate deployable app folders protect low-bandwidth users from downloading dashboard or admin code when they only need public or focused product pages.
+Separate deployable app folders protect low-bandwidth users from downloading
+warehouse operations, dashboard, or admin code when they only need public or
+focused product pages.
 
 Shared packages keep the product consistent while allowing developers to own feature flows flexibly.
 
@@ -29,5 +33,6 @@ Shared packages keep the product consistent while allowing developers to own fea
 
 Folder boundaries are stricter than filenames.
 
-New top-level folders, new app folders, new shared packages, and folder moves require agreement and documentation.
-
+New top-level folders, new shared packages, and folder moves require agreement
+and documentation. `apps/ops/` is accepted by ADR-0002 as the warehouse-agent
+operations boundary for the warehouse pivot.

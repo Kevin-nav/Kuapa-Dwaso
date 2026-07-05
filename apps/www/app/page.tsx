@@ -1,52 +1,48 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
 
 const proofPoints = [
-  ["Agent-verified", "Every listing checked in person"],
-  ["Any phone", "Full access via SMS. No data needed"],
-  ["Bulk-first", "Aggregated lots sized for wholesale"],
-  ["Pilot live", "Operating in the Western Region"],
+  ["Warehouse-verified", "Produce is received, weighed, graded, and recorded"],
+  ["Storage receipts", "Farmers get clear records for every inventory batch"],
+  ["Buyer orders", "Buyers order from real warehouse stock"],
+  ["Dispatch ready", "Warehouse-to-market movement is tracked"],
 ] as const;
 
 const steps = [
   {
-    title: "Farmers list their harvest",
-    body: "Through a local agent or a single SMS, farmers post what they have: crop, quantity, and location.",
+    title: "Farmers deposit produce",
+    body: "Farmers bring produce to a nearby community warehouse instead of carrying goods blindly to the city.",
   },
   {
-    title: "Agents verify and bundle",
-    body: "Trusted agents visit in person, confirm the goods, and combine smaller harvests into wholesale-ready lots.",
+    title: "Warehouse agents record inventory",
+    body: "Warehouse agents weigh, grade, photograph, and create inventory batches with storage receipts.",
   },
   {
-    title: "Buyers purchase with confidence",
-    body: "Wholesale buyers browse verified, aggregated lots and deal in quantities that make the trip worthwhile.",
+    title: "Buyers order verified stock",
+    body: "Buyers purchase from available warehouse inventory, and dispatches move produce to the buyer or destination market.",
   },
 ] as const;
 
 const audiences = [
   {
-    title: "For Growers",
-    href: "/growers",
-    icon: <SproutIcon />,
-    body: "Sell your harvest at fair bulk prices without leaving the farm. List by SMS or through your local agent.",
+    title: "For Farmers",
+    href: "/farmers",
+    body: "Store produce locally, track storage fees, see sale status, and receive one-way SMS updates.",
   },
   {
     title: "For Buyers",
     href: "/buyers",
-    icon: <CrateIcon />,
-    body: "Source verified, aggregated produce lots in one place. Skip the middleman guesswork and buy at scale.",
+    body: "Source verified produce from warehouse stock by crop, grade, location, and dispatch day.",
   },
   {
-    title: "For Partners",
-    href: "/partners",
-    icon: <NetworkIcon />,
-    body: "NGOs, agronomy services, and lenders can plug into a real network of verified farmers and transactions.",
+    title: "For Warehouses",
+    href: "/warehouses",
+    body: "Run intake, receipts, storage fee tracking, reservations, sales, dispatches, and audit-ready operations.",
   },
 ] as const;
 
 const navLinks = [
   ["How it works", "#how"],
-  ["Agents", "#agents"],
+  ["Warehouse model", "#warehouse"],
   ["Buyers", "#buyers"],
 ] as const;
 
@@ -57,10 +53,8 @@ export default function LandingPage() {
       <main>
         <HeroSection />
         <ProofBar />
-        <SectionCurve />
-        <SmsSection />
+        <WarehouseSection />
         <HowItWorks />
-        <AgentStory />
         <AudienceCards />
         <FinalCta />
       </main>
@@ -75,9 +69,7 @@ function SiteHeader() {
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
         <a href="/" className="flex items-center gap-2.5" aria-label="Kuapa Dwaso home">
           <Logo className="h-8 w-8" />
-          <span className="font-display text-lg font-bold text-brand-ink">
-            Kuapa Dwaso
-          </span>
+          <span className="font-display text-lg font-bold text-brand-ink">Kuapa Dwaso</span>
         </a>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -94,10 +86,7 @@ function SiteHeader() {
           </a>
         </div>
 
-        <a
-          href="/join"
-          className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden"
-        >
+        <a href="/join" className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden">
           Join
         </a>
       </nav>
@@ -110,7 +99,7 @@ function HeroSection() {
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
         src="/image1.png"
-        alt="Kuapa Dwaso agents speaking with a plantain vendor at a market in Ghana"
+        alt="Produce vendors and operators at a Ghana market"
         fill
         priority
         sizes="100vw"
@@ -120,27 +109,28 @@ function HeroSection() {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(100deg, rgba(15, 31, 20, 0.94) 0%, rgba(15, 31, 20, 0.8) 34%, rgba(15, 31, 20, 0.18) 64%, rgba(15, 31, 20, 0.38) 100%)",
+            "linear-gradient(100deg, rgba(15, 31, 20, 0.94) 0%, rgba(15, 31, 20, 0.82) 34%, rgba(15, 31, 20, 0.18) 64%, rgba(15, 31, 20, 0.42) 100%)",
         }}
       />
       <div className="relative mx-auto w-full max-w-6xl px-5 pb-14 pt-28 sm:px-6 sm:pb-20 sm:pt-40">
         <div className="max-w-xl">
-          <p className="eyebrow text-brand-gold">Now piloting in Western Region, Ghana</p>
+          <p className="eyebrow text-brand-gold">Warehouse-based produce aggregation</p>
           <h1 className="mt-4 font-display text-[length:var(--text-hero)] font-bold leading-[1.05] text-white">
-            The market is already here.
+            Store locally.
             <br />
-            <span className="text-[#7dd8a0]">We connect it.</span>
+            <span className="text-[#7dd8a0]">Sell from verified stock.</span>
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
-            Kuapa Dwaso links smallholder farmers to wholesale buyers through
-            trusted local agents and a simple SMS line that works on any phone.
+            Kuapa Dwaso helps farmers deposit produce at community warehouses,
+            gives buyers access to verified inventory, and tracks storage fees,
+            sales, and dispatches in one system.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
-            <a href="/agents" className="btn-primary">
-              Become an agent
+            <a href="/farmers" className="btn-primary">
+              Store produce
             </a>
             <a href="/buyers" className="btn-ghost">
-              Buy in bulk
+              Source inventory
             </a>
           </div>
         </div>
@@ -164,49 +154,31 @@ function ProofBar() {
   );
 }
 
-function SectionCurve() {
+function WarehouseSection() {
   return (
-    <svg
-      viewBox="0 0 1440 80"
-      preserveAspectRatio="none"
-      className="block h-12 w-full bg-brand-surface md:h-20"
-      aria-hidden="true"
-    >
-      <path
-        d="M0 80 C 360 20, 720 60, 1080 30 S 1440 50, 1440 50 L1440 80Z"
-        fill="#0f1f14"
-      />
-    </svg>
-  );
-}
-
-function SmsSection() {
-  return (
-    <section className="bg-brand-ink pb-20 pt-10 text-white sm:pb-24 sm:pt-16">
+    <section id="warehouse" className="bg-brand-ink py-20 text-white sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-2 lg:gap-16">
         <div>
-          <p className="eyebrow text-[#7dd8a0]">No smartphone required</p>
+          <p className="eyebrow text-[#7dd8a0]">The warehouse is the trust point</p>
           <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
-            If your phone can text,
-            <br />
-            you can trade.
+            Every batch has a place, an owner, a status, and a fee record.
           </h2>
           <p className="mt-6 max-w-md text-base leading-relaxed text-white/70 sm:text-lg">
-            Farmers register, check offers, and approve sales with simple SMS
-            commands. No app, no data bundle, no fuss.
+            The platform tracks who owns the produce, where it is stored, how
+            much is available, what has been reserved or sold, and which fees
+            were applied at the time.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {["JOIN", "STATUS", "YES / NO", "HELP"].map((command) => (
-              <code
-                key={command}
-                className="rounded-lg border border-white/15 bg-white/5 px-4 py-2 font-mono text-sm text-[#7dd8a0]"
-              >
-                {command}
-              </code>
-            ))}
-          </div>
         </div>
-        <PhoneMockup />
+        <figure className="relative overflow-hidden rounded-2xl bg-white/5">
+          <Image
+            src="/image3.png"
+            alt="Produce being checked and recorded at market"
+            width={1440}
+            height={960}
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="aspect-[4/3] h-full w-full object-cover object-[52%_center]"
+          />
+        </figure>
       </div>
     </section>
   );
@@ -218,88 +190,22 @@ function HowItWorks() {
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
         <p className="eyebrow">How it works</p>
         <h2 className="mt-4 max-w-xl font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
-          From farm gate to wholesale, in three steps.
+          From warehouse intake to sale and dispatch.
         </h2>
 
-        <div className="mt-12 grid gap-10 lg:mt-16 lg:grid-cols-2 lg:gap-20">
-          <ol className="space-y-10 sm:space-y-12">
-            {steps.map((step, index) => (
-              <li key={step.title} className="flex gap-5 sm:gap-6">
-                <span className="step-number">{index + 1}</span>
-                <div>
-                  <h3 className="font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 max-w-md text-base leading-relaxed text-brand-ink/70">
-                    {step.body}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          <figure className="relative overflow-hidden rounded-2xl bg-brand-line">
-            <Image
-              src="/image3.png"
-              alt="Agents verifying produce quantities with a vendor at her stall"
-              width={1440}
-              height={960}
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="aspect-[4/3] h-full w-full object-cover object-[52%_center]"
-            />
-            <figcaption className="absolute bottom-0 w-full bg-gradient-to-t from-brand-ink/85 to-transparent p-5 pt-12 text-sm leading-relaxed text-white/90">
-              Agents confirm quantity and quality on the ground before a lot
-              goes live.
-            </figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AgentStory() {
-  return (
-    <section id="agents" className="overflow-hidden bg-[#faf6ef] py-20 sm:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:gap-20">
-        <figure className="relative isolate">
-          <Image
-            src="/image2.png"
-            alt="Two Kuapa Dwaso agents laughing with a market vendor under a red umbrella"
-            width={1440}
-            height={960}
-            sizes="(max-width: 1024px) 100vw, 52vw"
-            className="relative z-10 aspect-[4/3] w-full rounded-2xl object-cover object-[50%_center]"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute -bottom-3 -right-3 z-0 h-full w-full rounded-2xl border-2 border-brand-clay/30 sm:-bottom-4 sm:-right-4"
-          />
-        </figure>
-
-        <div>
-          <p className="eyebrow text-brand-clay">The agent network</p>
-          <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
-            Trust is not built in an app. It is built at the stall.
-          </h2>
-          <p className="mt-6 text-base leading-relaxed text-brand-ink/70 sm:text-lg">
-            Our agents live in the communities they serve. They know which
-            farmer&apos;s plantain travels well and which buyer pays on time. Kuapa
-            Dwaso gives that local knowledge the reach of a national marketplace.
-          </p>
-          <blockquote className="mt-8 border-l-2 border-brand-clay pl-5">
-            <p className="font-display text-xl font-semibold italic text-brand-ink">
-              &quot;The sellers already know me. Now I can bring them buyers from
-              anywhere.&quot;
-            </p>
-            <cite className="mt-2 block text-sm not-italic text-brand-ink/60">
-              Field agent, Western Region pilot
-            </cite>
-          </blockquote>
-          <a href="/agents" className="btn-primary mt-8">
-            Become an agent
-          </a>
-        </div>
+        <ol className="mt-12 grid gap-8 lg:mt-16 lg:grid-cols-3">
+          {steps.map((step, index) => (
+            <li key={step.title} className="flex gap-5 sm:gap-6">
+              <span className="step-number">{index + 1}</span>
+              <div>
+                <h3 className="font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-base leading-relaxed text-brand-ink/70">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   );
@@ -311,18 +217,13 @@ function AudienceCards() {
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
         <p className="eyebrow">Who it is for</p>
         <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
-          One marketplace, three ways in.
+          One warehouse network, clear roles.
         </h2>
         <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-3 md:gap-6">
           {audiences.map((audience) => (
             <a key={audience.title} href={audience.href} className="audience-card">
-              <span className="text-brand-field">{audience.icon}</span>
-              <h3 className="mt-5 font-display text-xl font-semibold text-brand-ink">
-                {audience.title}
-              </h3>
-              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
-                {audience.body}
-              </p>
+              <h3 className="font-display text-xl font-semibold text-brand-ink">{audience.title}</h3>
+              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">{audience.body}</p>
               <span className="card-arrow">
                 Learn more
                 <ArrowIcon />
@@ -338,18 +239,18 @@ function AudienceCards() {
 function FinalCta() {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
-      <LeafPattern className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]" />
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
         <h2 className="font-display text-[length:var(--text-h2)] font-bold leading-tight text-white">
-          Join the pilot.
+          Build the warehouse flow.
         </h2>
         <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
-          Whether you grow it, buy it, or move it, there is a place for you at
-          the market.
+          The MVP proves one simple loop: deposit produce, create a receipt,
+          reserve stock, sell it, dispatch it, and show the farmer a clear net
+          update.
         </p>
         <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
           <a href="/join" className="btn-light">
-            Get started
+            Join the pilot
           </a>
           <a href="/contact" className="btn-ghost">
             Talk to us
@@ -368,13 +269,11 @@ function SiteFooter() {
           <div className="md:col-span-1">
             <a href="/" className="flex items-center gap-2.5">
               <Logo className="h-8 w-8" />
-              <span className="font-display text-lg font-bold text-white">
-                Kuapa Dwaso
-              </span>
+              <span className="font-display text-lg font-bold text-white">Kuapa Dwaso</span>
             </a>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
-              Agent-verified produce lots for farmers, wholesale buyers, and
-              partners across Ghana.
+              Warehouse-based produce storage, inventory, sales, and dispatch
+              for farmers and buyers in Ghana.
             </p>
           </div>
 
@@ -382,9 +281,9 @@ function SiteFooter() {
             title="Product"
             links={[
               ["How it works", "#how"],
-              ["For growers", "/growers"],
+              ["For farmers", "/farmers"],
               ["For buyers", "/buyers"],
-              ["For agents", "/agents"],
+              ["For warehouses", "/warehouses"],
             ]}
           />
           <FooterLinks
@@ -398,12 +297,12 @@ function SiteFooter() {
           />
           <div>
             <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
-              SMS access
+              Farmer updates
             </h3>
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-white/60">No internet? Text</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-[#7dd8a0]">
-                JOIN to 1945
+              <p className="text-sm text-white/60">
+                Farmers receive one-way SMS updates for receipts, fees, sales,
+                dispatches, and payments.
               </p>
             </div>
           </div>
@@ -426,9 +325,7 @@ function FooterLinks({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
-        {title}
-      </h3>
+      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">{title}</h3>
       <ul className="mt-4 space-y-3 text-sm text-white/65">
         {links.map(([label, href]) => (
           <li key={href}>
@@ -442,122 +339,6 @@ function FooterLinks({
   );
 }
 
-function PhoneMockup() {
-  return (
-    <div className="mx-auto w-full max-w-[270px] sm:max-w-[320px] lg:max-w-[360px]">
-      <svg
-        viewBox="0 0 260 480"
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="SMS conversation with Kuapa Dwaso on a keypad phone"
-        className="phone-shadow h-auto w-full"
-      >
-        <rect
-          x="10"
-          y="10"
-          width="240"
-          height="460"
-          rx="28"
-          fill="#1a2e20"
-          stroke="#3a5a45"
-          strokeWidth="2"
-        />
-        <rect x="105" y="26" width="50" height="6" rx="3" fill="#3a5a45" />
-        <rect x="28" y="44" width="204" height="240" rx="8" fill="#c8e6c9" />
-        <path d="M36 44h188a8 8 0 0 1 8 8v18H28V52a8 8 0 0 1 8-8Z" fill="#2d8a4e" />
-        <text x="130" y="61" textAnchor="middle" fontFamily="monospace" fontSize="11" fill="#fff">
-          Kuapa Dwaso - 1945
-        </text>
-
-        <MessageGroup>
-          <rect x="120" y="80" width="100" height="24" rx="6" fill="#2d8a4e" />
-          <text x="170" y="96" textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#fff">
-            JOIN
-          </text>
-        </MessageGroup>
-        <MessageGroup>
-          <rect x="40" y="112" width="160" height="52" rx="6" fill="#fff" />
-          <text x="48" y="128" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            Akwaaba! You are now
-          </text>
-          <text x="48" y="141" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            registered. Reply STATUS
-          </text>
-          <text x="48" y="154" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            to see your listings.
-          </text>
-        </MessageGroup>
-        <MessageGroup>
-          <rect x="120" y="172" width="100" height="24" rx="6" fill="#2d8a4e" />
-          <text x="170" y="188" textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#fff">
-            STATUS
-          </text>
-        </MessageGroup>
-        <MessageGroup>
-          <rect x="40" y="204" width="170" height="66" rx="6" fill="#fff" />
-          <text x="48" y="220" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            Plantain: 40 bunches
-          </text>
-          <text x="48" y="233" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            Offer: GHS 22/bunch
-          </text>
-          <text x="48" y="246" fontFamily="monospace" fontSize="9" fill="#0f1f14">
-            Buyer: Takoradi Foods
-          </text>
-          <text x="48" y="259" fontFamily="monospace" fontSize="9" fill="#2d8a4e" fontWeight="bold">
-            Reply YES to accept
-          </text>
-        </MessageGroup>
-
-        <circle cx="130" cy="322" r="24" fill="none" stroke="#3a5a45" strokeWidth="2" />
-        <circle cx="130" cy="322" r="10" fill="#3a5a45" />
-        <g fill="#233a2b" stroke="#3a5a45" strokeWidth="1">
-          {[
-            [42, 358],
-            [104, 358],
-            [166, 358],
-            [42, 384],
-            [104, 384],
-            [166, 384],
-            [42, 410],
-            [104, 410],
-            [166, 410],
-            [42, 436],
-            [104, 436],
-            [166, 436],
-          ].map(([x, y]) => (
-            <rect key={`${x}-${y}`} x={x} y={y} width="52" height="20" rx="6" />
-          ))}
-        </g>
-        <g fontFamily="monospace" fontSize="10" fill="#7dd8a0" textAnchor="middle">
-          {[
-            ["1", 68, 372],
-            ["2", 130, 372],
-            ["3", 192, 372],
-            ["4", 68, 398],
-            ["5", 130, 398],
-            ["6", 192, 398],
-            ["7", 68, 424],
-            ["8", 130, 424],
-            ["9", 192, 424],
-            ["*", 68, 450],
-            ["0", 130, 450],
-            ["#", 192, 450],
-          ].map(([label, x, y]) => (
-            <text key={label} x={x} y={y}>
-              {label}
-            </text>
-          ))}
-        </g>
-      </svg>
-    </div>
-  );
-}
-
-function MessageGroup({ children }: { children: ReactNode }) {
-  return <g>{children}</g>;
-}
-
 function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
@@ -568,55 +349,10 @@ function Logo({ className }: { className?: string }) {
   );
 }
 
-function SproutIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 21v-8" />
-      <path d="M12 13c0-4 2.5-7 7-7 0 4-2.5 7-7 7Z" />
-      <path d="M12 13c0-3-2-5.5-5.5-5.5 0 3 2 5.5 5.5 5.5Z" />
-      <path d="M5 21h14" />
-    </svg>
-  );
-}
-
-function CrateIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M3 9h18l-1.5 11h-15L3 9Z" />
-      <path d="M8 9V6a4 4 0 0 1 8 0v3" />
-    </svg>
-  );
-}
-
-function NetworkIcon() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="6" cy="6" r="2.5" />
-      <circle cx="18" cy="6" r="2.5" />
-      <circle cx="12" cy="18" r="2.5" />
-      <path d="M7.8 7.8 10.5 16M16.2 7.8 13.5 16M8.5 6h7" />
-    </svg>
-  );
-}
-
 function ArrowIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function LeafPattern({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className={className}>
-      <defs>
-        <pattern id="leaves" width="120" height="120" patternUnits="userSpaceOnUse">
-          <path d="M30 90c0-25 8-45 30-58-5 25-12 45-30 58Z" fill="none" stroke="#fff" strokeWidth="1.5" />
-          <path d="M85 55c0-18 6-32 21-41-3 18-8 32-21 41Z" fill="none" stroke="#fff" strokeWidth="1.5" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#leaves)" />
     </svg>
   );
 }

@@ -14,9 +14,20 @@ The approved app folders are:
 ```text
 apps/www/
 apps/app/
+apps/ops/
 apps/admin/
 apps/api/
 ```
+
+`apps/ops/` is the warehouse operations app for warehouse-agent workflows:
+produce intake, receipt lookup, inventory condition/status updates, dispatch
+preparation, and local warehouse support. It is intended for an operations
+subdomain such as `ops.<domain>`.
+
+`apps/admin/` is for platform administration: warehouse setup, fee
+configuration, warehouse-agent approval, oversight, disputes, audit, and reporting.
+
+`apps/app/` is for farmer, buyer, and transporter self-service workflows.
 
 The approved shared package folders are:
 
@@ -40,4 +51,3 @@ packages/eslint-config/
 Folder responsibilities are strict. Filenames inside those folders may evolve as implementation needs become clearer.
 
 New app folders, new shared packages, top-level folder changes, and folder moves require agreement from both developers and should be recorded as a decision.
-

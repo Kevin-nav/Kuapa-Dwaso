@@ -1,0 +1,130 @@
+import { calculateFeeAmountFromSnapshot } from "@kuapa-dwaso/utils";
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import {
+  assertAllowed,
+  auditSnapshot,
+  getActor,
+  insertAuditLog,
+} from "./workflowHelpers";
+
+const storageFeeLedgerStatus = v.union(
+  v.literal("accrued"),
+  v.literal("deducted_from_sale"),
+  v.literal("paid"),
+  v.literal("waived"),
+  v.literal("disputed"),
+);
+
+export const accrueForBatch = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    inventoryBatchId: v.id("inventoryBatches"),
+    feeDate: v.optional(v.number()),
+    days: v.optional(v.number()),
+  },
+  returns: v.id("storageFeeLedger"),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can accrue storage fees manually.");
+    const batch = await ctx.db.get(args.inventoryBatchId);
+    assertAllowed(batch !== null, "Inventory batch was not found.");
+    const days = args.days ?? 1;
+    assertAllowed(days > 0, "Storage fee days must be positive.");
+
+    const amount = calculateFeeAmountFromSnapshot(batch.storageRateSnapshot, {
+      quantity: batch.quantityAvailable,
+      days,
+    });
+    const now = Date.now();
+    const feeDate = args.feeDate ?? now;
+    const ledgerId = await ctx.db.insert("storageFeeLedger", {
+      inventoryBatchId: args.inventoryBatchId,
+      farmerId: batch.farmerId,
+      warehouseId: batch.warehouseId,
+      feeDate,
+      quantityCharged: batch.quantityAvailable,
+      unit: batch.unit,
+      appliedRuleSnapshot: batch.storageRateSnapshot,
+      amount,
+      status: "accrued",
+      createdAt: now,
+    });
+
+    await ctx.db.patch(args.inventoryBatchId, {
+      storageFeeAccrued: batch.storageFeeAccrued + amount,
+      lastFeeCalculatedAt: feeDate,
+      updatedAt: now,
+    });
+
+    const after = await ctx.db.get(ledgerId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "storage_fee_ledger.accrued",
+      entityType: "storage_fee_ledger",
+      entityId: ledgerId,
+      after: after === null ? undefined : auditSnapshot(after),
+    });
+
+    return ledgerId;
+  },
+});
+
+export const updateLedgerStatus = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    storageFeeLedgerId: v.id("storageFeeLedger"),
+    status: storageFeeLedgerStatus,
+    reason: v.optional(v.string()),
+  },
+  returns: v.id("storageFeeLedger"),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can update storage fee ledger status.");
+    const ledger = await ctx.db.get(args.storageFeeLedgerId);
+    assertAllowed(ledger !== null, "Storage fee ledger entry was not found.");
+
+    await ctx.db.patch(args.storageFeeLedgerId, {
+      status: args.status,
+    });
+
+    const after = await ctx.db.get(args.storageFeeLedgerId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "storage_fee_ledger.status_updated",
+      entityType: "storage_fee_ledger",
+      entityId: args.storageFeeLedgerId,
+      before: auditSnapshot(ledger),
+      after: after === null ? undefined : auditSnapshot(after),
+      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+    });
+
+    return args.storageFeeLedgerId;
+  },
+});
+
+export const listByBatch = query({
+  args: {
+    actorUserId: v.id("users"),
+    inventoryBatchId: v.id("inventoryBatches"),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const batch = await ctx.db.get(args.inventoryBatchId);
+    assertAllowed(batch !== null, "Inventory batch was not found.");
+    if (actor.role === "farmer") {
+      const farmer = await ctx.db.get(batch.farmerId);
+      assertAllowed(farmer !== null && farmer.userId === actor._id, "Actor cannot view these fees.");
+    } else {
+      assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot view these fees.");
+    }
+
+    return await ctx.db
+      .query("storageFeeLedger")
+      .withIndex("by_batch_date", (q) => q.eq("inventoryBatchId", args.inventoryBatchId))
+      .order("desc")
+      .take(Math.min(args.limit ?? 50, 100));
+  },
+});

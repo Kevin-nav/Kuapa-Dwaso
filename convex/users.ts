@@ -4,7 +4,7 @@ import type { Doc } from "./_generated/dataModel";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
   v.literal("buyer"),
   v.literal("transporter"),
   v.literal("admin")
@@ -178,7 +178,7 @@ function toUserProfile(user: Doc<"users">) {
     phoneNumber?: string;
     email?: string;
     name: string;
-    role: "farmer" | "agent" | "buyer" | "transporter" | "admin";
+    role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin";
     status: "pending" | "active" | "suspended" | "rejected" | "deactivated";
   } = {
     userId: user._id.toString(),

@@ -67,7 +67,7 @@ describe("FirebaseAuthGuard", () => {
         getByAuthProviderId: vi.fn().mockResolvedValue({
           userId: "convex-user-1",
           authProviderId: "firebase-user-1",
-          role: "agent",
+          role: "warehouse_agent",
           status: "active",
           phoneNumber: "+233500000000"
         })
@@ -78,7 +78,7 @@ describe("FirebaseAuthGuard", () => {
     expect(request.user).toEqual({
       authProviderId: "firebase-user-1",
       userId: "convex-user-1",
-      roles: ["agent"],
+      roles: ["warehouse_agent"],
       status: "active",
       email: "token@example.com",
       phoneNumber: "+233500000000"

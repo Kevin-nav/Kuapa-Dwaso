@@ -38,6 +38,26 @@ export async function getActor(ctx: QueryCtx | MutationCtx, actorUserId: Id<"use
   return actor;
 }
 
+export async function requireWarehouseAgentAssignedToWarehouse(
+  ctx: QueryCtx | MutationCtx,
+  actorUserId: Id<"users">,
+  warehouseId: Id<"warehouses">,
+): Promise<Doc<"warehouseAgents">> {
+  const warehouseAgent = await ctx.db
+    .query("warehouseAgents")
+    .withIndex("by_user", (q) => q.eq("userId", actorUserId))
+    .unique();
+
+  assertAllowed(warehouseAgent !== null, "Actor does not have a warehouse agent profile.");
+  assertAllowed(warehouseAgent.status === "approved", "Warehouse agent profile must be approved.");
+  assertAllowed(
+    warehouseAgent.assignedWarehouseIds.some((assignedWarehouseId) => assignedWarehouseId === warehouseId),
+    "Warehouse agents can only operate assigned warehouses.",
+  );
+
+  return warehouseAgent;
+}
+
 export async function insertAuditLog(
   ctx: MutationCtx,
   args: {

@@ -1,20 +1,20 @@
-import { canViewAdminObservability } from "@kuapa-dwaso/permissions";
+import { canViewAuditLogs } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { resolveRequestingRole } from "./observabilityAccess";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
-  v.literal("agent"),
+  v.literal("warehouse_agent"),
   v.literal("buyer"),
   v.literal("transporter"),
   v.literal("admin"),
 );
 
 function assertCanViewAdminObservability(
-  role: "farmer" | "agent" | "buyer" | "transporter" | "admin",
+  role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
-  if (!canViewAdminObservability(role)) {
+  if (!canViewAuditLogs(role)) {
     throw new Error("Only admins can view platform observability.");
   }
 }
@@ -26,12 +26,14 @@ export const getPlatformSummaryCounts = query({
   },
   returns: v.object({
     farmers: v.number(),
-    agents: v.number(),
+    warehouseAgents: v.number(),
+    warehouses: v.number(),
     buyers: v.number(),
-    listings: v.number(),
-    bulkLots: v.number(),
-    deals: v.number(),
-    transportRequests: v.number(),
+    inventoryBatches: v.number(),
+    availableInventoryBatches: v.number(),
+    buyerOrders: v.number(),
+    saleRecords: v.number(),
+    dispatches: v.number(),
     disputes: v.number(),
     openDisputes: v.number(),
   }),
@@ -40,22 +42,29 @@ export const getPlatformSummaryCounts = query({
 
     const [
       farmers,
-      agents,
+      warehouseAgents,
+      warehouses,
       buyers,
-      listings,
-      bulkLots,
-      deals,
-      transportRequests,
+      inventoryBatches,
+      availableInventoryBatches,
+      buyerOrders,
+      saleRecords,
+      dispatches,
       disputes,
       openDisputes,
     ] = await Promise.all([
       ctx.db.query("farmers").collect(),
-      ctx.db.query("agents").collect(),
+      ctx.db.query("warehouseAgents").collect(),
+      ctx.db.query("warehouses").collect(),
       ctx.db.query("buyers").collect(),
-      ctx.db.query("produceListings").collect(),
-      ctx.db.query("bulkLots").collect(),
-      ctx.db.query("deals").collect(),
-      ctx.db.query("transportRequests").collect(),
+      ctx.db.query("inventoryBatches").collect(),
+      ctx.db
+        .query("inventoryBatches")
+        .withIndex("by_status", (q) => q.eq("status", "available"))
+        .collect(),
+      ctx.db.query("buyerOrders").collect(),
+      ctx.db.query("saleRecords").collect(),
+      ctx.db.query("dispatches").collect(),
       ctx.db.query("disputes").collect(),
       ctx.db
         .query("disputes")
@@ -65,12 +74,14 @@ export const getPlatformSummaryCounts = query({
 
     return {
       farmers: farmers.length,
-      agents: agents.length,
+      warehouseAgents: warehouseAgents.length,
+      warehouses: warehouses.length,
       buyers: buyers.length,
-      listings: listings.length,
-      bulkLots: bulkLots.length,
-      deals: deals.length,
-      transportRequests: transportRequests.length,
+      inventoryBatches: inventoryBatches.length,
+      availableInventoryBatches: availableInventoryBatches.length,
+      buyerOrders: buyerOrders.length,
+      saleRecords: saleRecords.length,
+      dispatches: dispatches.length,
       disputes: disputes.length,
       openDisputes: openDisputes.length,
     };
