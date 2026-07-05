@@ -425,6 +425,7 @@ export type Buyer = TimestampFields & {
   id: string;
   userId?: string;
   fullName: string;
+  displayName?: string;
   phoneNumber: string;
   buyerType: BuyerType;
   organizationName?: string;
@@ -591,6 +592,7 @@ export type WarehouseInventoryIntelligenceRecord = {
 export type BuyerProfileInput = {
   userId?: string;
   fullName: string;
+  displayName?: string;
   phoneNumber: string;
   buyerType: BuyerType;
   organizationName?: string;

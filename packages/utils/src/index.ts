@@ -2,6 +2,7 @@ import type {
   FeeCalculationType,
   FeeRuleSnapshot,
   InventoryBatchStatus,
+  InventoryReservationStatus,
   ProduceGrade,
 } from "@kuapa-dwaso/types";
 
@@ -259,4 +260,148 @@ export function calculateWarehouseInventoryAggregation(
   }
 
   return aggregation;
+}
+
+export type ReservationQuantitySnapshot = {
+  quantityReserved: number;
+  quantityReleased?: number;
+  quantityFulfilled?: number;
+  status: InventoryReservationStatus;
+};
+
+export type ReservableInventoryBatch = {
+  inventoryBatchId: string;
+  quantityReceived: number;
+  quantityAvailable?: number;
+  fulfilledSaleQuantity?: number;
+  reservations?: readonly ReservationQuantitySnapshot[];
+  unit: string;
+  askingPricePerUnit?: number;
+  receivedAt?: number;
+  sellByDate?: number;
+};
+
+export type InventoryReservationAllocation = {
+  inventoryBatchId: string;
+  quantityReserved: number;
+};
+
+export function calculateActiveReservedQuantity(
+  reservations: readonly ReservationQuantitySnapshot[],
+): number {
+  return reservations
+    .filter(
+      (reservation) =>
+        reservation.status === "active" ||
+        reservation.status === "partially_released",
+    )
+    .reduce(
+      (total, reservation) =>
+        total +
+        reservation.quantityReserved -
+        (reservation.quantityReleased ?? 0) -
+        (reservation.quantityFulfilled ?? 0),
+      0,
+    );
+}
+
+export function calculateReservableBatchQuantity(
+  batch: ReservableInventoryBatch,
+): number {
+  const baselineAvailable = batch.quantityAvailable ?? batch.quantityReceived;
+  const soldOrFulfilled = batch.fulfilledSaleQuantity ?? 0;
+  const activeReserved = calculateActiveReservedQuantity(batch.reservations ?? []);
+
+  return Math.max(0, baselineAvailable - soldOrFulfilled - activeReserved);
+}
+
+export function allocateInventoryReservations(
+  batches: readonly ReservableInventoryBatch[],
+  requestedQuantity: number,
+): InventoryReservationAllocation[] {
+  if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+    throw new Error("Requested quantity must be a positive number.");
+  }
+
+  const allocations: InventoryReservationAllocation[] = [];
+  let remainingQuantity = requestedQuantity;
+
+  const sortedBatches = [...batches].sort((left, right) => {
+    const leftSellBy = left.sellByDate ?? Number.POSITIVE_INFINITY;
+    const rightSellBy = right.sellByDate ?? Number.POSITIVE_INFINITY;
+    if (leftSellBy !== rightSellBy) {
+      return leftSellBy - rightSellBy;
+    }
+
+    return (left.receivedAt ?? 0) - (right.receivedAt ?? 0);
+  });
+
+  for (const batch of sortedBatches) {
+    if (remainingQuantity <= 0) {
+      break;
+    }
+
+    const availableQuantity = calculateReservableBatchQuantity(batch);
+    if (availableQuantity <= 0) {
+      continue;
+    }
+
+    const quantityReserved = Math.min(availableQuantity, remainingQuantity);
+    allocations.push({
+      inventoryBatchId: batch.inventoryBatchId,
+      quantityReserved,
+    });
+    remainingQuantity -= quantityReserved;
+  }
+
+  if (remainingQuantity > 0) {
+    throw new Error("Requested quantity cannot be fully reserved from available inventory.");
+  }
+
+  return allocations;
+}
+
+export type BuyerChargeCalculationInput = {
+  snapshot: FeeRuleSnapshot;
+  quantity: number;
+  grossSaleAmount?: number;
+  transportCost?: number;
+};
+
+export type BuyerChargeCalculation = {
+  label: string;
+  amount: number;
+  appliedRuleSnapshot: FeeRuleSnapshot;
+};
+
+export function calculateBuyerOrderCharges(
+  inputs: readonly BuyerChargeCalculationInput[],
+): BuyerChargeCalculation[] {
+  return inputs
+    .filter(
+      (input) =>
+        input.snapshot.payer === "buyer" ||
+        input.snapshot.payer === "shared" ||
+        input.snapshot.payer === "included_in_price",
+    )
+    .map((input) => {
+      const calculationInput: {
+        quantity: number;
+        grossSaleAmount?: number;
+        transportCost?: number;
+      } = { quantity: input.quantity };
+
+      if (input.grossSaleAmount !== undefined) {
+        calculationInput.grossSaleAmount = input.grossSaleAmount;
+      }
+      if (input.transportCost !== undefined) {
+        calculationInput.transportCost = input.transportCost;
+      }
+
+      return {
+        label: input.snapshot.label,
+        amount: calculateFeeAmountFromSnapshot(input.snapshot, calculationInput),
+        appliedRuleSnapshot: input.snapshot,
+      };
+    });
 }

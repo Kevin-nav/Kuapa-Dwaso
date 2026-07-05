@@ -1,4 +1,4 @@
-import { canCreateBuyerOrder } from "@kuapa-dwaso/permissions";
+import { canCreateBuyerOrder, canUpdateUsers } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -42,6 +42,7 @@ export const createOrUpdateProfile = mutation({
     actorUserId: v.id("users"),
     userId: v.optional(v.id("users")),
     fullName: v.string(),
+    displayName: v.optional(v.string()),
     phoneNumber: v.string(),
     buyerType,
     organizationName: v.optional(v.string()),
@@ -87,11 +88,12 @@ export const createOrUpdateProfile = mutation({
     if (existing !== null) {
       await ctx.db.patch(existing._id, {
         userId,
-        fullName: args.fullName,
-        phoneNumber: args.phoneNumber,
+        fullName: args.fullName.trim(),
+        displayName: args.displayName?.trim(),
+        phoneNumber: args.phoneNumber.trim(),
         buyerType: args.buyerType,
-        organizationName: args.organizationName,
-        destinationMarket: args.destinationMarket,
+        organizationName: args.organizationName?.trim(),
+        destinationMarket: args.destinationMarket?.trim(),
         verificationStatus: args.verificationStatus ?? existing.verificationStatus,
         status: args.status ?? existing.status,
         updatedAt: now,
@@ -108,11 +110,12 @@ export const createOrUpdateProfile = mutation({
 
     const buyerId = await ctx.db.insert("buyers", {
       userId,
-      fullName: args.fullName,
-      phoneNumber: args.phoneNumber,
+      fullName: args.fullName.trim(),
+      displayName: args.displayName?.trim(),
+      phoneNumber: args.phoneNumber.trim(),
       buyerType: args.buyerType,
-      organizationName: args.organizationName,
-      destinationMarket: args.destinationMarket,
+      organizationName: args.organizationName?.trim(),
+      destinationMarket: args.destinationMarket?.trim(),
       verificationStatus: args.verificationStatus ?? "pending",
       status: args.status ?? "active",
       createdAt: now,
@@ -126,6 +129,92 @@ export const createOrUpdateProfile = mutation({
 
     await auditBuyerChange(ctx, actor, "buyer.profile_created", buyerId, null, after);
     return buyerId;
+  },
+});
+
+export const updateVerificationStatus = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    buyerId: v.id("buyers"),
+    verificationStatus,
+    reason: v.optional(v.string()),
+  },
+  returns: v.id("buyers"),
+  handler: async (ctx, args) => {
+    const actor = await resolveActor(ctx, args.actorUserId);
+    if (!canUpdateUsers(actor.role)) {
+      throw new Error("Only admins can update buyer verification status.");
+    }
+
+    const buyer = await ctx.db.get(args.buyerId);
+    if (buyer === null) {
+      throw new Error("Buyer profile was not found.");
+    }
+
+    await ctx.db.patch(args.buyerId, {
+      verificationStatus: args.verificationStatus,
+      updatedAt: Date.now(),
+    });
+
+    const after = await ctx.db.get(args.buyerId);
+    if (after === null) {
+      throw new Error("Updated buyer profile could not be loaded.");
+    }
+
+    await insertAuditLog(ctx, {
+      actor,
+      action: "buyer.verification_status_updated",
+      entityType: "buyer",
+      entityId: args.buyerId,
+      before: auditSnapshot(buyer),
+      after: auditSnapshot(after),
+      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+    });
+
+    return args.buyerId;
+  },
+});
+
+export const updateStatus = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    buyerId: v.id("buyers"),
+    status: buyerStatus,
+    reason: v.optional(v.string()),
+  },
+  returns: v.id("buyers"),
+  handler: async (ctx, args) => {
+    const actor = await resolveActor(ctx, args.actorUserId);
+    if (!canUpdateUsers(actor.role)) {
+      throw new Error("Only admins can update buyer status.");
+    }
+
+    const buyer = await ctx.db.get(args.buyerId);
+    if (buyer === null) {
+      throw new Error("Buyer profile was not found.");
+    }
+
+    await ctx.db.patch(args.buyerId, {
+      status: args.status,
+      updatedAt: Date.now(),
+    });
+
+    const after = await ctx.db.get(args.buyerId);
+    if (after === null) {
+      throw new Error("Updated buyer profile could not be loaded.");
+    }
+
+    await insertAuditLog(ctx, {
+      actor,
+      action: "buyer.status_updated",
+      entityType: "buyer",
+      entityId: args.buyerId,
+      before: auditSnapshot(buyer),
+      after: auditSnapshot(after),
+      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+    });
+
+    return args.buyerId;
   },
 });
 
@@ -149,5 +238,72 @@ export const getById = query({
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.buyerId);
+  },
+});
+
+export const getByPhoneNumber = query({
+  args: {
+    phoneNumber: v.string(),
+  },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("buyers")
+      .withIndex("by_phone_number", (q) => q.eq("phoneNumber", args.phoneNumber.trim()))
+      .unique();
+  },
+});
+
+export const list = query({
+  args: {
+    status: v.optional(buyerStatus),
+    verificationStatus: v.optional(verificationStatus),
+    destinationMarket: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.phoneNumber !== undefined
+        ? await ctx.db
+            .query("buyers")
+            .withIndex("by_phone_number", (q) => q.eq("phoneNumber", args.phoneNumber!.trim()))
+            .take(limit)
+        : args.destinationMarket !== undefined
+          ? await ctx.db
+              .query("buyers")
+              .withIndex("by_destination_market", (q) =>
+                q.eq("destinationMarket", args.destinationMarket!.trim()),
+              )
+              .take(limit * 3)
+          : args.verificationStatus !== undefined
+            ? await ctx.db
+                .query("buyers")
+                .withIndex("by_verification_status", (q) =>
+                  q.eq("verificationStatus", args.verificationStatus!),
+                )
+                .take(limit * 3)
+            : args.status !== undefined
+              ? await ctx.db
+                  .query("buyers")
+                  .withIndex("by_status", (q) => q.eq("status", args.status!))
+                  .take(limit * 3)
+              : await ctx.db.query("buyers").take(limit * 3);
+
+    return candidates
+      .filter((buyer) => args.status === undefined || buyer.status === args.status)
+      .filter(
+        (buyer) =>
+          args.verificationStatus === undefined ||
+          buyer.verificationStatus === args.verificationStatus,
+      )
+      .filter(
+        (buyer) =>
+          args.destinationMarket === undefined ||
+          buyer.destinationMarket === args.destinationMarket.trim(),
+      )
+      .slice(0, limit);
   },
 });

@@ -282,6 +282,7 @@ export default defineSchema({
   buyers: defineTable({
     userId: v.optional(v.id("users")),
     fullName: v.string(),
+    displayName: v.optional(v.string()),
     phoneNumber: v.string(),
     buyerType,
     organizationName: v.optional(v.string()),

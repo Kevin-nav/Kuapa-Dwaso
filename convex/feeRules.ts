@@ -165,6 +165,42 @@ export async function selectApplicableFeeRule(
   );
 }
 
+export async function listApplicableFeeRules(
+  ctx: QueryCtx | MutationCtx,
+  input: RuleMatchInput,
+): Promise<Doc<"feeRules">[]> {
+  const asOf = input.asOf ?? Date.now();
+  const activeRules = await ctx.db
+    .query("feeRules")
+    .withIndex("by_status_effective", (q) => q.eq("status", "active"))
+    .collect();
+
+  return activeRules
+    .filter((rule) => isEffective(rule, asOf))
+    .filter((rule) => scopeMatches(rule.scope, input))
+    .sort((left, right) => {
+      const scopeDifference = scoreScope(right.scope) - scoreScope(left.scope);
+      return scopeDifference !== 0 ? scopeDifference : right.version - left.version;
+    });
+}
+
+export function snapshotFeeRule(rule: Doc<"feeRules">, snapshottedAt: number) {
+  return {
+    feeRuleId: rule._id,
+    feeRuleVersion: rule.version,
+    label: rule.label,
+    calculationType: rule.calculationType,
+    payer: rule.payer,
+    amount: rule.amount,
+    percentage: rule.percentage,
+    ratePerUnit: rule.ratePerUnit,
+    ratePerUnitPerDay: rule.ratePerUnitPerDay,
+    currency: rule.currency,
+    scope: rule.scope,
+    snapshottedAt,
+  };
+}
+
 export async function selectApplicableStorageRateRule(
   ctx: QueryCtx | MutationCtx,
   input: RuleMatchInput,

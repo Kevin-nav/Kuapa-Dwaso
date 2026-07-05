@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  allocateInventoryReservations,
   assertInventoryBatchCanBeReserved,
+  calculateReservableBatchQuantity,
   calculateWarehouseInventoryAggregation,
 } from "../src/index.ts";
 
@@ -72,5 +74,65 @@ test("rejects aggregation across warehouses", () => {
   assert.throws(
     () => calculateWarehouseInventoryAggregation([batch(), batch({ warehouseId: "warehouse-2" })]),
     /one warehouse/,
+  );
+});
+
+test("calculates reservable quantity after active reservations", () => {
+  const result = calculateReservableBatchQuantity({
+    inventoryBatchId: "batch-1",
+    quantityReceived: 100,
+    quantityAvailable: 90,
+    unit: "crate",
+    reservations: [
+      { quantityReserved: 30, quantityReleased: 5, quantityFulfilled: 0, status: "active" },
+      { quantityReserved: 20, quantityReleased: 0, quantityFulfilled: 0, status: "released" },
+    ],
+  });
+
+  assert.equal(result, 65);
+});
+
+test("allocates requested quantity across batches by sell-by date", () => {
+  const result = allocateInventoryReservations(
+    [
+      {
+        inventoryBatchId: "batch-later",
+        quantityReceived: 20,
+        quantityAvailable: 20,
+        unit: "crate",
+        sellByDate: 300,
+      },
+      {
+        inventoryBatchId: "batch-earlier",
+        quantityReceived: 8,
+        quantityAvailable: 8,
+        unit: "crate",
+        sellByDate: 200,
+      },
+    ],
+    15,
+  );
+
+  assert.deepEqual(result, [
+    { inventoryBatchId: "batch-earlier", quantityReserved: 8 },
+    { inventoryBatchId: "batch-later", quantityReserved: 7 },
+  ]);
+});
+
+test("rejects reservation allocation when stock is insufficient", () => {
+  assert.throws(
+    () =>
+      allocateInventoryReservations(
+        [
+          {
+            inventoryBatchId: "batch-1",
+            quantityReceived: 5,
+            quantityAvailable: 5,
+            unit: "crate",
+          },
+        ],
+        6,
+      ),
+    /cannot be fully reserved/,
   );
 });

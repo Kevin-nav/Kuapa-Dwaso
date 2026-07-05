@@ -9,6 +9,7 @@ import {
   canTransitionBuyerOrderStatus,
   canTransitionDispatchStatus,
   canTransitionInventoryBatchStatus,
+  canTransitionInventoryReservationStatus,
 } from "./index.ts";
 
 test("warehouse agent owns operational permissions but cannot configure fees", () => {
@@ -35,6 +36,14 @@ test("buyer order and dispatch transitions reject reopening terminal states", ()
   assert.equal(canTransitionDispatchStatus("planned", "loading"), true);
   assert.equal(canTransitionDispatchStatus("delivered", "closed"), true);
   assert.equal(canTransitionDispatchStatus("closed", "in_transit"), false);
+});
+
+test("inventory reservation transitions close active reservations without reopening terminal states", () => {
+  assert.equal(canTransitionInventoryReservationStatus("active", "released"), true);
+  assert.equal(canTransitionInventoryReservationStatus("active", "expired"), true);
+  assert.equal(canTransitionInventoryReservationStatus("partially_released", "cancelled"), true);
+  assert.equal(canTransitionInventoryReservationStatus("released", "active"), false);
+  assert.equal(canTransitionInventoryReservationStatus("expired", "active"), false);
 });
 
 test("inventory availability subtracts sold quantity and active reservations", () => {
