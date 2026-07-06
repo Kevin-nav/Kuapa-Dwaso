@@ -1,5 +1,6 @@
 import type {
   FeeCalculationType,
+  FeePayer,
   FeeRuleSnapshot,
   InventoryBatchStatus,
   InventoryReservationStatus,
@@ -309,7 +310,7 @@ export function calculateReservableBatchQuantity(
   batch: ReservableInventoryBatch,
 ): number {
   const baselineAvailable = batch.quantityAvailable ?? batch.quantityReceived;
-  const soldOrFulfilled = batch.fulfilledSaleQuantity ?? 0;
+  const soldOrFulfilled = batch.quantityAvailable === undefined ? (batch.fulfilledSaleQuantity ?? 0) : 0;
   const activeReserved = calculateActiveReservedQuantity(batch.reservations ?? []);
 
   return Math.max(0, baselineAvailable - soldOrFulfilled - activeReserved);
@@ -404,4 +405,217 @@ export function calculateBuyerOrderCharges(
         appliedRuleSnapshot: input.snapshot,
       };
     });
+}
+
+export type FarmerSaleDeductionCalculationInput = {
+  snapshot: FeeRuleSnapshot;
+  quantity: number;
+  grossSaleAmount: number;
+  transportCost?: number;
+};
+
+export type FarmerSaleDeductionCalculation = {
+  label: string;
+  amount: number;
+  appliedRuleSnapshot: FeeRuleSnapshot;
+};
+
+export function calculateFarmerSaleDeductions(
+  inputs: readonly FarmerSaleDeductionCalculationInput[],
+): FarmerSaleDeductionCalculation[] {
+  return inputs
+    .filter((input) => input.snapshot.payer === "farmer" || input.snapshot.payer === "shared")
+    .filter((input) => {
+      if (input.snapshot.calculationType === "per_unit_per_day") {
+        return false;
+      }
+      if (input.snapshot.calculationType === "percentage_of_transport_cost") {
+        return input.transportCost !== undefined;
+      }
+      return true;
+    })
+    .map((input) => {
+      const calculationInput: {
+        quantity: number;
+        grossSaleAmount: number;
+        transportCost?: number;
+      } = {
+        quantity: input.quantity,
+        grossSaleAmount: input.grossSaleAmount,
+      };
+
+      if (input.transportCost !== undefined) {
+        calculationInput.transportCost = input.transportCost;
+      }
+
+      return {
+        label: input.snapshot.label,
+        amount: calculateFeeAmountFromSnapshot(input.snapshot, calculationInput),
+        appliedRuleSnapshot: input.snapshot,
+      };
+    });
+}
+
+export type StorageFeeSettlementInput = {
+  ledgerId: string;
+  amount: number;
+  amountAlreadyDeducted?: number;
+};
+
+export type StorageFeeSettlement = {
+  ledgerId: string;
+  amountDeducted: number;
+  nextAmountDeducted: number;
+  fullySettled: boolean;
+};
+
+export function allocateStorageFeeDeductions(
+  ledgerEntries: readonly StorageFeeSettlementInput[],
+  saleQuantity: number,
+  sellableQuantityBeforeSale: number,
+): StorageFeeSettlement[] {
+  if (!Number.isFinite(saleQuantity) || saleQuantity <= 0) {
+    throw new Error("Sale quantity must be a positive number.");
+  }
+  if (!Number.isFinite(sellableQuantityBeforeSale) || sellableQuantityBeforeSale <= 0) {
+    throw new Error("Sellable quantity before sale must be a positive number.");
+  }
+
+  // Partial-batch sales settle the same share of each outstanding ledger entry as
+  // the share of currently sellable inventory converted into this sale.
+  const saleRatio = Math.min(1, saleQuantity / sellableQuantityBeforeSale);
+
+  return ledgerEntries
+    .map((entry) => {
+      const alreadyDeducted = entry.amountAlreadyDeducted ?? 0;
+      const outstandingAmount = roundMoneyAmount(entry.amount - alreadyDeducted);
+      const amountDeducted = roundMoneyAmount(outstandingAmount * saleRatio);
+      const nextAmountDeducted = roundMoneyAmount(alreadyDeducted + amountDeducted);
+
+      return {
+        ledgerId: entry.ledgerId,
+        amountDeducted,
+        nextAmountDeducted,
+        fullySettled: nextAmountDeducted >= roundMoneyAmount(entry.amount),
+      };
+    })
+    .filter((settlement) => settlement.amountDeducted > 0);
+}
+
+export type SaleNetAmountInput = {
+  grossAmount: number;
+  storageFeeDeducted?: number;
+  handlingFeeDeducted?: number;
+  commissionDeducted?: number;
+  transportFeeDeducted?: number;
+  adjustmentAmount?: number;
+  decimalPlaces?: number;
+};
+
+export function calculateNetAmountDueToFarmer(input: SaleNetAmountInput): number {
+  const decimalPlaces = input.decimalPlaces ?? 2;
+  return roundMoneyAmount(
+    input.grossAmount -
+      (input.storageFeeDeducted ?? 0) -
+      (input.handlingFeeDeducted ?? 0) -
+      (input.commissionDeducted ?? 0) -
+      (input.transportFeeDeducted ?? 0) +
+      (input.adjustmentAmount ?? 0),
+    decimalPlaces,
+  );
+}
+
+export type DispatchQuantityLine = {
+  warehouseId: string;
+  destination: string;
+  quantity: number;
+  unit: string;
+};
+
+export type DispatchQuantityAggregation = {
+  warehouseId: string;
+  destination: string;
+  totalQuantity: number;
+  unit: string;
+};
+
+export function calculateDispatchQuantityAggregation(
+  lines: readonly DispatchQuantityLine[],
+): DispatchQuantityAggregation {
+  const firstLine = lines[0];
+  if (firstLine === undefined) {
+    throw new Error("At least one dispatch quantity line is required.");
+  }
+
+  for (const line of lines) {
+    if (line.warehouseId !== firstLine.warehouseId) {
+      throw new Error("Dispatches must stay within one warehouse.");
+    }
+    if (line.destination !== firstLine.destination) {
+      throw new Error("Dispatches must use one destination.");
+    }
+    if (line.unit !== firstLine.unit) {
+      throw new Error("Dispatches must use one quantity unit.");
+    }
+    if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
+      throw new Error("Dispatch quantities must be positive numbers.");
+    }
+  }
+
+  return {
+    warehouseId: firstLine.warehouseId,
+    destination: firstLine.destination,
+    totalQuantity: roundMoneyAmount(
+      lines.reduce((total, line) => total + line.quantity, 0),
+      6,
+    ),
+    unit: firstLine.unit,
+  };
+}
+
+export type DispatchTransportCostShare = {
+  payer: FeePayer;
+  buyerAmount: number;
+  farmerAmount: number;
+  platformAmount: number;
+  includedInPriceAmount: number;
+};
+
+export function calculateDispatchTransportCostShare(
+  transportCost: number | undefined,
+  payer: FeePayer,
+  decimalPlaces = 2,
+): DispatchTransportCostShare {
+  const cost = transportCost ?? 0;
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw new Error("Transport cost must be a non-negative number.");
+  }
+
+  const roundedCost = roundMoneyAmount(cost, decimalPlaces);
+  const emptyShare = {
+    payer,
+    buyerAmount: 0,
+    farmerAmount: 0,
+    platformAmount: 0,
+    includedInPriceAmount: 0,
+  };
+
+  switch (payer) {
+    case "buyer":
+      return { ...emptyShare, buyerAmount: roundedCost };
+    case "farmer":
+      return { ...emptyShare, farmerAmount: roundedCost };
+    case "platform":
+      return { ...emptyShare, platformAmount: roundedCost };
+    case "included_in_price":
+      return { ...emptyShare, includedInPriceAmount: roundedCost };
+    case "shared": {
+      const buyerAmount = roundMoneyAmount(roundedCost / 2, decimalPlaces);
+      return {
+        ...emptyShare,
+        buyerAmount,
+        farmerAmount: roundMoneyAmount(roundedCost - buyerAmount, decimalPlaces),
+      };
+    }
+  }
 }

@@ -97,6 +97,7 @@ export type InventoryReservationStatus =
 
 export const storageFeeLedgerStatuses = [
   "accrued",
+  "partially_deducted_from_sale",
   "deducted_from_sale",
   "paid",
   "waived",
@@ -132,6 +133,21 @@ export const buyerStatuses = [
   "deactivated",
 ] as const;
 export type BuyerStatus = (typeof buyerStatuses)[number];
+
+export const transporterVerificationStatuses = [
+  "pending",
+  "verified",
+  "rejected",
+] as const;
+export type TransporterVerificationStatus =
+  (typeof transporterVerificationStatuses)[number];
+
+export const transporterStatuses = [
+  "active",
+  "suspended",
+  "deactivated",
+] as const;
+export type TransporterStatus = (typeof transporterStatuses)[number];
 
 export const buyerOrderStatuses = [
   "draft",
@@ -244,6 +260,7 @@ export const auditEntityTypes = [
   "user",
   "farmer",
   "warehouse_agent",
+  "transporter_profile",
   "warehouse",
   "inventory_batch",
   "storage_receipt",
@@ -417,6 +434,8 @@ export type StorageFeeLedger = {
   unit: string;
   appliedRuleSnapshot: FeeRuleSnapshot;
   amount: number;
+  amountDeducted?: number;
+  deductedSaleRecordIds?: string[];
   status: StorageFeeLedgerStatus;
   createdAt: number;
 };
@@ -432,6 +451,22 @@ export type Buyer = TimestampFields & {
   destinationMarket?: string;
   verificationStatus: BuyerVerificationStatus;
   status: BuyerStatus;
+};
+
+export type TransporterProfile = TimestampFields & {
+  id: string;
+  userId?: string;
+  fullName: string;
+  phoneNumber: string;
+  vehicleType: string;
+  vehicleCapacity?: number;
+  vehicleCapacityUnit?: string;
+  baseLocation: string;
+  routesServed: string[];
+  destinationsServed: string[];
+  verificationStatus: TransporterVerificationStatus;
+  status: TransporterStatus;
+  rating?: number;
 };
 
 export type BuyerOrder = TimestampFields & {
@@ -486,6 +521,7 @@ export type SaleDeduction = {
   saleRecordId: string;
   farmerId: string;
   inventoryBatchId: string;
+  storageFeeLedgerId?: string;
   label: string;
   amount: number;
   appliedRuleSnapshot?: FeeRuleSnapshot;
@@ -501,8 +537,11 @@ export type Dispatch = TimestampFields & {
   driverPhoneNumber?: string;
   vehicleType?: string;
   vehicleCapacity?: number;
+  vehicleCapacityUnit?: string;
   buyerOrderIds: string[];
   inventoryBatchIds: string[];
+  saleRecordIds?: string[];
+  reservationIds?: string[];
   totalQuantity: number;
   unit: string;
   plannedDepartureAt?: number;
@@ -565,11 +604,20 @@ export type PlatformSummaryCounts = {
   warehouseAgents: number;
   warehouses: number;
   buyers: number;
+  transporterProfiles: number;
   inventoryBatches: number;
   availableInventoryBatches: number;
   buyerOrders: number;
   saleRecords: number;
+  soldQuantity: number;
+  grossSalesAmount: number;
+  netFarmerAmountDue: number;
+  salePaymentStatusCounts: Record<SalePaymentStatus, number>;
   dispatches: number;
+  dispatchStatusCounts: Record<DispatchStatus, number>;
+  inTransitDispatches: number;
+  deliveredDispatches: number;
+  issueDispatches: number;
   disputes: number;
   openDisputes: number;
 };

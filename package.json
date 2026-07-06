@@ -6,6 +6,7 @@
     "dev": "turbo dev",
     "dev:www": "pnpm --filter @kuapa-dwaso/www dev",
     "dev:app": "pnpm --filter @kuapa-dwaso/app dev",
+    "dev:ops": "pnpm --filter @kuapa-dwaso/ops dev",
     "dev:admin": "pnpm --filter @kuapa-dwaso/admin dev",
     "dev:api": "pnpm --filter @kuapa-dwaso/api dev",
     "convex:dev": "convex dev",

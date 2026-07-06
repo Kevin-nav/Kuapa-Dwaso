@@ -10,6 +10,7 @@ import {
 
 const storageFeeLedgerStatus = v.union(
   v.literal("accrued"),
+  v.literal("partially_deducted_from_sale"),
   v.literal("deducted_from_sale"),
   v.literal("paid"),
   v.literal("waived"),

@@ -70,6 +70,7 @@ const inventoryReservationStatus = v.union(
 
 const storageFeeLedgerStatus = v.union(
   v.literal("accrued"),
+  v.literal("partially_deducted_from_sale"),
   v.literal("deducted_from_sale"),
   v.literal("paid"),
   v.literal("waived"),
@@ -298,6 +299,29 @@ export default defineSchema({
     .index("by_verification_status", ["verificationStatus"])
     .index("by_destination_market", ["destinationMarket"]),
 
+  transporterProfiles: defineTable({
+    userId: v.optional(v.id("users")),
+    fullName: v.string(),
+    phoneNumber: v.string(),
+    vehicleType: v.string(),
+    vehicleCapacity: v.optional(v.number()),
+    vehicleCapacityUnit: v.optional(v.string()),
+    baseLocation: v.string(),
+    routesServed: v.array(v.string()),
+    destinationsServed: v.array(v.string()),
+    verificationStatus,
+    status: profileStatus,
+    rating: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone_number", ["phoneNumber"])
+    .index("by_status", ["status"])
+    .index("by_verification_status", ["verificationStatus"])
+    .index("by_base_location", ["baseLocation"])
+    .index("by_status_verification_status", ["status", "verificationStatus"]),
+
   storageRateRules: defineTable({
     warehouseId: v.optional(v.id("warehouses")),
     cropType: v.optional(v.string()),
@@ -398,6 +422,8 @@ export default defineSchema({
     unit: v.string(),
     appliedRuleSnapshot: feeRuleSnapshot,
     amount: v.number(),
+    amountDeducted: v.optional(v.number()),
+    deductedSaleRecordIds: v.optional(v.array(v.id("saleRecords"))),
     status: storageFeeLedgerStatus,
     createdAt: v.number()
   })
@@ -468,6 +494,7 @@ export default defineSchema({
     saleRecordId: v.id("saleRecords"),
     farmerId: v.id("farmers"),
     inventoryBatchId: v.id("inventoryBatches"),
+    storageFeeLedgerId: v.optional(v.id("storageFeeLedger")),
     label: v.string(),
     amount: v.number(),
     appliedRuleSnapshot: v.optional(feeRuleSnapshot),
@@ -480,11 +507,14 @@ export default defineSchema({
   dispatches: defineTable({
     warehouseId: v.id("warehouses"),
     destination: v.string(),
-    transporterId: v.optional(v.id("users")),
+    transporterId: v.optional(v.id("transporterProfiles")),
     driverName: v.optional(v.string()),
     driverPhoneNumber: v.optional(v.string()),
     vehicleType: v.optional(v.string()),
     vehicleCapacity: v.optional(v.number()),
+    vehicleCapacityUnit: v.optional(v.string()),
+    saleRecordIds: v.optional(v.array(v.id("saleRecords"))),
+    reservationIds: v.optional(v.array(v.id("inventoryReservations"))),
     buyerOrderIds: v.array(v.id("buyerOrders")),
     inventoryBatchIds: v.array(v.id("inventoryBatches")),
     totalQuantity: v.number(),
@@ -502,7 +532,8 @@ export default defineSchema({
     .index("by_warehouse_status", ["warehouseId", "status"])
     .index("by_status", ["status"])
     .index("by_destination_status", ["destination", "status"])
-    .index("by_transporter_status", ["transporterId", "status"]),
+    .index("by_transporter_status", ["transporterId", "status"])
+    .index("by_warehouse_destination_status", ["warehouseId", "destination", "status"]),
 
   notifications: defineTable({
     recipientId: v.optional(v.string()),

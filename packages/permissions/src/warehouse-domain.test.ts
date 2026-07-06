@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   calculateInventoryBatchAvailableQuantity,
+  canAssignDispatchTransporter,
   canConfigureFees,
   canCreateDispatch,
   canCreateInventoryBatch,
+  canCreateSaleRecord,
+  canManageTransporters,
   canReserveInventory,
   canTransitionBuyerOrderStatus,
   canTransitionDispatchStatus,
@@ -15,9 +18,13 @@ import {
 test("warehouse agent owns operational permissions but cannot configure fees", () => {
   assert.equal(canCreateInventoryBatch("warehouse_agent"), true);
   assert.equal(canReserveInventory("warehouse_agent"), true);
+  assert.equal(canCreateSaleRecord("warehouse_agent"), true);
   assert.equal(canCreateDispatch("warehouse_agent"), true);
+  assert.equal(canAssignDispatchTransporter("warehouse_agent"), true);
   assert.equal(canConfigureFees("warehouse_agent"), false);
   assert.equal(canConfigureFees("admin"), true);
+  assert.equal(canManageTransporters("warehouse_agent"), false);
+  assert.equal(canManageTransporters("admin"), true);
 });
 
 test("inventory batch transitions pin warehouse lifecycle rules", () => {
@@ -34,8 +41,11 @@ test("buyer order and dispatch transitions reject reopening terminal states", ()
   assert.equal(canTransitionBuyerOrderStatus("reserved", "preparing"), true);
   assert.equal(canTransitionBuyerOrderStatus("completed", "submitted"), false);
   assert.equal(canTransitionDispatchStatus("planned", "loading"), true);
+  assert.equal(canTransitionDispatchStatus("departed", "arrived"), true);
+  assert.equal(canTransitionDispatchStatus("issue_reported", "cancelled"), true);
   assert.equal(canTransitionDispatchStatus("delivered", "closed"), true);
   assert.equal(canTransitionDispatchStatus("closed", "in_transit"), false);
+  assert.equal(canTransitionDispatchStatus("cancelled", "planned"), false);
 });
 
 test("inventory reservation transitions close active reservations without reopening terminal states", () => {

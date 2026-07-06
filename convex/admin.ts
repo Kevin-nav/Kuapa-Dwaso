@@ -29,11 +29,36 @@ export const getPlatformSummaryCounts = query({
     warehouseAgents: v.number(),
     warehouses: v.number(),
     buyers: v.number(),
+    transporterProfiles: v.number(),
     inventoryBatches: v.number(),
     availableInventoryBatches: v.number(),
     buyerOrders: v.number(),
     saleRecords: v.number(),
+    soldQuantity: v.number(),
+    grossSalesAmount: v.number(),
+    netFarmerAmountDue: v.number(),
+    salePaymentStatusCounts: v.object({
+      pending: v.number(),
+      part_paid: v.number(),
+      paid: v.number(),
+      withheld: v.number(),
+      disputed: v.number(),
+    }),
     dispatches: v.number(),
+    dispatchStatusCounts: v.object({
+      planned: v.number(),
+      loading: v.number(),
+      departed: v.number(),
+      in_transit: v.number(),
+      arrived: v.number(),
+      delivered: v.number(),
+      closed: v.number(),
+      cancelled: v.number(),
+      issue_reported: v.number(),
+    }),
+    inTransitDispatches: v.number(),
+    deliveredDispatches: v.number(),
+    issueDispatches: v.number(),
     disputes: v.number(),
     openDisputes: v.number(),
   }),
@@ -45,6 +70,7 @@ export const getPlatformSummaryCounts = query({
       warehouseAgents,
       warehouses,
       buyers,
+      transporterProfiles,
       inventoryBatches,
       availableInventoryBatches,
       buyerOrders,
@@ -57,6 +83,7 @@ export const getPlatformSummaryCounts = query({
       ctx.db.query("warehouseAgents").collect(),
       ctx.db.query("warehouses").collect(),
       ctx.db.query("buyers").collect(),
+      ctx.db.query("transporterProfiles").collect(),
       ctx.db.query("inventoryBatches").collect(),
       ctx.db
         .query("inventoryBatches")
@@ -72,19 +99,116 @@ export const getPlatformSummaryCounts = query({
         .collect(),
     ]);
 
+    const salePaymentStatusCounts = {
+      pending: 0,
+      part_paid: 0,
+      paid: 0,
+      withheld: 0,
+      disputed: 0,
+    };
+    let soldQuantity = 0;
+    let grossSalesAmount = 0;
+    let netFarmerAmountDue = 0;
+    for (const sale of saleRecords) {
+      soldQuantity += sale.quantitySold;
+      grossSalesAmount += sale.grossAmount;
+      netFarmerAmountDue += sale.netAmountDueToFarmer;
+      salePaymentStatusCounts[sale.paymentStatus] += 1;
+    }
+    const dispatchStatusCounts = {
+      planned: 0,
+      loading: 0,
+      departed: 0,
+      in_transit: 0,
+      arrived: 0,
+      delivered: 0,
+      closed: 0,
+      cancelled: 0,
+      issue_reported: 0,
+    };
+    for (const dispatch of dispatches) {
+      dispatchStatusCounts[dispatch.status] += 1;
+    }
+
     return {
       farmers: farmers.length,
       warehouseAgents: warehouseAgents.length,
       warehouses: warehouses.length,
       buyers: buyers.length,
+      transporterProfiles: transporterProfiles.length,
       inventoryBatches: inventoryBatches.length,
       availableInventoryBatches: availableInventoryBatches.length,
       buyerOrders: buyerOrders.length,
       saleRecords: saleRecords.length,
+      soldQuantity,
+      grossSalesAmount,
+      netFarmerAmountDue,
+      salePaymentStatusCounts,
       dispatches: dispatches.length,
+      dispatchStatusCounts,
+      inTransitDispatches:
+        dispatchStatusCounts.departed + dispatchStatusCounts.in_transit + dispatchStatusCounts.arrived,
+      deliveredDispatches: dispatchStatusCounts.delivered + dispatchStatusCounts.closed,
+      issueDispatches: dispatchStatusCounts.issue_reported,
       disputes: disputes.length,
       openDisputes: openDisputes.length,
     };
+  },
+});
+
+export const getDispatchRouteSummaries = query({
+  args: {
+    requestingUserId: v.optional(v.id("users")),
+    requestingActorRole: v.optional(marketplaceRole),
+    warehouseId: v.optional(v.id("warehouses")),
+    destination: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    assertCanViewAdminObservability(await resolveRequestingRole(ctx.db, args));
+    const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
+    const destination = args.destination?.trim();
+    const dispatches =
+      args.warehouseId !== undefined
+        ? await ctx.db
+            .query("dispatches")
+            .withIndex("by_warehouse_status", (q) => q.eq("warehouseId", args.warehouseId!))
+            .take(500)
+        : await ctx.db.query("dispatches").take(500);
+    const summaries = new Map<string, Record<string, unknown>>();
+
+    for (const dispatch of dispatches) {
+      if (args.warehouseId !== undefined && dispatch.warehouseId !== args.warehouseId) {
+        continue;
+      }
+      if (destination !== undefined && dispatch.destination !== destination) {
+        continue;
+      }
+      const key = `${dispatch.warehouseId}|${dispatch.destination}`;
+      const existing = summaries.get(key);
+      const statusCounts = {
+        ...((existing?.statusCounts as Record<string, number> | undefined) ?? {}),
+      };
+      statusCounts[dispatch.status] = (statusCounts[dispatch.status] ?? 0) + 1;
+      const transportCostTotal =
+        ((existing?.transportCostTotal as number | undefined) ?? 0) +
+        (dispatch.transportCost ?? 0);
+      const dispatchCount = ((existing?.dispatchCount as number | undefined) ?? 0) + 1;
+
+      summaries.set(key, {
+        warehouseId: dispatch.warehouseId,
+        destination: dispatch.destination,
+        dispatchCount,
+        totalQuantity: ((existing?.totalQuantity as number | undefined) ?? 0) + dispatch.totalQuantity,
+        unit: dispatch.unit,
+        transportCostTotal,
+        averageTransportCost: transportCostTotal / dispatchCount,
+        statusCounts,
+      });
+    }
+
+    return [...summaries.values()].slice(0, limit);
   },
 });
 

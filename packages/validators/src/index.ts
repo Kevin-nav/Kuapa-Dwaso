@@ -19,6 +19,8 @@ import {
   registrationSources,
   salePaymentStatuses,
   storageFeeLedgerStatuses,
+  transporterStatuses,
+  transporterVerificationStatuses,
   userStatuses,
   warehouseAgentStatuses,
   warehouseStatuses,
@@ -42,6 +44,8 @@ import {
   type RegistrationSource,
   type SalePaymentStatus,
   type StorageFeeLedgerStatus,
+  type TransporterStatus,
+  type TransporterVerificationStatus,
   type UserStatus,
   type WarehouseAgentStatus,
   type WarehouseStatus,
@@ -122,6 +126,16 @@ export function isBuyerVerificationStatus(
 
 export function isBuyerStatus(value: unknown): value is BuyerStatus {
   return isOneOf(buyerStatuses, value);
+}
+
+export function isTransporterVerificationStatus(
+  value: unknown,
+): value is TransporterVerificationStatus {
+  return isOneOf(transporterVerificationStatuses, value);
+}
+
+export function isTransporterStatus(value: unknown): value is TransporterStatus {
+  return isOneOf(transporterStatuses, value);
 }
 
 export function isBuyerOrderStatus(

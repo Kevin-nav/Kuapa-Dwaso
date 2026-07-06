@@ -12,6 +12,7 @@ export const permissionKeys = [
   "warehouses:update",
   "warehouses:configureFees",
   "warehouseAgents:manage",
+  "transporters:manage",
   "farmers:create",
   "farmers:verify",
   "inventory:create",
@@ -26,6 +27,7 @@ export const permissionKeys = [
   "sales:create",
   "sales:updatePaymentStatus",
   "dispatches:create",
+  "dispatches:assignTransporter",
   "dispatches:updateStatus",
   "notifications:send",
   "auditLogs:view",
@@ -44,7 +46,9 @@ const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
     "inventory:updateStatus",
     "inventory:adjustQuantity",
     "orders:reserveInventory",
+    "sales:create",
     "dispatches:create",
+    "dispatches:assignTransporter",
     "dispatches:updateStatus",
     "disputes:create",
     "notifications:send",
@@ -87,6 +91,10 @@ export function canUpdateWarehouse(role: MarketplaceRole): boolean {
 
 export function canManageWarehouseAgents(role: MarketplaceRole): boolean {
   return roleHasPermission(role, "warehouseAgents:manage");
+}
+
+export function canManageTransporters(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "transporters:manage");
 }
 
 export function canCreateFarmerProfile(role: MarketplaceRole): boolean {
@@ -143,6 +151,10 @@ export function canUpdateSalePaymentStatus(role: MarketplaceRole): boolean {
 
 export function canCreateDispatch(role: MarketplaceRole): boolean {
   return roleHasPermission(role, "dispatches:create");
+}
+
+export function canAssignDispatchTransporter(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "dispatches:assignTransporter");
 }
 
 export function canUpdateDispatchStatus(role: MarketplaceRole): boolean {

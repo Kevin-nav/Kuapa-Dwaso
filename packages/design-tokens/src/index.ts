@@ -3,6 +3,8 @@ export const palette = {
   field: "#2d8a4e",
   /** Lighter field green for hover states */
   fieldLight: "#38a85c",
+  /** Deep green pressed state for field buttons */
+  fieldDark: "#1f6b3a",
   /** Deep green-black for text and dark surfaces */
   ink: "#0f1f14",
   /** Slightly lifted ink for section backgrounds */
@@ -11,6 +13,8 @@ export const palette = {
   sky: "#0d9488",
   /** Warm off-white for backgrounds */
   surface: "#f5f7f0",
+  /** Explicit card-on-surface token */
+  surfaceRaised: "#ffffff",
   /** Hairline border color on warm surfaces */
   line: "#dde3d5",
   /** Lush emerald for highlights and gradients */
@@ -19,8 +23,12 @@ export const palette = {
   clay: "#c2410c",
   /** Golden accent for badges and sparse highlights */
   gold: "#eab308",
-  /** Golden accent for premium touches */
+  /** Golden accent for premium touches (deprecating) */
   accent: "#d4a843",
+  /** Golden accent for premium touches */
+  goldMuted: "#d4a843",
+  /** Dark gold/brown ink for high contrast text on gold badges */
+  goldInk: "#854d0e",
 } as const;
 
 export const status = {
@@ -48,6 +56,16 @@ export const status = {
   neutral: "#64748b",
   neutralBg: "#f1f3f5",
   neutralBorder: "#dde1e6",
+
+  // Offline/sync state — agents need this constantly
+  offline: "#7c3aed",
+  offlineBg: "#f1ebfb",
+  offlineBorder: "#d9c9f2",
+} as const;
+
+export const interaction = {
+  focusRing: "#0d9488",
+  focusRingOffset: "#f5f7f0",
 } as const;
 
 export const gray = {
