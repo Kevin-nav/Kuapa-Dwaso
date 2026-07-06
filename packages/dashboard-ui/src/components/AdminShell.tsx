@@ -154,7 +154,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Sidebar Nav Items */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 8px", display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div
+          className="sidebar-scroll"
+          style={{ flex: 1, overflowY: "auto", padding: "16px 8px", display: "flex", flexDirection: "column", gap: "20px" }}
+        >
           {navGroups.map((group, groupIdx) => (
             <div key={groupIdx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               {!isCollapsed && (

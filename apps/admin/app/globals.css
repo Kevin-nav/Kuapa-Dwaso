@@ -43,3 +43,13 @@ body {
     transform: translateX(0);
   }
 }
+
+/* Hide scrollbar for sidebar while maintaining scroll function */
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.sidebar-scroll {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
