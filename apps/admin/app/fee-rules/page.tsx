@@ -260,7 +260,7 @@ export default function FeeRulesPage() {
             </div>
 
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div style={{ backgroundColor: status.warningBg, borderLeft: `4px solid ${status.warning}`, borderRadius: "6px", padding: "12px" }}>
+              <div style={{ backgroundColor: status.warningBg, borderLeft: "none", borderRadius: "6px", padding: "12px" }}>
                 <span style={{ fontSize: "0.8125rem", color: status.warning, fontWeight: 700 }}>⚠️ Audit Impact Statement</span>
                 <p style={{ margin: "4px 0 0", fontSize: "0.8125rem", color: gray[700], lineHeight: 1.4 }}>
                   This change creates a new rule version (v{(selectedRule?.version || 1) + 1}) replacing the active rule code <strong style={{ fontFamily: "monospace" }}>{selectedRule?.code}</strong>. New rate will apply immediately to deposits scoped to: <strong>{selectedRule?.scope.cropType || "Global"} · Grade {selectedRule?.scope.grade || "All"}</strong>. Historical accruals remain locked.

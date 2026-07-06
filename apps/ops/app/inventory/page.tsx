@@ -10,7 +10,8 @@ import {
   AlertTriangle, 
   User, 
   X,
-  Info
+  Info,
+  ArrowLeft
 } from "lucide-react";
 import type { InventoryBatchStatus } from "@kuapa-dwaso/types";
 
@@ -217,6 +218,427 @@ function InventoryContent() {
     setFilterExpiringSoon(false);
     setFilterHasIssues(false);
   };
+
+  if (activeBatch) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button 
+            type="button" 
+            className="modal-close" 
+            onClick={() => setSelectedBatchId(null)}
+            style={{ width: "40px", height: "40px", backgroundColor: "var(--color-surface-raised)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-label="Back to inventory"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--gray-500)", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>Batch Details</span>
+              <span>·</span>
+              <span className="code-chip" style={{ fontSize: "11px" }}>{activeBatch.receiptCode}</span>
+            </div>
+            <h1 style={{ fontSize: "24px", fontWeight: "800", color: "var(--color-ink)", marginTop: "4px" }}>
+              {activeBatch.cropType}
+            </h1>
+          </div>
+        </div>
+
+        {/* Content Pane */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px", paddingBottom: "40px" }}>
+          
+          {/* Stat card header metrics */}
+          <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontSize: "14px", color: "var(--gray-500)" }}>Available Quantity</span>
+              <span style={{ fontSize: "28px", fontWeight: "800" }}>
+                {activeBatch.quantityAvailable} <span style={{ fontSize: "16px", fontWeight: "600" }}>{activeBatch.unit}s</span>
+              </span>
+            </div>
+            
+            {/* Thin progress bar */}
+            <div style={{ width: "100%", height: "6px", backgroundColor: "var(--gray-100)", borderRadius: "3px", overflow: "hidden", marginTop: "4px" }}>
+              <div 
+                style={{ 
+                  width: `${(activeBatch.quantityAvailable / activeBatch.quantityReceived) * 100}%`, 
+                  height: "100%", 
+                  backgroundColor: "var(--color-field)",
+                  borderRadius: "3px"
+                }} 
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--gray-500)" }}>
+              <span>{(activeBatch.quantityAvailable / activeBatch.quantityReceived * 100).toFixed(0)}% available</span>
+              <span>Total received: {activeBatch.quantityReceived} {activeBatch.unit}s</span>
+            </div>
+          </div>
+
+          {/* Producer Details */}
+          <div>
+            <h3 className="detail-section-title">Producer Details</h3>
+            <div className="info-card" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "12px" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: "var(--gray-50)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <User size={20} className="text-gray-500" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: "700" }}>{activeFarmer?.fullName || "Unknown"}</div>
+                <div style={{ fontSize: "13px", color: "var(--gray-500)" }}>{activeFarmer?.phoneNumber} · {activeFarmer?.community}</div>
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
+                onClick={() => router.push(`/farmers`)}
+              >
+                View
+              </button>
+            </div>
+          </div>
+
+          {/* Grade & condition notes */}
+          <div>
+            <h3 className="detail-section-title">Grade & Quality Condition</h3>
+            <div className="info-card">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="badge badge-success">Grade {activeBatch.grade}</span>
+                  <span style={{ fontSize: "14px", color: "var(--gray-600)" }}>{activeBatch.variety}</span>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
+                  onClick={() => setShowUpdateConditionModal(true)}
+                >
+                  Update
+                </button>
+              </div>
+              {activeBatch.conditionNotes ? (
+                <div style={{ fontSize: "14px", color: "var(--gray-700)", fontStyle: "italic", marginTop: "8px", borderLeft: "2px solid var(--color-line)", paddingLeft: "10px" }}>
+                  "{activeBatch.conditionNotes}"
+                </div>
+              ) : (
+                <div style={{ fontSize: "14px", color: "var(--gray-500)", fontStyle: "italic", marginTop: "8px" }}>
+                  No condition notes reported.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Storage Fees summary */}
+          <div>
+            <h3 className="detail-section-title">Storage Fees Overview</h3>
+            <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "24px", fontWeight: "800", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Coins size={20} style={{ color: "var(--color-success)" }} />
+                    <span>GHS {activeBatch.storageFeeAccrued.toFixed(2)}</span>
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "2px" }}>
+                    Rate: GHS {activeBatch.storageRateSnapshot?.ratePerUnitPerDay?.toFixed(2)}/{activeBatch.unit}/day
+                  </div>
+                </div>
+                
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
+                  onClick={() => setShowFeesLedgerModal(true)}
+                >
+                  View Ledger
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Related Issues */}
+          <div>
+            <h3 className="detail-section-title">Related Issues</h3>
+            {activeDisputes.length === 0 ? (
+              <div className="info-card" style={{ color: "var(--gray-500)", fontSize: "14px", fontStyle: "italic" }}>
+                No open issues or disputes for this batch.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {activeDisputes.map(disp => (
+                  <div key={disp.id} className="info-card" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: "700", fontSize: "14px" }}>{disp.title}</span>
+                      <span className="badge badge-danger" style={{ fontSize: "10px" }}>{disp.status}</span>
+                    </div>
+                    <span style={{ fontSize: "13px", color: "var(--gray-600)" }}>{disp.summary}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Batch History Timeline */}
+          <div>
+            <h3 className="detail-section-title">Batch History Timeline</h3>
+            <div className="info-card">
+              <div className="timeline">
+                {activeTimeline.map((evt, idx) => (
+                  <div key={idx} className="timeline-item">
+                    <div className={`timeline-dot ${getStatusBadgeClass(evt.status)}`} />
+                    <div className="timeline-title">
+                      Status Changed to {evt.status.replace(/_/g, " ")}
+                    </div>
+                    <div className="timeline-time">
+                      {new Date(evt.timestamp).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · by {evt.actor}
+                    </div>
+                    {evt.reason && (
+                      <div className="timeline-notes">
+                        Reason: "{evt.reason}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Tray */}
+          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <button 
+              type="button" 
+              className="btn btn-outline" 
+              style={{ flex: 1, height: "46px", fontSize: "14px" }}
+              onClick={() => setShowChangeStatusModal(true)}
+            >
+              Change Status
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-outline" 
+              style={{ flex: 1, height: "46px", fontSize: "14px" }}
+              onClick={() => setShowAdjustQtyModal(true)}
+            >
+              Adjust Qty
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-ghost" 
+              style={{ flex: 0.5, height: "46px", padding: 0 }}
+              onClick={() => {
+                setSelectedBatchId(null);
+                router.push(`/disputes/new?entityId=${activeBatch.id}&entityType=inventory_batch`);
+              }}
+              title="Raise issue / Dispute"
+            >
+              <AlertTriangle size={20} style={{ color: "var(--color-danger)" }} />
+            </button>
+          </div>
+        </div>
+
+        {/* Adjust Qty Confirmation Dialog */}
+        {showAdjustQtyModal && (
+          <div className="modal-backdrop" onClick={() => setShowAdjustQtyModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">Adjust Available Stock</h3>
+                <button type="button" className="modal-close" onClick={() => setShowAdjustQtyModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleAdjustQtySubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="newQtyInput">New Available Quantity ({activeBatch.unit}s)</label>
+                  <input 
+                    id="newQtyInput"
+                    type="number" 
+                    className="form-input" 
+                    value={newQty}
+                    onChange={(e) => setNewQty(parseInt(e.target.value) || 0)}
+                    min="0"
+                    max={activeBatch.quantityReceived}
+                  />
+                  <div style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "4px" }}>
+                    Total received: {activeBatch.quantityReceived} {activeBatch.unit}s.
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="adjustCategory">Adjustment Reason Category</label>
+                  <select 
+                    id="adjustCategory"
+                    className="form-select"
+                    value={adjustReasonCategory}
+                    onChange={(e) => setAdjustReasonCategory(e.target.value)}
+                  >
+                    <option value="Spoilage">Spoilage / Spilled</option>
+                    <option value="Audit discrepancy">Audit Inventory Reconciliation</option>
+                    <option value="Theft">Unaccounted shrinkage</option>
+                    <option value="Re-grading transfer">Quality downgrade transfer</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="adjustNotes">Audit explanation notes</label>
+                  <textarea 
+                    id="adjustNotes"
+                    className="form-textarea" 
+                    placeholder="Provide context for audit records..."
+                    value={adjustReasonText}
+                    onChange={(e) => setAdjustReasonText(e.target.value)}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowAdjustQtyModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                    Commit Change
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Change Status Confirmation Dialog */}
+        {showChangeStatusModal && (
+          <div className="modal-backdrop" onClick={() => setShowChangeStatusModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">Change Batch Status</h3>
+                <button type="button" className="modal-close" onClick={() => setShowChangeStatusModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleChangeStatusSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="newStatusSelect">New Batch Status</label>
+                  <select 
+                    id="newStatusSelect"
+                    className="form-select"
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as any)}
+                  >
+                    <option value="received">Received (Uninspected)</option>
+                    <option value="available">Available (Active Stock)</option>
+                    <option value="reserved">Reserved (Fully committed)</option>
+                    <option value="expired">Expired (Past sell-by date)</option>
+                    <option value="spoiled">Spoiled (Damaged/Rotten)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="statusReasonText">Reason / Audit explanation</label>
+                  <textarea 
+                    id="statusReasonText"
+                    className="form-textarea" 
+                    placeholder="Specify why status is changing..."
+                    value={statusReason}
+                    onChange={(e) => setStatusReason(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowChangeStatusModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                    Commit Status
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Update Condition Note Dialog */}
+        {showUpdateConditionModal && (
+          <div className="modal-backdrop" onClick={() => setShowUpdateConditionModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3 className="modal-title">Update Condition Notes</h3>
+                <button type="button" className="modal-close" onClick={() => setShowUpdateConditionModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleUpdateConditionSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="newConditionNotes">Condition & Quality Notes</label>
+                  <textarea 
+                    id="newConditionNotes"
+                    className="form-textarea" 
+                    placeholder="Describe batch conditions (moisture level, insect checks, size variance)..."
+                    value={newCondition}
+                    onChange={(e) => setNewCondition(e.target.value)}
+                    style={{ minHeight: "100px" }}
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowUpdateConditionModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+                    Update Notes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Storage Fee View / Ledger Modal */}
+        {showFeesLedgerModal && (
+          <div className="modal-backdrop" onClick={() => setShowFeesLedgerModal(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ minHeight: "60vh" }}>
+              <div className="modal-header">
+                <h3 className="modal-title">Storage Fee Accruals</h3>
+                <button type="button" className="modal-close" onClick={() => setShowFeesLedgerModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ backgroundColor: "var(--gray-50)", padding: "16px", borderRadius: "10px", textAlign: "center" }}>
+                  <div style={{ fontSize: "14px", color: "var(--gray-500)" }}>Total Accrued Storage Fee</div>
+                  <div style={{ fontSize: "32px", fontWeight: "900", color: "var(--color-field-dark)", marginTop: "4px" }}>
+                    GHS {activeBatch.storageFeeAccrued.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--gray-400)", marginTop: "4px" }}>
+                    Accruing per daily cycle
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0", borderBottom: "1px dashed var(--color-line)" }}>
+                    <span style={{ color: "var(--gray-500)" }}>Daily Rate snapshot</span>
+                    <strong style={{ color: "var(--color-ink)" }}>GHS {activeBatch.storageRateSnapshot?.ratePerUnitPerDay?.toFixed(2)} / {activeBatch.unit}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0", borderBottom: "1px dashed var(--color-line)" }}>
+                    <span style={{ color: "var(--gray-500)" }}>Current stockpile volume</span>
+                    <strong style={{ color: "var(--color-ink)" }}>{activeBatch.quantityAvailable} {activeBatch.unit}s</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0", borderBottom: "1px dashed var(--color-line)" }}>
+                    <span style={{ color: "var(--gray-500)" }}>Days in warehouse</span>
+                    <strong style={{ color: "var(--color-ink)" }}>
+                      {Math.max(1, Math.round((Date.now() - activeBatch.receivedAt) / (1000 * 60 * 60 * 24)))} days
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0" }}>
+                    <span style={{ color: "var(--gray-500)" }}>Last calculated at</span>
+                    <strong style={{ color: "var(--color-ink)" }}>
+                      {new Date(activeBatch.lastFeeCalculatedAt || activeBatch.receivedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -443,490 +865,6 @@ function InventoryContent() {
           </>
         )}
       </section>
-
-      {/* DETAIL MODAL DRAWER OVERLAY */}
-      {activeBatch && (
-        <div className="modal-backdrop" onClick={() => setSelectedBatchId(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ minHeight: "85vh" }}>
-            
-            {/* Drawer Header */}
-            <div className="modal-header">
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <div style={{ fontSize: "12px", color: "var(--gray-500)", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>Batch Details</span>
-                  <span>·</span>
-                  <span className="code-chip" style={{ fontSize: "11px" }}>{activeBatch.receiptCode}</span>
-                </div>
-                <h2 className="modal-title" style={{ marginTop: "4px" }}>
-                  {activeBatch.cropType}
-                </h2>
-              </div>
-              <button type="button" className="modal-close" onClick={() => setSelectedBatchId(null)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Content Scrolling Pane */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px", paddingBottom: "24px" }}>
-              
-              {/* Stat card header metrics */}
-              <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "8px", borderLeft: `4px solid var(--color-field)` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontSize: "14px", color: "var(--gray-500)" }}>Available Quantity</span>
-                  <span style={{ fontSize: "28px", fontWeight: "800" }}>
-                    {activeBatch.quantityAvailable} <span style={{ fontSize: "16px", fontWeight: "600" }}>{activeBatch.unit}s</span>
-                  </span>
-                </div>
-                
-                {/* Thin progress bar */}
-                <div style={{ width: "100%", height: "6px", backgroundColor: "var(--gray-100)", borderRadius: "3px", overflow: "hidden", marginTop: "4px" }}>
-                  <div 
-                    style={{ 
-                      width: `${(activeBatch.quantityAvailable / activeBatch.quantityReceived) * 100}%`, 
-                      height: "100%", 
-                      backgroundColor: "var(--color-field)",
-                      borderRadius: "3px"
-                    }} 
-                  />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--gray-500)" }}>
-                  <span>{(activeBatch.quantityAvailable / activeBatch.quantityReceived * 100).toFixed(0)}% available</span>
-                  <span>Total received: {activeBatch.quantityReceived} {activeBatch.unit}s</span>
-                </div>
-              </div>
-
-              {/* People & place section */}
-              <div>
-                <h3 className="detail-section-title">Producer Details</h3>
-                <div className="info-card" style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: "40px", height: "40px", borderRadius: "50%", backgroundColor: "var(--gray-50)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <User size={20} className="text-gray-500" />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: "700" }}>{activeFarmer?.fullName || "Unknown"}</div>
-                    <div style={{ fontSize: "13px", color: "var(--gray-500)" }}>{activeFarmer?.phoneNumber} · {activeFarmer?.community}</div>
-                  </div>
-                  <button 
-                    type="button" 
-                    className="btn btn-outline" 
-                    style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
-                    onClick={() => router.push(`/farmers`)}
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-
-              {/* Grade & condition notes */}
-              <div>
-                <h3 className="detail-section-title">Grade & Quality Condition</h3>
-                <div className="info-card">
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span className="badge badge-success">Grade {activeBatch.grade}</span>
-                      <span style={{ fontSize: "14px", color: "var(--gray-600)" }}>{activeBatch.variety}</span>
-                    </div>
-                    <button 
-                      type="button" 
-                      className="btn btn-outline" 
-                      style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
-                      onClick={() => setShowUpdateConditionModal(true)}
-                    >
-                      Update
-                    </button>
-                  </div>
-                  {activeBatch.conditionNotes ? (
-                    <div style={{ fontSize: "14px", color: "var(--gray-700)", fontStyle: "italic", marginTop: "8px", borderLeft: "2px solid var(--color-line)", paddingLeft: "10px" }}>
-                      "{activeBatch.conditionNotes}"
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: "14px", color: "var(--gray-500)", fontStyle: "italic", marginTop: "8px" }}>
-                      No condition notes reported.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Storage Fees summary */}
-              <div>
-                <h3 className="detail-section-title">Storage Fees Overview</h3>
-                <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontSize: "24px", fontWeight: "800", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Coins size={20} style={{ color: "var(--color-success)" }} />
-                        <span>GHS {activeBatch.storageFeeAccrued.toFixed(2)}</span>
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--gray-500)", marginTop: "2px" }}>
-                        Rate: GHS {activeBatch.storageRateSnapshot?.ratePerUnitPerDay?.toFixed(2)}/{activeBatch.unit}/day
-                      </div>
-                    </div>
-                    
-                    <button 
-                      type="button" 
-                      className="btn btn-outline" 
-                      style={{ width: "auto", height: "36px", padding: "0 12px", fontSize: "13px" }}
-                      onClick={() => setShowFeesLedgerModal(true)}
-                    >
-                      View Ledger
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Disputes & Related Issues */}
-              <div>
-                <h3 className="detail-section-title">Related Issues</h3>
-                {activeDisputes.length === 0 ? (
-                  <div className="info-card" style={{ color: "var(--gray-500)", fontSize: "14px", fontStyle: "italic" }}>
-                    No open issues or disputes for this batch.
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {activeDisputes.map(disp => (
-                      <div key={disp.id} className="info-card" style={{ borderLeft: "3px solid var(--color-danger)", display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontWeight: "700", fontSize: "14px" }}>{disp.title}</span>
-                          <span className="badge badge-danger" style={{ fontSize: "10px" }}>{disp.status}</span>
-                        </div>
-                        <span style={{ fontSize: "13px", color: "var(--gray-600)" }}>{disp.summary}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Vertical Audit timeline */}
-              <div>
-                <h3 className="detail-section-title">Batch History Timeline</h3>
-                <div className="info-card">
-                  <div className="timeline">
-                    {activeTimeline.map((evt, idx) => (
-                      <div key={idx} className="timeline-item">
-                        <div className={`timeline-dot ${getStatusBadgeClass(evt.status)}`} />
-                        <div className="timeline-title">
-                          Status Changed to {evt.status.replace(/_/g, " ")}
-                        </div>
-                        <div className="timeline-time">
-                          {new Date(evt.timestamp).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · by {evt.actor}
-                        </div>
-                        {evt.reason && (
-                          <div className="timeline-notes">
-                            Reason: "{evt.reason}"
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sticky action tray inside drawer */}
-              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
-                  style={{ flex: 1, height: "46px", fontSize: "14px" }}
-                  onClick={() => setShowChangeStatusModal(true)}
-                >
-                  Change Status
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
-                  style={{ flex: 1, height: "46px", fontSize: "14px" }}
-                  onClick={() => setShowAdjustQtyModal(true)}
-                >
-                  Adjust Qty
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-ghost" 
-                  style={{ flex: 0.5, height: "46px", padding: 0 }}
-                  onClick={() => {
-                    setSelectedBatchId(null);
-                    router.push(`/disputes/new?entityId=${activeBatch.id}&entityType=inventory_batch`);
-                  }}
-                  title="Raise issue / Dispute"
-                >
-                  <AlertTriangle size={18} style={{ color: "var(--color-danger)" }} />
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-MODAL 1: Adjust Quantity Confirmation Dialog */}
-      {showAdjustQtyModal && activeBatch && (
-        <div className="modal-backdrop" onClick={() => setShowAdjustQtyModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Adjust Available Stock</h3>
-              <button type="button" className="modal-close" onClick={() => setShowAdjustQtyModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAdjustQtySubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="qtyAdjustInput">New Available Quantity ({activeBatch.unit}s)</label>
-                <div className="counter-widget">
-                  <button type="button" className="counter-btn" onClick={() => setNewQty(q => Math.max(0, q - 1))}>−</button>
-                  <input 
-                    id="qtyAdjustInput"
-                    type="number" 
-                    className="counter-value" 
-                    value={newQty}
-                    onChange={(e) => setNewQty(Math.max(0, parseInt(e.target.value) || 0))}
-                  />
-                  <button type="button" className="counter-btn" onClick={() => setNewQty(q => q + 1)}>+</button>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="adjustCategory">Reason for adjustment</label>
-                <select 
-                  id="adjustCategory"
-                  className="form-select"
-                  value={adjustReasonCategory}
-                  onChange={(e) => setAdjustReasonCategory(e.target.value)}
-                >
-                  <option value="Spoilage">Spoilage / Damage</option>
-                  <option value="Weighing error">Weighing Error Correction</option>
-                  <option value="Farmer withdrawal">Farmer Withdrawal</option>
-                  <option value="Other">Other (specify below)</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="adjustNotes">Explanation Notes</label>
-                <textarea 
-                  id="adjustNotes"
-                  className="form-textarea" 
-                  placeholder="Provide details about why the inventory level is being adjusted..."
-                  value={adjustReasonText}
-                  onChange={(e) => setAdjustReasonText(e.target.value)}
-                  style={{ minHeight: "80px" }}
-                />
-              </div>
-
-              {/* Destructive adjustment comparison summary */}
-              <div className="receipt-callout" style={{ 
-                backgroundColor: newQty < activeBatch.quantityAvailable ? "var(--color-danger-bg)" : "var(--color-success-bg)",
-                borderColor: newQty < activeBatch.quantityAvailable ? "var(--color-danger-border)" : "var(--color-success-border)",
-                color: newQty < activeBatch.quantityAvailable ? "var(--color-danger)" : "var(--color-success)"
-              }}>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: "bold" }}>
-                  <Info size={16} />
-                  <span>
-                    Summary: Reduce from {activeBatch.quantityAvailable} → {newQty} {activeBatch.unit}s ({newQty - activeBatch.quantityAvailable} {activeBatch.unit}s)
-                  </span>
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowAdjustQtyModal(false)}>
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className={`btn ${newQty < activeBatch.quantityAvailable ? "btn-primary" : "btn-primary"}`}
-                  style={{ flex: 1, backgroundColor: newQty < activeBatch.quantityAvailable ? "var(--color-danger)" : "var(--color-field)" }}
-                >
-                  Confirm Adjustment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-MODAL 2: Change Status Confirmation Dialog */}
-      {showChangeStatusModal && activeBatch && (
-        <div className="modal-backdrop" onClick={() => setShowChangeStatusModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Change Batch Status</h3>
-              <button type="button" className="modal-close" onClick={() => setShowChangeStatusModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleChangeStatusSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="statusSelect">New status</label>
-                <select 
-                  id="statusSelect"
-                  className="form-select"
-                  value={newStatus}
-                  onChange={(e) => setNewStatus(e.target.value as InventoryBatchStatus)}
-                >
-                  <option value="received">Received</option>
-                  <option value="available">Available (Active in Storage)</option>
-                  <option value="partially_reserved">Partially Reserved</option>
-                  <option value="reserved">Reserved</option>
-                  <option value="sold">Sold</option>
-                  <option value="spoiled">Spoiled</option>
-                  <option value="expired">Expired</option>
-                  <option value="withdrawn">Withdrawn</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label form-label-required" htmlFor="statusNotes">Reason for update</label>
-                <textarea 
-                  id="statusNotes"
-                  className="form-textarea" 
-                  placeholder="Describe why status is changing (e.g. buyer payment completed, rot detected...)"
-                  value={statusReason}
-                  onChange={(e) => setStatusReason(e.target.value)}
-                  onBlur={() => {}}
-                  style={{ minHeight: "80px" }}
-                  required
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowChangeStatusModal(false)}>
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary" 
-                  style={{ flex: 1 }}
-                  disabled={!statusReason.trim()}
-                >
-                  Update Status
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-MODAL 3: Update Condition Note Prompt */}
-      {showUpdateConditionModal && activeBatch && (
-        <div className="modal-backdrop" onClick={() => setShowUpdateConditionModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Update Condition Notes</h3>
-              <button type="button" className="modal-close" onClick={() => setShowUpdateConditionModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleUpdateConditionSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="conditionNotesInput">Condition notes description</label>
-                <textarea 
-                  id="conditionNotesInput"
-                  className="form-textarea" 
-                  placeholder="Slightly bruised, wet, moisture content verified..."
-                  value={newCondition}
-                  onChange={(e) => setNewCondition(e.target.value)}
-                  style={{ minHeight: "100px" }}
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowUpdateConditionModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                  Save Condition Notes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-MODAL 4: Storage Fee View / Ledger Modal */}
-      {showFeesLedgerModal && activeBatch && (
-        <div className="modal-backdrop" onClick={() => setShowFeesLedgerModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ minHeight: "60vh" }}>
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Storage Fees Ledger</h3>
-                <span style={{ fontSize: "12px", color: "var(--gray-500)" }}>Receipt: {activeBatch.receiptCode}</span>
-              </div>
-              <button type="button" className="modal-close" onClick={() => setShowFeesLedgerModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              
-              {/* Ledger Summary */}
-              <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "8px", textAlign: "center" }}>
-                <span style={{ fontSize: "14px", color: "var(--gray-500)" }}>Accrued Storage Rate</span>
-                <span style={{ fontSize: "18px", fontWeight: "700" }}>
-                  GHS {activeBatch.storageRateSnapshot?.ratePerUnitPerDay?.toFixed(2)} / {activeBatch.unit} / day
-                </span>
-                <div style={{ height: "1px", backgroundColor: "var(--color-line)", margin: "8px 0" }} />
-                <span style={{ fontSize: "13px", color: "var(--gray-600)" }}>
-                  Stored for {Math.ceil((Date.now() - activeBatch.receivedAt) / (1000 * 60 * 60 * 24))} Days
-                </span>
-                <div style={{ fontSize: "28px", fontWeight: "800", color: "var(--color-ink)", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                  <Coins size={24} style={{ color: "var(--color-success)" }} />
-                  <span>GHS {activeBatch.storageFeeAccrued.toFixed(2)}</span>
-                </div>
-                <span className="badge badge-warning" style={{ alignSelf: "center", fontSize: "11px", marginTop: "4px" }}>
-                  Pending Settlement
-                </span>
-              </div>
-
-              <div style={{ fontSize: "13px", color: "var(--gray-500)", fontStyle: "italic", textAlign: "center" }}>
-                "Fees stop when the produce is sold or collected."
-              </div>
-
-              {/* Simple ledger log rows */}
-              <div>
-                <h4 style={{ fontSize: "13px", fontWeight: "700", textTransform: "uppercase", color: "var(--gray-400)", letterSpacing: "0.05em", marginBottom: "8px" }}>
-                  Ledger Transactions History
-                </h4>
-                
-                <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--color-line)", borderRadius: "8px", overflow: "hidden" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", borderBottom: "1px solid var(--color-line)", backgroundColor: "var(--gray-50)", fontSize: "12px", fontWeight: "700", color: "var(--gray-600)" }}>
-                    <span>Date</span>
-                    <span>Accrual / Event</span>
-                    <span>Amount</span>
-                  </div>
-                  
-                  {/* Generate 3 simulated daily accrual records */}
-                  {[0, 1, 2].map(daysAgo => {
-                    const date = new Date();
-                    date.setDate(date.getDate() - daysAgo);
-                    return (
-                      <div key={daysAgo} style={{ display: "flex", justifyContent: "space-between", padding: "12px", borderBottom: daysAgo !== 2 ? "1px solid var(--color-line)" : 0, backgroundColor: "var(--color-surface-raised)", fontSize: "13px" }}>
-                        <span style={{ color: "var(--gray-500)" }}>{date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
-                        <span>Daily Fee Accrual</span>
-                        <span style={{ fontWeight: "700" }}>+ GHS {(activeBatch.quantityAvailable * (activeBatch.storageRateSnapshot?.ratePerUnitPerDay || 0.15)).toFixed(2)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button 
-                type="button" 
-                className="btn btn-ghost" 
-                style={{ color: "var(--color-danger)", marginTop: "8px", height: "44px" }}
-                onClick={() => {
-                  setShowFeesLedgerModal(false);
-                  setSelectedBatchId(null);
-                  router.push(`/disputes/new?entityId=${activeBatch.id}&entityType=inventory_batch&disputeType=Fees`);
-                }}
-              >
-                Dispute Accrued Fees
-              </button>
-
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

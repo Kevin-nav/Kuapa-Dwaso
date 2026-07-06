@@ -28,7 +28,7 @@ export function MetricCard({ label, value, delta, contextLine, accentColor }: Me
         display: "flex",
         flexDirection: "column",
         gap: "8px",
-        borderTop: accentColor ? `4px solid ${accentColor}` : `1px solid ${gray[100]}`,
+        borderTop: `1px solid ${gray[100]}`,
       }}
     >
       <p

@@ -114,7 +114,7 @@ export default function OverviewPage() {
                       padding: "12px 14px",
                       borderRadius: "6px",
                       backgroundColor: disp.status === "open" ? status.dangerBg : status.warningBg,
-                      borderLeft: `4px solid ${disp.status === "open" ? status.danger : status.warning}`,
+                      borderLeft: "none",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center"

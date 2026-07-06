@@ -107,7 +107,7 @@ export function ConfirmModal({
             <div
               style={{
                 backgroundColor: status.dangerBg,
-                borderLeft: `4px solid ${status.danger}`,
+                borderLeft: "none",
                 borderRadius: "6px",
                 padding: "16px",
               }}

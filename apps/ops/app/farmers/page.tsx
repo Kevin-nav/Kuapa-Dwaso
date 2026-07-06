@@ -460,7 +460,7 @@ export default function FarmersPage() {
       {searched && (
         <section aria-label="Search Result">
           {searchResult ? (
-            <div className="section-card" style={{ borderLeft: "4px solid var(--color-field)", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                 {/* Initials circle */}
                 <div style={{ 
@@ -508,7 +508,7 @@ export default function FarmersPage() {
               </button>
             </div>
           ) : (
-            <div className="section-card" style={{ borderLeft: "4px solid var(--color-danger)", display: "flex", flexDirection: "column", gap: "16px", textAlign: "center", alignItems: "center", padding: "32px 20px" }}>
+            <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "16px", textAlign: "center", alignItems: "center", padding: "32px 20px" }}>
               <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <UserSearch size={24} />
               </div>

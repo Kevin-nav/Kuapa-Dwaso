@@ -212,7 +212,7 @@ function NewDisputeContent() {
         <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <h2 className="detail-section-title">1. Select Issue Category</h2>
           
-          <div className="tile-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+          <div className="tile-grid dispute-tile-grid">
             {disputeTypes.map(t => (
               <div 
                 key={t.name}

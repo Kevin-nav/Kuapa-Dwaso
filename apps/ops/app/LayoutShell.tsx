@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWarehouse } from "./context/WarehouseContext";
@@ -12,12 +12,18 @@ import {
   AlertTriangle, 
   CloudOff, 
   RefreshCw, 
-  CheckCircle
+  CheckCircle,
+  ChevronDown,
+  LogOut,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isOffline, setIsOffline, syncQueue, activeWarehouse, activeAgent } = useWarehouse();
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Determine sync status representation
   const getSyncStatus = () => {
@@ -57,42 +63,121 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   ];
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isCollapsed ? "sidebar-collapsed" : ""}`}>
       {/* Top Bar Navigation */}
       <header className="topbar">
         <div className="topbar-left">
           <div className="topbar-title">{activeWarehouse.name}</div>
-          <div className="topbar-subtitle">Agent: {activeAgent.fullName} ({activeAgent.agentCode})</div>
         </div>
         
-        <div className="topbar-right">
+        <div className="topbar-right" style={{ position: "relative" }}>
           <button 
-            type="button"
-            className={`sync-pill ${syncStatus.class}`} 
-            onClick={handleSyncToggle}
-            title={isOffline ? "Click to connect Online" : "Click to go Offline"}
-            aria-label={`Sync Status: ${syncStatus.text}. Click to toggle.`}
+            type="button" 
+            className="profile-trigger"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+            aria-expanded={showProfileMenu}
+            aria-haspopup="true"
           >
-            {syncStatus.icon}
-            <span>{syncStatus.text}</span>
+            <div className="profile-avatar">
+              {activeAgent.fullName.split(" ").map(n => n[0]).join("").toUpperCase()}
+            </div>
+            <span className="profile-name">
+              {activeAgent.fullName}
+            </span>
+            <ChevronDown size={14} className={`profile-chevron ${showProfileMenu ? "open" : ""}`} />
           </button>
+
+          {showProfileMenu && (
+            <>
+              <div 
+                className="profile-menu-backdrop" 
+                onClick={() => setShowProfileMenu(false)} 
+              />
+              <div className="profile-dropdown">
+                <div className="profile-dropdown-header">
+                  <div className="profile-dropdown-avatar">
+                    {activeAgent.fullName.split(" ").map(n => n[0]).join("").toUpperCase()}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <div className="profile-dropdown-name">{activeAgent.fullName}</div>
+                    <div className="profile-dropdown-code">{activeAgent.agentCode}</div>
+                  </div>
+                </div>
+                
+                <div className="profile-dropdown-body">
+                  <div className="profile-info-item">
+                    <span className="profile-info-label">Phone:</span>
+                    <span className="profile-info-value">{activeAgent.phoneNumber}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="profile-info-label">Warehouse:</span>
+                    <span className="profile-info-value">{activeWarehouse.name}</span>
+                  </div>
+                  <div className="profile-info-item">
+                    <span className="profile-info-label">Status:</span>
+                    <span className="badge badge-success" style={{ fontSize: "11px", margin: 0 }}>Active</span>
+                  </div>
+                </div>
+
+                <div className="profile-dropdown-footer">
+                  <button 
+                    type="button" 
+                    className="btn-logout"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      alert("Logging out from Agent Session...");
+                    }}
+                  >
+                    <LogOut size={16} />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
       {/* Sidebar Navigation (Desktop) */}
       <aside className="sidebar">
+        <div className="sidebar-brand-container" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 12px 16px 12px", borderBottom: "1px solid var(--color-ink-soft)", marginBottom: "16px" }}>
+          <div
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
+              backgroundColor: "var(--color-field)",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: "0.875rem",
+              flexShrink: 0
+            }}
+          >
+            KD
+          </div>
+          <span className="sidebar-brand-text" style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em", color: "white" }}>
+            KuapaDwaso
+          </span>
+        </div>
         <div className="sidebar-title">Operations Console</div>
         <nav aria-label="Desktop Navigation" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {navItems.map(item => {
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            const isActive = 
+              pathname === item.href || 
+              (item.href !== "/" && pathname.startsWith(item.href)) ||
+              (item.href === "/inventory" && pathname.startsWith("/receipts"));
             return (
               <Link 
                 key={item.href} 
                 href={item.href}
                 className={`sidebar-link ${isActive ? "active" : ""}`}
+                title={isCollapsed ? item.label : undefined}
               >
-                {item.icon}
-                <span>{item.label}</span>
+                <span style={{ display: "flex", flexShrink: 0 }}>{item.icon}</span>
+                <span className="sidebar-link-label">{item.label}</span>
               </Link>
             );
           })}
@@ -100,11 +185,38 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             href="/intake" 
             className={`sidebar-link ${pathname.startsWith("/intake") ? "active" : ""}`}
             style={{ marginTop: "12px", border: "1px dashed var(--color-field)", color: "var(--color-field)" }}
+            title={isCollapsed ? "New Produce Intake" : undefined}
           >
-            <Plus size={20} />
-            <span>New Produce Intake</span>
+            <Plus size={20} style={{ flexShrink: 0 }} />
+            <span className="sidebar-link-label">New Produce Intake</span>
           </Link>
         </nav>
+        
+        {/* Sidebar Footer Collapsible Toggle */}
+        <div className="sidebar-footer" style={{ marginTop: "auto", borderTop: "1px solid var(--color-ink-soft)", paddingTop: "12px", display: "flex", justifyContent: "center" }}>
+          <button
+            type="button"
+            className="sidebar-collapse-btn"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            style={{
+              background: "none",
+              border: 0,
+              color: "#94a3b8",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "8px",
+              borderRadius: "50%",
+              width: "36px",
+              height: "36px",
+              transition: "all 0.2s"
+            }}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
       </aside>
 
       {/* Main Panel Content Area */}
@@ -132,7 +244,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         </Link>
         <Link 
           href="/inventory" 
-          className={`mobile-nav-item ${pathname.startsWith("/inventory") ? "active" : ""}`}
+          className={`mobile-nav-item ${pathname.startsWith("/inventory") || pathname.startsWith("/receipts") ? "active" : ""}`}
         >
           <Package size={20} />
           <span>Inventory</span>
@@ -141,7 +253,10 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         {/* Floating circular center intake button */}
         <div className="fab-container">
           <Link href="/intake" aria-label="Start Produce Intake">
-            <button type="button" className="fab-button">
+            <button 
+              type="button" 
+              className={`fab-button ${pathname.startsWith("/intake") ? "active" : ""}`}
+            >
               <Plus size={28} />
             </button>
           </Link>
