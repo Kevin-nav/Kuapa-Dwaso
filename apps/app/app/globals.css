@@ -1152,6 +1152,47 @@ textarea.form-input {
   font-weight: 600;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.auth-route-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.auth-route-grid a {
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  padding: 12px 14px;
+  text-align: center;
+}
+
+.auth-followup-card {
+  margin-top: 14px;
+  gap: 12px;
+}
+
+@media (min-width: 540px) {
+  .auth-route-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* --- checkboxes --- */
 .checkbox-row {
   display: flex;

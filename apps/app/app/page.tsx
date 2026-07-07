@@ -41,9 +41,9 @@ export default function ProductHomePage() {
     <main className="page-shell">
       <section className="intro">
         <p className="eyebrow">{audience} portal</p>
-        <h1 style={{ fontSize: "2.25rem", color: "var(--color-ink)" }}>KuapaDwaso Marketplace</h1>
+        <h1 style={{ fontSize: "2.25rem", color: "var(--color-ink)" }}>KuapaDwaso Warehouse Network</h1>
         <p style={{ maxWidth: "480px", margin: "0 auto 32px" }}>
-          Welcome to the KuapaDwaso digital receipt platform. Access your stored produce, track accrued storage fees, verify receipts, and view payments.
+          Create the account that matches your work, or return directly to your own workspace.
         </p>
 
         {firebaseUser !== null ? (
@@ -68,11 +68,16 @@ export default function ProductHomePage() {
           </div>
         ) : (
           <div className="button-row" style={{ width: "100%", display: "flex", flexDirection: "column", gap: "12px" }}>
-            <Link href="/auth/phone" style={{ width: "100%" }}>
+            <Link href="/signup" style={{ width: "100%" }}>
               <button type="button" className="btn btn-primary btn-full">
-                Phone Number Auth
+                Create an account
               </button>
             </Link>
+            <div className="auth-route-grid">
+              <Link href="/farmer/login">Farmer login</Link>
+              <Link href="/buyer/login">Buyer login</Link>
+              <Link href="/transporter/login">Transporter login</Link>
+            </div>
             <Link href="/invites/accept" style={{ width: "100%" }}>
               <button type="button" className="btn btn-secondary btn-full">
                 Accept Platform Invite

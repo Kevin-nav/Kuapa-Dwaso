@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent, ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
@@ -16,17 +16,16 @@ import {
   Sprout,
   ShoppingCart,
   Truck,
-  Warehouse,
   ShieldCheck,
   KeyRound,
   Smartphone,
   ArrowLeft,
 } from "lucide-react";
 
-type PhoneRole = Extract<MarketplaceRole, "farmer" | "buyer" | "transporter" | "warehouse_agent">;
-type OnboardingStep = "role" | "phone_verify" | "warehouse_invite" | "profile_setup";
+type PhoneRole = Extract<MarketplaceRole, "farmer" | "buyer" | "transporter">;
+type OnboardingStep = "role" | "phone_verify" | "profile_setup";
 
-function LogoIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+function LogoIcon({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
     <svg viewBox="0 0 120 120" className={className} style={style} fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="22" cy="30" r="6" fill="currentColor" opacity="0.5" />
@@ -39,11 +38,15 @@ function LogoIcon({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
-const ROLES = [
-  { id: "farmer" as const, label: "Farmer", desc: "Sell your produce", icon: <Sprout size={20} /> },
-  { id: "buyer" as const, label: "Buyer", desc: "Source from farms", icon: <ShoppingCart size={20} /> },
-  { id: "transporter" as const, label: "Transporter", desc: "Move goods & routes", icon: <Truck size={20} /> },
-  { id: "warehouse_agent" as const, label: "Warehouse agent", desc: "Invited storage staff", icon: <Warehouse size={20} /> },
+const ROLES: {
+  id: PhoneRole;
+  label: string;
+  desc: string;
+  icon: ReactNode;
+}[] = [
+  { id: "farmer", label: "Store and track my produce", desc: "For farmers using warehouse receipts", icon: <Sprout size={20} /> },
+  { id: "buyer", label: "Buy produce", desc: "For traders, processors, and bulk buyers", icon: <ShoppingCart size={20} /> },
+  { id: "transporter", label: "Transport produce", desc: "For drivers and transport providers", icon: <Truck size={20} /> },
 ];
 
 export default function PhoneAuthPage() {
@@ -137,8 +140,6 @@ export default function PhoneAuthPage() {
         });
         setResult(`Transporter profile ready: ${saved.transporterId}`);
         router.push("/");
-      } else {
-        setError("Warehouse agents must accept an SMS invite from the invite acceptance route.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile.");
@@ -148,15 +149,11 @@ export default function PhoneAuthPage() {
   };
 
   const handleRoleContinue = () => {
-    if (role === "warehouse_agent") {
-      setStep("warehouse_invite");
-    } else {
-      setStep("phone_verify");
-    }
+    setStep("phone_verify");
   };
 
   const handleBackNavigation = () => {
-    if (step === "phone_verify" || step === "warehouse_invite") {
+    if (step === "phone_verify") {
       setStep("role");
     } else if (step === "profile_setup") {
       setVerifiedUser(null);
@@ -186,13 +183,11 @@ export default function PhoneAuthPage() {
           </div>
         )}
 
-        {step !== "warehouse_invite" && (
-          <span className="mobile-navbar-step">
-            {step === "role" && "1 / 3"}
-            {step === "phone_verify" && "2 / 3"}
-            {step === "profile_setup" && "3 / 3"}
-          </span>
-        )}
+        <span className="mobile-navbar-step">
+          {step === "role" && "1 / 3"}
+          {step === "phone_verify" && "2 / 3"}
+          {step === "profile_setup" && "3 / 3"}
+        </span>
       </header>
 
       {/* Brand / hero side (Desktop only) */}
@@ -207,7 +202,7 @@ export default function PhoneAuthPage() {
         <div className="auth-hero-body">
           <h2>One platform for the whole harvest chain.</h2>
           <p>
-            Farmers, buyers, transporters, and warehouse agents connect,
+            Farmers, buyers, and transporters connect,
             trade, and move produce — all verified and secure.
           </p>
 
@@ -234,13 +229,11 @@ export default function PhoneAuthPage() {
       <main className="auth-main">
         <div className="auth-inner">
           {/* Step Indicator */}
-          {step !== "warehouse_invite" && (
-            <div className="step-indicator">
-              <div className={`step-dot ${step === "role" || step === "phone_verify" || step === "profile_setup" ? "is-active" : ""}`} />
-              <div className={`step-dot ${step === "phone_verify" || step === "profile_setup" ? "is-active" : ""}`} />
-              <div className={`step-dot ${step === "profile_setup" ? "is-active" : ""}`} />
-            </div>
-          )}
+          <div className="step-indicator">
+            <div className={`step-dot ${step === "role" || step === "phone_verify" || step === "profile_setup" ? "is-active" : ""}`} />
+            <div className={`step-dot ${step === "phone_verify" || step === "profile_setup" ? "is-active" : ""}`} />
+            <div className={`step-dot ${step === "profile_setup" ? "is-active" : ""}`} />
+          </div>
 
           {/* Inline Back Button (Desktop only) */}
           {step !== "role" && (
@@ -259,14 +252,15 @@ export default function PhoneAuthPage() {
             <>
               <header className="auth-head">
                 <span className="eyebrow">Step 1 of 3</span>
-                <h1>Choose your role</h1>
+                <h1>What are you here to do?</h1>
                 <p className="auth-sub">
-                  Select how you want to connect and trade on the platform.
+                  Pick the path that matches your work today. We will only ask
+                  for the details needed for that account.
                 </p>
               </header>
 
               <fieldset className="role-fieldset">
-                <legend className="sr-only">Select your account type</legend>
+                <legend className="sr-only">Select your signup path</legend>
                 <div className="role-grid" style={{ marginBottom: "24px" }}>
                   {ROLES.map((r) => (
                     <button
@@ -306,7 +300,7 @@ export default function PhoneAuthPage() {
                 <span className="eyebrow">Step 2 of 3</span>
                 <h1>Verify your phone</h1>
                 <p className="auth-sub">
-                  Verify your account as a <strong>{role}</strong>. We will text you a secure code.
+                  We will text a secure code before creating your account.
                 </p>
               </header>
 
@@ -318,29 +312,6 @@ export default function PhoneAuthPage() {
                   setStep("profile_setup");
                 }}
               />
-            </>
-          )}
-
-          {/* WAREHOUSE AGENT ONLY STEP */}
-          {step === "warehouse_invite" && (
-            <>
-              <header className="auth-head">
-                <h1>Invite required</h1>
-                <p className="auth-sub">
-                  Warehouse agents can only join by responding to an invitation link.
-                </p>
-              </header>
-
-              <div className="auth-card" style={{ display: "flex", flexDirection: "column", gap: "16px", borderLeft: "4px solid var(--color-primary)" }}>
-                <p style={{ margin: 0, fontSize: "15px", lineHeight: "1.6", color: "var(--color-text)" }}>
-                  If you are a warehouse agent, please check your SMS messages for your invitation link, or contact your warehouse manager.
-                </p>
-                <Link href="/invites/accept" style={{ width: "100%" }}>
-                  <button type="button" className="btn btn-primary" style={{ width: "100%" }}>
-                    Go to invite acceptance
-                  </button>
-                </Link>
-              </div>
             </>
           )}
 

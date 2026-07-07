@@ -18,19 +18,27 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
 
   const buyerProfile = principal?.profiles?.find((p) => p.profileType === "buyer");
   const isBuyer = principal?.role === "buyer" || buyerProfile !== undefined;
+  const isLogin = pathname === "/buyer/login";
   const isOnboarding = pathname === "/buyer/onboarding";
 
   useEffect(() => {
+    if (isLogin) {
+      return;
+    }
     if (!isLoading) {
       if (firebaseUser === null) {
-        router.push("/auth/phone");
+        router.push("/buyer/login");
       } else if (!isBuyer && !isOnboarding) {
         router.push("/buyer/onboarding");
       } else if (isBuyer && isOnboarding) {
         router.push("/buyer");
       }
     }
-  }, [isLoading, firebaseUser, isBuyer, isOnboarding, router]);
+  }, [isLoading, firebaseUser, isBuyer, isLogin, isOnboarding, router]);
+
+  if (isLogin) {
+    return <>{children}</>;
+  }
 
   if (isLoading || firebaseUser === null || (!isBuyer && !isOnboarding)) {
     return (

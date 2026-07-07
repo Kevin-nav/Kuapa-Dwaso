@@ -15,19 +15,27 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
   const { firebaseUser, principal, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const isLogin = pathname === "/farmer/login";
 
   const farmerProfile = principal?.profiles?.find((p) => p.profileType === "farmer");
   const isFarmer = principal?.role === "farmer" || farmerProfile !== undefined;
 
   useEffect(() => {
+    if (isLogin) {
+      return;
+    }
     if (!isLoading) {
       if (firebaseUser === null) {
-        router.push("/auth/phone");
+        router.push("/farmer/login");
       } else if (!isFarmer) {
         router.push("/");
       }
     }
-  }, [isLoading, firebaseUser, isFarmer, router]);
+  }, [isLoading, firebaseUser, isFarmer, isLogin, router]);
+
+  if (isLogin) {
+    return <>{children}</>;
+  }
 
   if (isLoading || firebaseUser === null || !isFarmer) {
     return (
