@@ -4,6 +4,9 @@ import type {
   InvitationChannel,
   MfaRequirement,
   PlatformInvitationType,
+  SmsDeliveryStatus,
+  SmsMessageKind,
+  SmsProvider,
   UploadAccessLevel,
   UploadAssetPurpose,
   UploadRelatedEntityType,
@@ -80,6 +83,30 @@ type CompleteUploadArgs = {
   checksumSha256?: string;
 };
 
+type RecordSmsSendArgs = {
+  provider: SmsProvider;
+  providerMessageId: string;
+  recipient: string;
+  status: SmsDeliveryStatus;
+  messageKind?: SmsMessageKind;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  creditsUsed?: number;
+  rawCode?: string;
+  rawMessage?: string;
+};
+
+type RecordSmsDeliveryReportArgs = {
+  provider: SmsProvider;
+  providerMessageId: string;
+  recipient: string;
+  status: SmsDeliveryStatus;
+  network?: string;
+  providerTimestamp?: number;
+  creditsCharged?: number;
+  rawPayload?: Record<string, unknown>;
+};
+
 const createInvitation = makeFunctionReference<
   "mutation",
   CreateInvitationArgs,
@@ -104,6 +131,18 @@ const completeUpload = makeFunctionReference<
   string
 >("uploads:complete");
 
+const recordSmsSend = makeFunctionReference<
+  "mutation",
+  RecordSmsSendArgs,
+  string
+>("smsDeliveries:recordSend");
+
+const recordSmsDeliveryReport = makeFunctionReference<
+  "mutation",
+  RecordSmsDeliveryReportArgs,
+  string
+>("smsDeliveries:recordDeliveryReport");
+
 @Injectable()
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
@@ -125,6 +164,14 @@ export class ConvexPlatformProvider {
 
   async completeUpload(args: CompleteUploadArgs): Promise<string> {
     return await this.getClient().mutation(completeUpload, args);
+  }
+
+  async recordSmsSend(args: RecordSmsSendArgs): Promise<string> {
+    return await this.getClient().mutation(recordSmsSend, args);
+  }
+
+  async recordSmsDeliveryReport(args: RecordSmsDeliveryReportArgs): Promise<string> {
+    return await this.getClient().mutation(recordSmsDeliveryReport, args);
   }
 
   private getClient(): ConvexHttpClient {

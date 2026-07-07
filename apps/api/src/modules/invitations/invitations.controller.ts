@@ -74,6 +74,7 @@ export class InvitationsController {
     const expiresAt = body.expiresAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
     const inviteUrl = this.templates.buildInviteUrl(token.rawToken);
     let delivery: { provider: string; messageId?: string };
+    let smsDelivery: Awaited<ReturnType<SmsInviteProvider["sendInviteSms"]>> | undefined;
 
     if (body.channel === "email") {
       const targetEmail = requireValue(body.targetEmail, "targetEmail");
@@ -90,7 +91,7 @@ export class InvitationsController {
       });
     } else {
       const targetPhoneNumber = requireValue(body.targetPhoneNumber, "targetPhoneNumber");
-      delivery = await this.sms.sendInviteSms({
+      smsDelivery = await this.sms.sendInviteSms({
         to: targetPhoneNumber,
         message: this.templates.warehouseAgentSms({
           inviteUrl,
@@ -98,6 +99,7 @@ export class InvitationsController {
           expiresAt
         })
       });
+      delivery = smsDelivery;
     }
 
     const createInvitationArgs: Parameters<ConvexPlatformProvider["createInvitation"]>[0] = {
@@ -127,6 +129,31 @@ export class InvitationsController {
     }
 
     const invitationId = await this.convex.createInvitation(createInvitationArgs);
+    if (smsDelivery !== undefined) {
+      await Promise.all(
+        smsDelivery.recipients.map((recipient) => {
+          const recordArgs: Parameters<ConvexPlatformProvider["recordSmsSend"]>[0] = {
+            provider: smsDelivery.provider,
+            providerMessageId: smsDelivery.providerMessageId,
+            recipient,
+            status: smsDelivery.status,
+            messageKind: "invite",
+            relatedEntityType: "platform_invitation",
+            relatedEntityId: invitationId
+          };
+          if (smsDelivery.creditsUsed !== undefined) {
+            recordArgs.creditsUsed = smsDelivery.creditsUsed;
+          }
+          if (smsDelivery.rawCode !== undefined) {
+            recordArgs.rawCode = smsDelivery.rawCode;
+          }
+          if (smsDelivery.rawMessage !== undefined) {
+            recordArgs.rawMessage = smsDelivery.rawMessage;
+          }
+          return this.convex.recordSmsSend(recordArgs);
+        })
+      );
+    }
 
     const response: { invitationId: string; deliveryProvider: string; messageId?: string } = {
       invitationId,
