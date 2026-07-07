@@ -2,12 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { Plus } from "lucide-react";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function WarehousesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { warehouses, agents, inventory, actions } = useAdminData();
+  const { access, warehouses, agents, inventory, actions } = useOperationalAdminData();
   const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("profile");
   
@@ -45,7 +47,7 @@ export default function WarehousesPage() {
 
   const handleStatusConfirm = (reason?: string) => {
     if (selectedWarehouse) {
-      actions.updateWarehouseStatus(selectedWarehouse.id, newStatus, reason);
+      void actions.updateWarehouseStatus(selectedWarehouse.id, newStatus, reason);
       // Sync local drawer selection status
       setSelectedWarehouse((prev: any) => ({ ...prev, status: newStatus }));
     }
@@ -56,6 +58,14 @@ export default function WarehousesPage() {
   const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadWarehouses}
+      limitedMessage="Warehouse management requires warehouses:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -68,6 +78,7 @@ export default function WarehousesPage() {
           </p>
         </div>
         <button
+          disabled={!access.canManageWarehouses}
           style={{
             background: palette.field,
             border: 0,
@@ -79,7 +90,8 @@ export default function WarehousesPage() {
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            cursor: "pointer",
+            cursor: access.canManageWarehouses ? "pointer" : "not-allowed",
+            opacity: access.canManageWarehouses ? 1 : 0.55,
             boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
           }}
           onClick={() => alert("Creating a new warehouse requires multi-region mapping. This action is placeholder for MVP.")}
@@ -134,7 +146,7 @@ export default function WarehousesPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <StatusBadge status={selectedWarehouse?.status || row.status} />
                 <div style={{ display: "flex", gap: "8px" }}>
-                  {selectedWarehouse?.status !== "active" && (
+                  {access.canManageWarehouses && selectedWarehouse?.status !== "active" && (
                     <button
                       onClick={() => handleStatusChangeClick("active")}
                       style={{ fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", border: `1px solid ${gray[300]}`, backgroundColor: "white", color: palette.field, borderRadius: "4px", cursor: "pointer" }}
@@ -142,7 +154,7 @@ export default function WarehousesPage() {
                       Set Active
                     </button>
                   )}
-                  {selectedWarehouse?.status !== "maintenance" && (
+                  {access.canManageWarehouses && selectedWarehouse?.status !== "maintenance" && (
                     <button
                       onClick={() => handleStatusChangeClick("maintenance")}
                       style={{ fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", border: `1px solid ${gray[300]}`, backgroundColor: "white", color: status.warning, borderRadius: "4px", cursor: "pointer" }}
@@ -150,7 +162,7 @@ export default function WarehousesPage() {
                       Maintenance
                     </button>
                   )}
-                  {selectedWarehouse?.status !== "closed" && (
+                  {access.canManageWarehouses && selectedWarehouse?.status !== "closed" && (
                     <button
                       onClick={() => handleStatusChangeClick("closed")}
                       style={{ fontSize: "0.75rem", fontWeight: 700, padding: "6px 12px", border: `1px solid ${gray[300]}`, backgroundColor: "white", color: status.danger, borderRadius: "4px", cursor: "pointer" }}
@@ -360,5 +372,6 @@ export default function WarehousesPage() {
         reasonPlaceholder="Specify the reason (e.g. routine sanitation sweep, yearly inventory audits, facility repair)..."
       />
     </div>
+    </OperationalAccessGate>
   );
 }

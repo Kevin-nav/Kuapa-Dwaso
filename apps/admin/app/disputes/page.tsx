@@ -2,12 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { CheckSquare } from "lucide-react";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function DisputesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { disputes, inventory, actions } = useAdminData();
+  const { access, disputes, inventory, actions } = useOperationalAdminData();
   const [selectedDispute, setSelectedDispute] = useState<any>(null);
   
   // Resolution notes modal state
@@ -16,6 +18,9 @@ export default function DisputesPage() {
   const filteredDisputes = selectedWarehouseId === "all"
     ? disputes
     : disputes.filter(d => {
+        if (d.warehouseId) {
+          return d.warehouseId === selectedWarehouseId;
+        }
         if (d.entityType === "inventory_batch") {
           const batch = inventory.find(i => i.id === d.entityId);
           return batch?.warehouseId === selectedWarehouseId;
@@ -53,7 +58,7 @@ export default function DisputesPage() {
 
   const handleConfirmResolution = (reason?: string) => {
     if (selectedDispute && reason) {
-      actions.resolveDispute(selectedDispute.id, reason);
+      void actions.resolveDispute(selectedDispute.id, reason);
       setSelectedDispute((prev: any) => ({
         ...prev,
         status: "resolved",
@@ -65,6 +70,14 @@ export default function DisputesPage() {
   };
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadDisputes}
+      limitedMessage="Dispute management requires disputes:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -119,7 +132,7 @@ export default function DisputesPage() {
               {/* Header Status */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <StatusBadge status={curDisputeStatus} />
-                {curDisputeStatus !== "resolved" && curDisputeStatus !== "cancelled" && (
+                {access.canManageDisputes && curDisputeStatus !== "resolved" && curDisputeStatus !== "cancelled" && (
                   <button
                     onClick={handleResolveClick}
                     style={{
@@ -206,5 +219,6 @@ export default function DisputesPage() {
         />
       )}
     </div>
+    </OperationalAccessGate>
   );
 }

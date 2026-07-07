@@ -1,10 +1,12 @@
 // apps/admin/app/audit-logs/page.tsx
 "use client";
 
-import { useAdminData, DataTable, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function AuditLogsPage() {
-  const { auditLogs } = useAdminData();
+  const { access, auditLogs } = useOperationalAdminData();
 
   const columns = [
     {
@@ -43,6 +45,14 @@ export default function AuditLogsPage() {
   };
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadAudit}
+      limitedMessage="Audit logs require auditLogs:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -168,5 +178,6 @@ export default function AuditLogsPage() {
         }}
       />
     </div>
+    </OperationalAccessGate>
   );
 }

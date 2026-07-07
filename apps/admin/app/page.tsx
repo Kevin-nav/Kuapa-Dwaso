@@ -3,12 +3,24 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAdminData, MetricCard, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { MetricCard, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { AlertTriangle, ChevronRight, Boxes } from "lucide-react";
+import { OperationalAccessGate } from "./operational/OperationalAccessGate";
+import { useOperationalAdminData } from "./operational/useOperationalAdminData";
 
 export default function OverviewPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { warehouses, inventory, disputes, auditLogs } = useAdminData();
+  const {
+    access,
+    warehouses,
+    inventory,
+    disputes,
+    auditLogs,
+    orders,
+    sales,
+    dispatches,
+    summaryStats,
+  } = useOperationalAdminData();
   const [now] = useState(() => Date.now());
 
   // Filter lists based on selected warehouse
@@ -43,6 +55,14 @@ export default function OverviewPage() {
   }).sort((a, b) => (a.sellByDate || 0) - (b.sellByDate || 0));
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadReports || access.canReadInventory || access.canReadDisputes}
+      limitedMessage="Overview requires reporting, inventory, or dispute read access for at least one assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Page Header */}
       <div>
@@ -79,6 +99,12 @@ export default function OverviewPage() {
           value={auditLogs.length}
           contextLine="Updated in real time"
           accentColor={gray[500]}
+        />
+        <MetricCard
+          label="Orders / Sales / Dispatches"
+          value={`${orders.length} / ${sales.length} / ${dispatches.length}`}
+          contextLine={`${summaryStats.openDisputesCount} open disputes in scope`}
+          accentColor={palette.accent}
         />
       </div>
 
@@ -287,5 +313,6 @@ export default function OverviewPage() {
         </div>
       </div>
     </div>
+    </OperationalAccessGate>
   );
 }

@@ -2,10 +2,12 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function FarmersPage() {
-  const { farmers, warehouses, inventory, disputes, actions } = useAdminData();
+  const { access, farmers, warehouses, inventory, disputes, actions } = useOperationalAdminData();
   const [selectedFarmer, setSelectedFarmer] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -37,7 +39,7 @@ export default function FarmersPage() {
     if (!selectedFarmer || !verificationType) return;
 
     const newStatus = verificationType === "verify" ? "verified" : "rejected";
-    actions.updateFarmerVerification(selectedFarmer.id, newStatus, reason);
+    void actions.updateFarmerVerification(selectedFarmer.id, newStatus, reason);
     setSelectedFarmer((prev: any) => ({ 
       ...prev, 
       verificationStatus: newStatus,
@@ -48,6 +50,14 @@ export default function FarmersPage() {
   };
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadFarmers}
+      limitedMessage="Farmer oversight requires farmers:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -104,7 +114,7 @@ export default function FarmersPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <StatusBadge status={currentVerifyStatus} />
                 <div style={{ display: "flex", gap: "8px" }}>
-                  {currentVerifyStatus === "pending" && (
+                  {access.canVerifyFarmers && currentVerifyStatus === "pending" && (
                     <>
                       <button
                         onClick={() => handleVerificationClick("verify")}
@@ -279,5 +289,6 @@ export default function FarmersPage() {
         />
       )}
     </div>
+    </OperationalAccessGate>
   );
 }

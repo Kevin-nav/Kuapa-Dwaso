@@ -2,11 +2,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function InventoryPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { inventory, warehouses, farmers, disputes, auditLogs } = useAdminData();
+  const { access, inventory, warehouses, farmers, disputes, auditLogs, storageFeeLedger } = useOperationalAdminData();
   const [selectedLot, setSelectedLot] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("details");
 
@@ -76,6 +78,14 @@ export default function InventoryPage() {
   ];
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadInventory}
+      limitedMessage="Inventory oversight requires inventory:read for your assigned warehouse scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -135,6 +145,7 @@ export default function InventoryPage() {
           const whObj = warehouses.find(w => w.id === row.warehouseId);
           const lotDisputes = disputes.filter(d => d.entityType === "inventory_batch" && d.entityId === row.id);
           const lotLogs = auditLogs.filter(l => l.entityType === "inventory_batch" && l.entityId === row.id);
+          const lotFees = storageFeeLedger.filter(l => l.inventoryBatchId === row.id);
 
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -145,7 +156,7 @@ export default function InventoryPage() {
 
               {/* Tabs */}
               <div style={{ display: "flex", borderBottom: `1px solid ${gray[100]}`, gap: "16px" }}>
-                {["details", "history", "disputes"].map((tab) => (
+                {["details", "fees", "history", "disputes"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -161,7 +172,7 @@ export default function InventoryPage() {
                       textTransform: "capitalize"
                     }}
                   >
-                    {tab === "details" ? "Lot Details" : tab === "history" ? "Change Audit" : "Disputes"}
+                    {tab === "details" ? "Lot Details" : tab === "fees" ? "Fee Ledger" : tab === "history" ? "Change Audit" : "Disputes"}
                   </button>
                 ))}
               </div>
@@ -229,6 +240,36 @@ export default function InventoryPage() {
                   </div>
                 )}
 
+                {activeTab === "fees" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 700 }}>Storage Fee Ledger ({lotFees.length})</span>
+                    {lotFees.length === 0 ? (
+                      <p style={{ margin: 0, fontSize: "0.875rem", color: gray[500], fontStyle: "italic" }}>
+                        No fee ledger entries are visible for this batch.
+                      </p>
+                    ) : (
+                      lotFees.map((fee) => (
+                        <div key={fee.id} style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "10px 12px", border: `1px solid ${gray[100]}`, borderRadius: "6px", backgroundColor: gray[25] }}>
+                          <div>
+                            <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: gray[900] }}>
+                              {new Date(Number(fee.feeDate)).toLocaleDateString()} | {String(fee.quantityCharged)} {String(fee.unit)}
+                            </span>
+                            <p style={{ margin: "2px 0 0", fontSize: "0.75rem", color: gray[500] }}>
+                              Deducted: GHS {Number(fee.amountDeducted ?? 0).toFixed(2)}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ margin: 0, fontSize: "0.8125rem", fontWeight: 800, color: palette.field }}>
+                              GHS {Number(fee.amount ?? 0).toFixed(2)}
+                            </p>
+                            <StatusBadge status={String(fee.status)} />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
                 {activeTab === "disputes" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 700 }}>Linked Disputes ({lotDisputes.length})</span>
@@ -257,5 +298,6 @@ export default function InventoryPage() {
         }}
       />
     </div>
+    </OperationalAccessGate>
   );
 }

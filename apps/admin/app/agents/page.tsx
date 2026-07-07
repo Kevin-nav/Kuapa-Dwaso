@@ -2,11 +2,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { Check, ShieldAlert, Warehouse } from "lucide-react";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function AgentsPage() {
-  const { agents, warehouses, actions } = useAdminData();
+  const { access, agents, warehouses, actions } = useOperationalAdminData();
   const [selectedAgent, setSelectedAgent] = useState<any>(null);
   
   // Modals status
@@ -49,13 +51,13 @@ export default function AgentsPage() {
     if (!selectedAgent || !modalType) return;
 
     if (modalType === "approve") {
-      actions.updateAgentStatus(selectedAgent.id, "approved", reason);
+      void actions.updateAgentStatus(selectedAgent.id, "approved", reason);
       setSelectedAgent((prev: any) => ({ ...prev, status: "approved" }));
     } else if (modalType === "suspend") {
-      actions.updateAgentStatus(selectedAgent.id, "suspended", reason);
+      void actions.updateAgentStatus(selectedAgent.id, "suspended", reason);
       setSelectedAgent((prev: any) => ({ ...prev, status: "suspended" }));
     } else if (modalType === "assign") {
-      actions.assignWarehousesToAgent(selectedAgent.id, checkedWarehouseIds);
+      void actions.assignWarehousesToAgent(selectedAgent.id, checkedWarehouseIds);
       setSelectedAgent((prev: any) => ({ ...prev, assignedWarehouseIds: checkedWarehouseIds }));
     }
 
@@ -75,6 +77,14 @@ export default function AgentsPage() {
   );
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadAgents}
+      limitedMessage="Warehouse agent management requires warehouseAgents:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -142,7 +152,7 @@ export default function AgentsPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}> OVERSIGHT ACTIONS </span>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                  {currentAgentStatus === "pending" && (
+                  {access.canManageAgents && currentAgentStatus === "pending" && (
                     <button
                       onClick={() => handleAction("approve")}
                       style={{ flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", backgroundColor: palette.field, color: "white", padding: "10px", border: 0, borderRadius: "6px", fontSize: "0.8125rem", fontWeight: 700, cursor: "pointer" }}
@@ -150,7 +160,7 @@ export default function AgentsPage() {
                       <Check size={16} /> Approve Agent
                     </button>
                   )}
-                  {currentAgentStatus === "approved" && (
+                  {access.canManageAgents && currentAgentStatus === "approved" && (
                     <button
                       onClick={() => handleAction("suspend")}
                       style={{ flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", backgroundColor: status.danger, color: "white", padding: "10px", border: 0, borderRadius: "6px", fontSize: "0.8125rem", fontWeight: 700, cursor: "pointer" }}
@@ -158,7 +168,7 @@ export default function AgentsPage() {
                       <ShieldAlert size={16} /> Suspend Agent
                     </button>
                   )}
-                  {currentAgentStatus === "suspended" && (
+                  {access.canManageAgents && currentAgentStatus === "suspended" && (
                     <button
                       onClick={() => handleAction("approve")}
                       style={{ flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", backgroundColor: palette.field, color: "white", padding: "10px", border: 0, borderRadius: "6px", fontSize: "0.8125rem", fontWeight: 700, cursor: "pointer" }}
@@ -166,12 +176,12 @@ export default function AgentsPage() {
                       <Check size={16} /> Reinstate Agent
                     </button>
                   )}
-                  <button
+                  {access.canManageAgents && <button
                     onClick={() => handleAction("assign")}
                     style={{ flex: 1, minWidth: "120px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", backgroundColor: "white", color: gray[800], border: `1px solid ${gray[300]}`, padding: "10px", borderRadius: "6px", fontSize: "0.8125rem", fontWeight: 700, cursor: "pointer" }}
                   >
                     <Warehouse size={16} /> Assign Warehouses
-                  </button>
+                  </button>}
                 </div>
               </div>
 
@@ -293,5 +303,6 @@ export default function AgentsPage() {
         )
       )}
     </div>
+    </OperationalAccessGate>
   );
 }

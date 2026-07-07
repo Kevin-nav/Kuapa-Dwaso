@@ -2,12 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminData, DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { Plus, History } from "lucide-react";
+import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function FeeRulesPage() {
   const { selectedWarehouseId } = useWarehouseFilter();
-  const { feeRules, warehouses, actions } = useAdminData();
+  const { access, feeRules, warehouses, actions } = useOperationalAdminData();
   const [selectedRule, setSelectedRule] = useState<any>(null);
 
   // States
@@ -93,7 +95,7 @@ export default function FeeRulesPage() {
       setRateError("Rate must be greater than zero.");
       return;
     }
-    actions.updateFeeRuleVersion(selectedRule.id, newRate, reason || updateReason);
+    void actions.updateFeeRuleVersion(selectedRule.id, newRate, reason || updateReason);
     setIsModalOpen(false);
 
     // Refresh selected state
@@ -105,6 +107,14 @@ export default function FeeRulesPage() {
   };
 
   return (
+    <OperationalAccessGate
+      firebaseUser={access.firebaseUser}
+      principal={access.principal}
+      isAuthLoading={access.isAuthLoading}
+      isDataLoading={access.isDataLoading}
+      isAllowed={access.canReadFees}
+      limitedMessage="Fee configuration requires fees:read for your assigned scope."
+    >
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Header */}
       <div>
@@ -170,7 +180,7 @@ export default function FeeRulesPage() {
               </div>
 
               {/* Versioning Actions */}
-              {activeVersion.status === "active" && (
+              {access.canManageFees && activeVersion.status === "active" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 700, textTransform: "uppercase" }}>Administrative Actions</span>
                   <button
@@ -315,5 +325,6 @@ export default function FeeRulesPage() {
         </div>
       )}
     </div>
+    </OperationalAccessGate>
   );
 }
