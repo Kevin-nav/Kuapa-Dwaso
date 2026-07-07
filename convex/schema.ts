@@ -221,6 +221,7 @@ const feePayer = v.union(
 
 const notificationStatus = v.union(
   v.literal("pending"),
+  v.literal("queued"),
   v.literal("sent"),
   v.literal("read"),
   v.literal("failed"),
@@ -233,10 +234,23 @@ const smsMessageKind = v.union(
   v.literal("notification"),
   v.literal("otp"),
   v.literal("transactional"),
+  v.literal("warehouse_agent_invite"),
+  v.literal("farmer_receipt"),
+  v.literal("storage_fee_reminder"),
+  v.literal("reservation_alert"),
+  v.literal("sale_payment_update"),
+  v.literal("payout_update"),
+  v.literal("buyer_order_update"),
+  v.literal("buyer_reservation_update"),
+  v.literal("buyer_cancellation_update"),
+  v.literal("dispatch_assignment"),
+  v.literal("dispatch_status_update"),
+  v.literal("dispute_update"),
   v.literal("promotional")
 );
 const smsDeliveryStatus = v.union(
   v.literal("pending"),
+  v.literal("queued"),
   v.literal("sent"),
   v.literal("delivered"),
   v.literal("failed"),
@@ -311,6 +325,21 @@ const uploadRelatedEntityType = v.union(
 
 const actorRole = v.union(marketplaceRole, v.literal("system"));
 const genericRecord = v.record(v.string(), v.any());
+const smsTemplateKey = v.union(
+  v.literal("warehouse_agent_invite"),
+  v.literal("farmer_receipt"),
+  v.literal("storage_fee_reminder"),
+  v.literal("reservation_alert"),
+  v.literal("sale_payment_update"),
+  v.literal("payout_update"),
+  v.literal("buyer_order_update"),
+  v.literal("buyer_reservation_update"),
+  v.literal("buyer_cancellation_update"),
+  v.literal("dispatch_assignment"),
+  v.literal("dispatch_status_update"),
+  v.literal("dispute_update"),
+  v.literal("generic_notification")
+);
 
 const feeRuleScope = v.object({
   warehouseId: v.optional(v.string()),
@@ -825,6 +854,9 @@ export default defineSchema({
     title: v.string(),
     message: v.string(),
     body: v.optional(v.string()),
+    messageKind: v.optional(smsMessageKind),
+    templateKey: v.optional(smsTemplateKey),
+    templateData: v.optional(genericRecord),
     relatedEntityType: v.optional(v.string()),
     relatedEntityId: v.optional(v.string()),
     createdAt: v.number(),
@@ -842,7 +874,9 @@ export default defineSchema({
     providerMessageId: v.string(),
     recipient: v.string(),
     status: smsDeliveryStatus,
+    idempotencyKey: v.optional(v.string()),
     messageKind: v.optional(smsMessageKind),
+    templateKey: v.optional(smsTemplateKey),
     relatedEntityType: v.optional(v.string()),
     relatedEntityId: v.optional(v.string()),
     notificationId: v.optional(v.id("notifications")),
@@ -853,11 +887,18 @@ export default defineSchema({
     rawCode: v.optional(v.string()),
     rawMessage: v.optional(v.string()),
     rawPayload: v.optional(genericRecord),
+    errorClass: v.optional(v.string()),
+    attemptedAt: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    deliveredAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number()
   })
     .index("by_provider_message", ["provider", "providerMessageId"])
     .index("by_provider_message_recipient", ["provider", "providerMessageId", "recipient"])
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_notification_status", ["notificationId", "status"])
+    .index("by_status_created_at", ["status", "createdAt"])
     .index("by_recipient_status", ["recipient", "status"])
     .index("by_related_entity", ["relatedEntityType", "relatedEntityId"]),
 

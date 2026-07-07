@@ -19,6 +19,7 @@ import {
   smsMessageKinds,
   smsProviderErrorClasses,
   smsProviders,
+  smsTemplateKeys,
   mfaRequirements,
   mfaStatuses,
   onboardingStates,
@@ -60,6 +61,7 @@ import {
   type SmsMessageKind,
   type SmsProvider,
   type SmsProviderErrorClass,
+  type SmsTemplateKey,
   type MfaRequirement,
   type MfaStatus,
   type OnboardingState,
@@ -222,6 +224,10 @@ export function isSmsMessageKind(value: unknown): value is SmsMessageKind {
 
 export function isSmsDeliveryStatus(value: unknown): value is SmsDeliveryStatus {
   return isOneOf(smsDeliveryStatuses, value);
+}
+
+export function isSmsTemplateKey(value: unknown): value is SmsTemplateKey {
+  return isOneOf(smsTemplateKeys, value);
 }
 
 export function isSmsProviderErrorClass(

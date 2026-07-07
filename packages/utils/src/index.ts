@@ -6,6 +6,8 @@ import type {
   InventoryReservationStatus,
   PlatformInvitationStatus,
   SmsDeliveryStatus,
+  SmsMessageKind,
+  SmsTemplateKey,
   UploadAssetPurpose,
   ProduceGrade,
 } from "@kuapa-dwaso/types";
@@ -791,8 +793,9 @@ export function normalizeSmsDeliveryStatus(status: string): SmsDeliveryStatus {
     case "delivered":
     case "delivery_success":
       return "delivered";
-    case "pending":
     case "queued":
+      return "queued";
+    case "pending":
     case "processing":
       return "pending";
     case "expired":
@@ -807,6 +810,190 @@ export function normalizeSmsDeliveryStatus(status: string): SmsDeliveryStatus {
     default:
       return "failed";
   }
+}
+
+export type SmsTemplateData = Record<string, string | number | boolean | undefined>;
+
+export type RenderSmsTemplateInput = {
+  templateKey?: SmsTemplateKey;
+  messageKind?: SmsMessageKind;
+  title?: string;
+  message: string;
+  data?: SmsTemplateData;
+};
+
+export type RenderedSmsTemplate = {
+  templateKey: SmsTemplateKey;
+  messageKind: SmsMessageKind;
+  message: string;
+  segmentEstimate: SmsSegmentEstimate;
+};
+
+const templateKeyByMessageKind: Partial<Record<SmsMessageKind, SmsTemplateKey>> = {
+  invite: "warehouse_agent_invite",
+  notification: "generic_notification",
+  transactional: "generic_notification",
+  warehouse_agent_invite: "warehouse_agent_invite",
+  farmer_receipt: "farmer_receipt",
+  storage_fee_reminder: "storage_fee_reminder",
+  reservation_alert: "reservation_alert",
+  sale_payment_update: "sale_payment_update",
+  payout_update: "payout_update",
+  buyer_order_update: "buyer_order_update",
+  buyer_reservation_update: "buyer_reservation_update",
+  buyer_cancellation_update: "buyer_cancellation_update",
+  dispatch_assignment: "dispatch_assignment",
+  dispatch_status_update: "dispatch_status_update",
+  dispute_update: "dispute_update",
+};
+
+export function renderSmsTemplate(input: RenderSmsTemplateInput): RenderedSmsTemplate {
+  const messageKind = input.messageKind ?? "notification";
+  const templateKey = input.templateKey ?? templateKeyByMessageKind[messageKind] ?? "generic_notification";
+  const data = input.data ?? {};
+  const fallbackMessage = normalizeSmsText(input.message);
+  const message = renderKnownSmsTemplate(templateKey, data, fallbackMessage);
+  const segmentEstimate = estimateSmsSegments(message);
+
+  return {
+    templateKey,
+    messageKind,
+    message,
+    segmentEstimate,
+  };
+}
+
+export function assertTransactionalSmsTemplateBudget(input: {
+  message: string;
+  maxSegments?: number;
+}): SmsSegmentEstimate {
+  const estimate = estimateSmsSegments(input.message);
+  const maxSegments = input.maxSegments ?? 2;
+  if (estimate.segments > maxSegments) {
+    throw new Error(`SMS template uses ${estimate.segments} segments; expected ${maxSegments} or fewer.`);
+  }
+  return estimate;
+}
+
+function renderKnownSmsTemplate(
+  templateKey: SmsTemplateKey,
+  data: SmsTemplateData,
+  fallbackMessage: string,
+): string {
+  switch (templateKey) {
+    case "warehouse_agent_invite":
+      return compactTemplate([
+        "Kuapa Dwaso invite:",
+        readTemplateValue(data, "inviteUrl", fallbackMessage),
+        data.expiresAt === undefined ? undefined : `Expires ${formatSmsDate(data.expiresAt)}.`,
+      ]);
+    case "farmer_receipt":
+      return compactTemplate([
+        "Kuapa receipt",
+        readTemplateValue(data, "receiptCode", ""),
+        `${readTemplateValue(data, "quantity", "")} ${readTemplateValue(data, "unit", "")} ${readTemplateValue(data, "cropType", "produce")}`.trim(),
+        `at ${readTemplateValue(data, "warehouseName", "warehouse")}.`,
+      ]);
+    case "storage_fee_reminder":
+      return compactTemplate([
+        "Kuapa storage fee reminder:",
+        readTemplateValue(data, "amount", "fee due"),
+        `for ${readTemplateValue(data, "receiptCode", "your produce")}.`,
+      ]);
+    case "reservation_alert":
+      return compactTemplate([
+        "Kuapa reservation alert:",
+        readTemplateValue(data, "quantity", ""),
+        readTemplateValue(data, "unit", ""),
+        readTemplateValue(data, "cropType", "produce"),
+        `reserved until ${formatSmsDate(data.expiresAt)}.`,
+      ]);
+    case "sale_payment_update":
+      return compactTemplate([
+        "Kuapa sale update:",
+        readTemplateValue(data, "receiptCode", "produce"),
+        `payment status ${readTemplateValue(data, "paymentStatus", "updated")}.`,
+        readTemplateValue(data, "amount", ""),
+      ]);
+    case "payout_update":
+      return compactTemplate([
+        "Kuapa payout update:",
+        readTemplateValue(data, "amount", "payout"),
+        `for ${readTemplateValue(data, "receiptCode", "your sale")}.`,
+      ]);
+    case "buyer_order_update":
+      return compactTemplate([
+        "Kuapa order update:",
+        readTemplateValue(data, "orderCode", "your order"),
+        `is ${readTemplateValue(data, "status", "updated")}.`,
+      ]);
+    case "buyer_reservation_update":
+      return compactTemplate([
+        "Kuapa reservation update:",
+        readTemplateValue(data, "orderCode", "your order"),
+        readTemplateValue(data, "status", "updated"),
+        readTemplateValue(data, "warehouseName", ""),
+      ]);
+    case "buyer_cancellation_update":
+      return compactTemplate([
+        "Kuapa cancellation:",
+        readTemplateValue(data, "orderCode", "your order"),
+        readTemplateValue(data, "reason", "was cancelled."),
+      ]);
+    case "dispatch_assignment":
+      return compactTemplate([
+        "Kuapa dispatch:",
+        readTemplateValue(data, "dispatchCode", "assignment"),
+        `to ${readTemplateValue(data, "destination", "destination")}.`,
+        readTemplateValue(data, "pickupWindow", ""),
+      ]);
+    case "dispatch_status_update":
+      return compactTemplate([
+        "Kuapa dispatch update:",
+        readTemplateValue(data, "dispatchCode", "dispatch"),
+        `is ${readTemplateValue(data, "status", "updated")}.`,
+      ]);
+    case "dispute_update":
+      return compactTemplate([
+        "Kuapa issue update:",
+        readTemplateValue(data, "caseCode", "case"),
+        `is ${readTemplateValue(data, "status", "updated")}.`,
+      ]);
+    case "generic_notification":
+      return fallbackMessage;
+  }
+}
+
+function readTemplateValue(data: SmsTemplateData, key: string, fallback: string): string {
+  const value = data[key];
+  if (value === undefined) {
+    return fallback;
+  }
+  return normalizeSmsText(String(value));
+}
+
+function compactTemplate(parts: readonly (string | undefined)[]): string {
+  return normalizeSmsText(parts.filter((part): part is string => part !== undefined && part.trim().length > 0).join(" "));
+}
+
+function normalizeSmsText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .split("")
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code === 10 || code === 13 || (code >= 32 && code <= 126);
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatSmsDate(value: SmsTemplateData[string]): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return "soon";
+  }
+  return new Date(value).toISOString().slice(0, 10);
 }
 
 function countGsm7Units(message: string): number | undefined {

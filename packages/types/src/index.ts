@@ -332,6 +332,7 @@ export type FeePayer = (typeof feePayers)[number];
 
 export const notificationStatuses = [
   "pending",
+  "queued",
   "sent",
   "read",
   "failed",
@@ -347,12 +348,25 @@ export const smsMessageKinds = [
   "notification",
   "otp",
   "transactional",
+  "warehouse_agent_invite",
+  "farmer_receipt",
+  "storage_fee_reminder",
+  "reservation_alert",
+  "sale_payment_update",
+  "payout_update",
+  "buyer_order_update",
+  "buyer_reservation_update",
+  "buyer_cancellation_update",
+  "dispatch_assignment",
+  "dispatch_status_update",
+  "dispute_update",
   "promotional",
 ] as const;
 export type SmsMessageKind = (typeof smsMessageKinds)[number];
 
 export const smsDeliveryStatuses = [
   "pending",
+  "queued",
   "sent",
   "delivered",
   "failed",
@@ -700,6 +714,9 @@ export type Notification = {
   channel: "sms" | "in_app" | "email";
   title: string;
   message: string;
+  messageKind?: SmsMessageKind;
+  templateKey?: SmsTemplateKey;
+  templateData?: Record<string, string | number | boolean | undefined>;
   relatedEntityType?: AuditEntityType;
   relatedEntityId?: string;
   status: NotificationStatus;
@@ -708,6 +725,23 @@ export type Notification = {
   sentAt?: number;
   readAt?: number;
 };
+
+export const smsTemplateKeys = [
+  "warehouse_agent_invite",
+  "farmer_receipt",
+  "storage_fee_reminder",
+  "reservation_alert",
+  "sale_payment_update",
+  "payout_update",
+  "buyer_order_update",
+  "buyer_reservation_update",
+  "buyer_cancellation_update",
+  "dispatch_assignment",
+  "dispatch_status_update",
+  "dispute_update",
+  "generic_notification",
+] as const;
+export type SmsTemplateKey = (typeof smsTemplateKeys)[number];
 
 export type AuditActor = {
   actorId: string;

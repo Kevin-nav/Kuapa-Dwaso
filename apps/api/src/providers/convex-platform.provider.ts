@@ -7,6 +7,7 @@ import type {
   SmsDeliveryStatus,
   SmsMessageKind,
   SmsProvider,
+  SmsTemplateKey,
   UploadAccessLevel,
   UploadAssetPurpose,
   UploadRelatedEntityType,
@@ -88,12 +89,16 @@ type RecordSmsSendArgs = {
   providerMessageId: string;
   recipient: string;
   status: SmsDeliveryStatus;
+  idempotencyKey?: string;
   messageKind?: SmsMessageKind;
+  templateKey?: SmsTemplateKey;
   relatedEntityType?: string;
   relatedEntityId?: string;
+  notificationId?: string;
   creditsUsed?: number;
   rawCode?: string;
   rawMessage?: string;
+  errorClass?: string;
 };
 
 type RecordSmsDeliveryReportArgs = {
@@ -105,6 +110,24 @@ type RecordSmsDeliveryReportArgs = {
   providerTimestamp?: number;
   creditsCharged?: number;
   rawPayload?: Record<string, unknown>;
+};
+
+type ClaimPendingSmsDeliveriesArgs = {
+  limit?: number;
+  retryQueuedBefore?: number;
+};
+
+type ClaimedSmsNotification = {
+  notificationId: string;
+  recipient: string;
+  title: string;
+  message: string;
+  messageKind: SmsMessageKind;
+  templateKey?: SmsTemplateKey;
+  templateData?: Record<string, string | number | boolean | undefined>;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  idempotencyKey: string;
 };
 
 const createInvitation = makeFunctionReference<
@@ -143,6 +166,12 @@ const recordSmsDeliveryReport = makeFunctionReference<
   string
 >("smsDeliveries:recordDeliveryReport");
 
+const claimPendingSmsDeliveries = makeFunctionReference<
+  "mutation",
+  ClaimPendingSmsDeliveriesArgs,
+  ClaimedSmsNotification[]
+>("notifications:claimPendingSmsDeliveries");
+
 @Injectable()
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
@@ -172,6 +201,10 @@ export class ConvexPlatformProvider {
 
   async recordSmsDeliveryReport(args: RecordSmsDeliveryReportArgs): Promise<string> {
     return await this.getClient().mutation(recordSmsDeliveryReport, args);
+  }
+
+  async claimPendingSmsDeliveries(args: ClaimPendingSmsDeliveriesArgs): Promise<ClaimedSmsNotification[]> {
+    return await this.getClient().mutation(claimPendingSmsDeliveries, args);
   }
 
   private getClient(): ConvexHttpClient {

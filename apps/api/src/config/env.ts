@@ -39,6 +39,9 @@ export type ApiEnvironment = {
     inviteSendMax: number;
     uploadPresignMax: number;
   };
+  notifications: {
+    deliverySecret?: string;
+  };
 };
 
 const defaultPort = 4000;
@@ -140,6 +143,10 @@ export function getApiEnvironment(): ApiEnvironment {
   }
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;
+  const notifications: ApiEnvironment["notifications"] = {};
+  if (process.env.NOTIFICATION_DELIVERY_SECRET !== undefined) {
+    notifications.deliverySecret = process.env.NOTIFICATION_DELIVERY_SECRET;
+  }
 
   const environment: ApiEnvironment = {
     nodeEnv,
@@ -152,7 +159,8 @@ export function getApiEnvironment(): ApiEnvironment {
       windowMs: parsePositiveInteger(process.env.API_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
       inviteSendMax: parsePositiveInteger(process.env.API_RATE_LIMIT_INVITE_SEND_MAX, 20),
       uploadPresignMax: parsePositiveInteger(process.env.API_RATE_LIMIT_UPLOAD_PRESIGN_MAX, 60)
-    }
+    },
+    notifications
   };
   if (publicAppUrl !== undefined) {
     environment.publicAppUrl = publicAppUrl;

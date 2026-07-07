@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  assertTransactionalSmsTemplateBudget,
   estimateSmsSegments,
   normalizeE164PhoneNumber,
   normalizeGhanaPhoneNumber,
   normalizeSmsDeliveryStatus,
+  renderSmsTemplate,
 } from "../src/index.ts";
 
 test("normalizes Ghana phone numbers to E.164", () => {
@@ -44,7 +46,36 @@ test("estimates UCS-2 SMS segments when text contains non-GSM characters", () =>
 
 test("normalizes provider delivery statuses", () => {
   assert.equal(normalizeSmsDeliveryStatus("delivered"), "delivered");
-  assert.equal(normalizeSmsDeliveryStatus("queued"), "pending");
+  assert.equal(normalizeSmsDeliveryStatus("queued"), "queued");
   assert.equal(normalizeSmsDeliveryStatus("rejected"), "rejected");
   assert.equal(normalizeSmsDeliveryStatus("unknown-provider-value"), "failed");
+});
+
+test("renders transactional SMS templates as compact GSM-friendly text", () => {
+  const rendered = renderSmsTemplate({
+    messageKind: "farmer_receipt",
+    message: "Fallback should not be used",
+    data: {
+      receiptCode: "REC-100",
+      quantity: 12,
+      unit: "bags",
+      cropType: "maize",
+      warehouseName: "Tamale Central",
+    },
+  });
+
+  assert.equal(rendered.templateKey, "farmer_receipt");
+  assert.equal(rendered.segmentEstimate.encoding, "gsm-7");
+  assert.match(rendered.message, /Kuapa receipt REC-100 12 bags maize at Tamale Central\./);
+  assert.doesNotThrow(() => assertTransactionalSmsTemplateBudget({ message: rendered.message }));
+});
+
+test("generic SMS rendering removes non GSM-friendly decoration", () => {
+  const rendered = renderSmsTemplate({
+    templateKey: "generic_notification",
+    message: "Sale paid \u2014 farmer credited \u2713",
+  });
+
+  assert.equal(rendered.message, "Sale paid farmer credited");
+  assert.equal(rendered.segmentEstimate.encoding, "gsm-7");
 });

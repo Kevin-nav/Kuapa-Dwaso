@@ -75,6 +75,7 @@ SMS_FROM_NAME=KuapaDwaso
 ARKESEL_SMS_API_KEY=
 ARKESEL_WEBHOOK_SIGNATURE_HEADER=x-arkesel-signature
 ARKESEL_WEBHOOK_SIGNATURE_SECRET=
+NOTIFICATION_DELIVERY_SECRET=
 ```
 
 Arkesel delivery uses the V2 JSON SMS endpoint through the API provider seam.
@@ -94,6 +95,20 @@ Arkesel delivery reports post to:
 ```text
 POST /sms/webhooks/arkesel/delivery
 ```
+
+The notification delivery worker posts to:
+
+```text
+POST /sms/webhooks/deliveries/process
+```
+
+In production, `NOTIFICATION_DELIVERY_SECRET` must be configured and callers
+must send it as `x-notification-delivery-secret`. Local development may omit
+the secret. The endpoint claims pending SMS notification records, renders
+platform-owned transactional templates, sends through the configured SMS
+provider seam, and records idempotent delivery attempts in `smsDeliveries`.
+Domain workflows should continue creating notification records instead of
+calling Arkesel or provider-specific code directly.
 
 The available Arkesel documentation does not confirm webhook signature
 verification. By default the endpoint accepts unsigned delivery reports and
