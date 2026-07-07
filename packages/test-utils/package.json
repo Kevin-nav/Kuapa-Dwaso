@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "smoke:backend": "node src/backend-smoke-flow.mjs"
+    "smoke:backend": "node src/backend-smoke-flow.mjs",
+    "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs"
   },
   "dependencies": {
     "convex": "1.41.0"
