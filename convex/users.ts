@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { omitUndefinedValues } from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -26,7 +27,10 @@ const userProfile = v.object({
   email: v.optional(v.string()),
   name: v.string(),
   role: marketplaceRole,
-  status: userStatus
+  status: userStatus,
+  mfaRequirement: v.optional(v.string()),
+  mfaStatus: v.optional(v.string()),
+  onboardingState: v.optional(v.string())
 });
 
 export const upsertProfile = mutation({
@@ -53,19 +57,20 @@ export const upsertProfile = mutation({
             .unique();
 
     if (existing !== null) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch(existing._id, omitUndefinedValues({
         authProvider: args.authProvider,
         phoneNumber: args.phoneNumber,
         email: args.email,
         name: args.name,
         role: args.role,
         status,
+        onboardingState: existing.onboardingState ?? "profile_required",
         updatedAt: now
-      });
+      }));
       return existing._id;
     }
 
-    return await ctx.db.insert("users", {
+    return await ctx.db.insert("users", omitUndefinedValues({
       authProviderId: args.authProviderId,
       authProvider: args.authProvider,
       phoneNumber: args.phoneNumber,
@@ -73,9 +78,10 @@ export const upsertProfile = mutation({
       name: args.name,
       role: args.role,
       status,
+      onboardingState: "profile_required",
       createdAt: now,
       updatedAt: now
-    });
+    }));
   }
 });
 
@@ -99,19 +105,20 @@ export const upsertProfileByAuthProviderId = mutation({
       .unique();
 
     if (existing !== null) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch(existing._id, omitUndefinedValues({
         authProvider: args.authProvider,
         phoneNumber: args.phoneNumber,
         email: args.email,
         name: args.name,
         role: args.role,
         status,
+        onboardingState: existing.onboardingState ?? "profile_required",
         updatedAt: now
-      });
+      }));
       return existing._id;
     }
 
-    return await ctx.db.insert("users", {
+    return await ctx.db.insert("users", omitUndefinedValues({
       authProviderId: args.authProviderId,
       authProvider: args.authProvider,
       phoneNumber: args.phoneNumber,
@@ -119,9 +126,10 @@ export const upsertProfileByAuthProviderId = mutation({
       name: args.name,
       role: args.role,
       status,
+      onboardingState: "profile_required",
       createdAt: now,
       updatedAt: now
-    });
+    }));
   }
 });
 
@@ -180,6 +188,9 @@ function toUserProfile(user: Doc<"users">) {
     name: string;
     role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin";
     status: "pending" | "active" | "suspended" | "rejected" | "deactivated";
+    mfaRequirement?: string;
+    mfaStatus?: string;
+    onboardingState?: string;
   } = {
     userId: user._id.toString(),
     authProviderId: user.authProviderId,
@@ -196,6 +207,15 @@ function toUserProfile(user: Doc<"users">) {
   }
   if (user.email !== undefined) {
     profile.email = user.email;
+  }
+  if (user.mfaRequirement !== undefined) {
+    profile.mfaRequirement = user.mfaRequirement;
+  }
+  if (user.mfaStatus !== undefined) {
+    profile.mfaStatus = user.mfaStatus;
+  }
+  if (user.onboardingState !== undefined) {
+    profile.onboardingState = user.onboardingState;
   }
 
   return profile;

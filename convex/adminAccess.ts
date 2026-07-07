@@ -3,12 +3,14 @@ import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   adminAccessHasPermissionForScope,
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   getEffectiveAdminAccess,
   getActor,
   insertAuditLog,
+  omitUndefinedValues,
   requireActiveAdmin,
   requireAdminPermission,
   type AdminScopeTarget,
@@ -83,7 +85,15 @@ function normalizeScope(args: {
   const scopeId = cleanOptionalText(args.scopeId);
   const scopeValue = cleanOptionalText(args.scopeValue);
   assertAllowed(scopeId !== undefined || scopeValue !== undefined, "Scoped admin grants require a scope id or value.");
-  return { scopeId, scopeValue };
+  
+  const res: { scopeId?: string; scopeValue?: string } = {};
+  if (scopeId !== undefined) {
+    res.scopeId = scopeId;
+  }
+  if (scopeValue !== undefined) {
+    res.scopeValue = scopeValue;
+  }
+  return res;
 }
 
 async function requireAccessManager(ctx: Parameters<typeof requireAdminPermission>[0], actorUserId: Id<"users">) {
@@ -172,7 +182,7 @@ export const assignDirectRole = mutation({
     await requireAdminTarget(ctx, args.adminUserId);
     const scope = normalizeScope(args);
     const now = Date.now();
-    const assignmentId = await ctx.db.insert("adminRoleAssignments", {
+    const assignmentPayload: any = {
       adminUserId: args.adminUserId,
       roleKey: args.roleKey,
       scopeType: args.scopeType,
@@ -180,10 +190,13 @@ export const assignDirectRole = mutation({
       status: "active",
       assignedBy: args.actorUserId,
       assignedAt: now,
-      expiresAt: args.expiresAt,
       createdAt: now,
       updatedAt: now,
-    });
+    };
+    if (args.expiresAt !== undefined) {
+      assignmentPayload.expiresAt = args.expiresAt;
+    }
+    const assignmentId = await ctx.db.insert("adminRoleAssignments", assignmentPayload);
     const after = await ctx.db.get(assignmentId);
     await insertAuditLog(ctx, {
       actor,
@@ -256,14 +269,14 @@ export const createGroup = mutation({
     const name = args.name.trim();
     assertAllowed(name.length > 0, "Group name is required.");
     const now = Date.now();
-    const groupId = await ctx.db.insert("adminAccessGroups", {
+    const groupId = await ctx.db.insert("adminAccessGroups", omitUndefinedValues({
       name,
       description: cleanOptionalText(args.description),
       status: "active",
       createdBy: args.actorUserId,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
     const after = await ctx.db.get(groupId);
     await insertAuditLog(ctx, {
       actor,
@@ -289,12 +302,12 @@ export const updateGroup = mutation({
     const actor = await requireAccessManager(ctx, args.actorUserId);
     const group = await ctx.db.get(args.groupId);
     assertAllowed(group !== null, "Admin access group was not found.");
-    await ctx.db.patch(args.groupId, {
+    await ctx.db.patch(args.groupId, omitUndefinedValues({
       name: args.name?.trim(),
       description: cleanOptionalText(args.description),
       status: args.status,
       updatedAt: Date.now(),
-    });
+    }));
     const after = await ctx.db.get(args.groupId);
     await insertAuditLog(ctx, {
       actor,
@@ -401,7 +414,7 @@ export const assignGroupRole = mutation({
     assertAllowed(group !== null && group.status === "active", "Admin access group must be active.");
     const scope = normalizeScope(args);
     const now = Date.now();
-    const assignmentId = await ctx.db.insert("adminAccessGroupRoleAssignments", {
+    const assignmentId = await ctx.db.insert("adminAccessGroupRoleAssignments", omitUndefinedValues({
       groupId: args.groupId,
       roleKey: args.roleKey,
       scopeType: args.scopeType,
@@ -412,7 +425,7 @@ export const assignGroupRole = mutation({
       expiresAt: args.expiresAt,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
     const after = await ctx.db.get(assignmentId);
     await insertAuditLog(ctx, {
       actor,
@@ -488,13 +501,13 @@ export const previewPermission = query({
     const scope = normalizeScope(args);
     const target: AdminScopeTarget =
       args.scopeType === "warehouse"
-        ? { warehouseId: scope.scopeId ?? scope.scopeValue }
+        ? adminScopeTarget({ warehouseId: scope.scopeId ?? scope.scopeValue })
         : args.scopeType === "region"
-          ? { region: scope.scopeValue ?? scope.scopeId }
+          ? adminScopeTarget({ region: scope.scopeValue ?? scope.scopeId })
           : args.scopeType === "district"
-            ? { district: scope.scopeValue ?? scope.scopeId }
+            ? adminScopeTarget({ district: scope.scopeValue ?? scope.scopeId })
             : args.scopeType === "destination_market"
-              ? { destinationMarket: scope.scopeValue ?? scope.scopeId }
+              ? adminScopeTarget({ destinationMarket: scope.scopeValue ?? scope.scopeId })
               : {};
     const access = await getEffectiveAdminAccess(ctx, args.adminUserId);
     const allowed = adminAccessHasPermissionForScope(access, args.permission as AdminPermissionKey, target);

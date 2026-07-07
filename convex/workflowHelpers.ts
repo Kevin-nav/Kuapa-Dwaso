@@ -46,6 +46,25 @@ export function cleanOptionalText(value: string | undefined): string | undefined
   return cleaned === undefined || cleaned.length === 0 ? undefined : cleaned;
 }
 
+export function omitUndefinedValues<T extends Record<string, unknown>>(value: T): {
+  [K in keyof T]: Exclude<T[K], undefined>;
+} {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  ) as {
+    [K in keyof T]: Exclude<T[K], undefined>;
+  };
+}
+
+export function adminScopeTarget(target: {
+  warehouseId?: Id<"warehouses"> | string | undefined;
+  region?: string | undefined;
+  district?: string | undefined;
+  destinationMarket?: string | undefined;
+}): AdminScopeTarget {
+  return omitUndefinedValues(target) as AdminScopeTarget;
+}
+
 export function auditSnapshot(value: Record<string, unknown>): Record<string, unknown> {
   return value;
 }
@@ -101,7 +120,7 @@ function scopeGrantMatchesTarget(grant: AdminScopeGrant, target: AdminScopeTarge
 }
 
 function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
-  return [
+  const permissions: AdminPermissionKey[] = [
     "adminAccess:manage",
     "warehouses:read",
     "warehouses:manage",
@@ -131,7 +150,15 @@ function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
     "reports:read",
     "notifications:read",
     "notifications:send",
-  ].filter((permission) => adminRoleHasPermission(roleKey, permission)) as AdminPermissionKey[];
+    "invitations:read",
+    "invitations:manage",
+    "profileLinks:read",
+    "profileLinks:manage",
+    "uploads:read",
+    "uploads:manage",
+  ];
+
+  return permissions.filter((permission) => adminRoleHasPermission(roleKey, permission));
 }
 
 export async function requireActiveAdmin(
@@ -160,7 +187,7 @@ export async function getEffectiveAdminAccess(
     if (!isActiveGrant(assignment, now)) {
       continue;
     }
-    grants.push({
+    grants.push(omitUndefinedValues({
       roleKey: assignment.roleKey,
       permissions: rolePermissions(assignment.roleKey),
       scopeType: assignment.scopeType,
@@ -169,7 +196,7 @@ export async function getEffectiveAdminAccess(
       source: "direct",
       assignmentId: assignment._id,
       expiresAt: assignment.expiresAt,
-    });
+    }));
   }
 
   const activeMemberships = await ctx.db
@@ -191,7 +218,7 @@ export async function getEffectiveAdminAccess(
       if (!isActiveGrant(assignment, now)) {
         continue;
       }
-      grants.push({
+      grants.push(omitUndefinedValues({
         roleKey: assignment.roleKey,
         permissions: rolePermissions(assignment.roleKey),
         scopeType: assignment.scopeType,
@@ -201,7 +228,7 @@ export async function getEffectiveAdminAccess(
         assignmentId: assignment._id,
         groupId: membership.groupId,
         expiresAt: assignment.expiresAt,
-      });
+      }));
     }
   }
 
@@ -253,11 +280,11 @@ export async function warehouseScopeTarget(
 ): Promise<AdminScopeTarget> {
   const warehouse = await ctx.db.get(warehouseId);
   assertAllowed(warehouse !== null, "Warehouse was not found.");
-  return {
+  return adminScopeTarget({
     warehouseId,
     region: warehouse.region,
     district: warehouse.district,
-  };
+  });
 }
 
 export async function inventoryScopeTarget(
@@ -274,10 +301,10 @@ export async function farmerScopeTarget(
   if (farmer.preferredWarehouseId !== undefined) {
     return await warehouseScopeTarget(ctx, farmer.preferredWarehouseId);
   }
-  return {
+  return adminScopeTarget({
     region: farmer.region,
     district: farmer.community,
-  };
+  });
 }
 
 export async function buyerOrderScopeTarget(

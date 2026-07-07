@@ -35,6 +35,9 @@ export const permissionKeys = [
   "disputes:create",
   "disputes:manage",
   "users:updateStatus",
+  "profileLinks:manageOwn",
+  "uploads:create",
+  "uploads:completeOwn",
 ] as const;
 export type PermissionKey = (typeof permissionKeys)[number];
 
@@ -68,11 +71,17 @@ export const adminPermissionKeys = [
   "reports:read",
   "notifications:read",
   "notifications:send",
+  "invitations:read",
+  "invitations:manage",
+  "profileLinks:read",
+  "profileLinks:manage",
+  "uploads:read",
+  "uploads:manage",
 ] as const;
 export type AdminPermissionKey = (typeof adminPermissionKeys)[number];
 
 const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
-  farmer: new Set(["disputes:create"]),
+  farmer: new Set(["disputes:create", "profileLinks:manageOwn", "uploads:create", "uploads:completeOwn"]),
   warehouse_agent: new Set([
     "farmers:create",
     "inventory:create",
@@ -86,9 +95,17 @@ const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
     "dispatches:updateStatus",
     "disputes:create",
     "notifications:send",
+    "uploads:create",
+    "uploads:completeOwn",
   ]),
-  buyer: new Set(["orders:create", "disputes:create"]),
-  transporter: new Set(["dispatches:updateStatus", "disputes:create"]),
+  buyer: new Set(["orders:create", "disputes:create", "profileLinks:manageOwn", "uploads:create", "uploads:completeOwn"]),
+  transporter: new Set([
+    "dispatches:updateStatus",
+    "disputes:create",
+    "profileLinks:manageOwn",
+    "uploads:create",
+    "uploads:completeOwn",
+  ]),
   admin: new Set(permissionKeys),
 };
 
@@ -107,6 +124,9 @@ const readOnlyAdminPermissions = [
   "auditLogs:read",
   "reports:read",
   "notifications:read",
+  "invitations:read",
+  "profileLinks:read",
+  "uploads:read",
 ] as const satisfies readonly AdminPermissionKey[];
 
 export const adminPermissionsByRole: Record<
@@ -139,6 +159,12 @@ export const adminPermissionsByRole: Record<
     "reports:read",
     "notifications:read",
     "notifications:send",
+    "invitations:read",
+    "invitations:manage",
+    "profileLinks:read",
+    "profileLinks:manage",
+    "uploads:read",
+    "uploads:manage",
   ]),
   warehouse_manager: new Set([
     "warehouses:read",
@@ -160,6 +186,12 @@ export const adminPermissionsByRole: Record<
     "reports:read",
     "notifications:read",
     "notifications:send",
+    "invitations:read",
+    "invitations:manage",
+    "profileLinks:read",
+    "profileLinks:manage",
+    "uploads:read",
+    "uploads:manage",
   ]),
   finance_manager: new Set([
     "fees:read",
@@ -170,6 +202,7 @@ export const adminPermissionsByRole: Record<
     "dispatches:read",
     "auditLogs:read",
     "reports:read",
+    "uploads:read",
   ]),
   support_officer: new Set([
     "warehouses:read",
@@ -184,6 +217,9 @@ export const adminPermissionsByRole: Record<
     "disputes:manage",
     "notifications:read",
     "notifications:send",
+    "invitations:read",
+    "profileLinks:read",
+    "uploads:read",
   ]),
   auditor: new Set([
     "warehouses:read",
@@ -198,6 +234,9 @@ export const adminPermissionsByRole: Record<
     "transporters:read",
     "disputes:read",
     "auditLogs:read",
+    "invitations:read",
+    "profileLinks:read",
+    "uploads:read",
   ]),
   analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "dispatches:read"]),
   admin_viewer: new Set(readOnlyAdminPermissions),
@@ -345,6 +384,18 @@ export function canManageDisputes(role: MarketplaceRole): boolean {
 
 export function canUpdateUsers(role: MarketplaceRole): boolean {
   return roleHasPermission(role, "users:updateStatus");
+}
+
+export function canManageOwnProfileLinks(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "profileLinks:manageOwn");
+}
+
+export function canCreateUpload(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "uploads:create");
+}
+
+export function canCompleteOwnUpload(role: MarketplaceRole): boolean {
+  return roleHasPermission(role, "uploads:completeOwn");
 }
 
 export const allowedInventoryBatchStatusTransitions: Readonly<

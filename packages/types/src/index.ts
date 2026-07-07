@@ -372,6 +372,9 @@ export const auditEntityTypes = [
   "farmer",
   "warehouse_agent",
   "transporter_profile",
+  "platform_invitation",
+  "profile_link",
+  "upload_asset",
   "warehouse",
   "inventory_batch",
   "storage_receipt",
@@ -780,4 +783,241 @@ export type BuyerOrderInput = {
   requestedDeliveryDate?: number;
   maxPricePerUnit?: number;
   clientRequestId?: string;
+};
+
+export const authProviders = ["firebase"] as const;
+export type AuthProvider = (typeof authProviders)[number];
+
+export const authMethods = ["phone", "email_password"] as const;
+export type AuthMethod = (typeof authMethods)[number];
+
+export const mfaRequirements = ["not_required", "sms_required", "totp_required", "required"] as const;
+export type MfaRequirement = (typeof mfaRequirements)[number];
+
+export const mfaStatuses = ["not_required", "pending", "verified", "failed"] as const;
+export type MfaStatus = (typeof mfaStatuses)[number];
+
+export const onboardingStates = [
+  "not_started",
+  "profile_required",
+  "pending_invite_acceptance",
+  "pending_verification",
+  "pending_approval",
+  "complete",
+] as const;
+export type OnboardingState = (typeof onboardingStates)[number];
+
+export const profileTypes = [
+  "farmer",
+  "buyer",
+  "transporter",
+  "warehouse_agent",
+  "admin",
+] as const;
+export type ProfileType = (typeof profileTypes)[number];
+
+export const profileLinkStatuses = [
+  "pending",
+  "linked",
+  "rejected",
+  "revoked",
+] as const;
+export type ProfileLinkStatus = (typeof profileLinkStatuses)[number];
+
+export const profileLinkSources = [
+  "self_app",
+  "agent_assisted_claim",
+  "invite_acceptance",
+  "admin_link",
+] as const;
+export type ProfileLinkSource = (typeof profileLinkSources)[number];
+
+export type FirebaseIdentityInput = {
+  authProviderId: string;
+  phoneNumber?: string;
+  email?: string;
+  displayName?: string;
+  phoneVerified?: boolean;
+  emailVerified?: boolean;
+  signInProvider?: string;
+  mfaSatisfied?: boolean;
+  mfaMethods?: string[];
+};
+
+export type PlatformPrincipalProfile = {
+  profileType: ProfileType;
+  profileId: string;
+  status: string;
+  verificationStatus?: string;
+  linkStatus?: ProfileLinkStatus;
+};
+
+export type CurrentPlatformPrincipal = {
+  userId: string;
+  authProvider: AuthProvider;
+  authProviderId: string;
+  role: MarketplaceRole;
+  status: UserStatus;
+  phoneNumber?: string;
+  email?: string;
+  name: string;
+  authMethods: AuthMethod[];
+  mfaRequirement: MfaRequirement;
+  mfaStatus: MfaStatus;
+  onboardingState: OnboardingState;
+  profiles: PlatformPrincipalProfile[];
+};
+
+export const platformInvitationTypes = [
+  "admin_invite",
+  "warehouse_manager_invite",
+  "warehouse_agent_invite",
+  "transporter_invite",
+] as const;
+export type PlatformInvitationType = (typeof platformInvitationTypes)[number];
+
+export const invitationChannels = ["email", "sms"] as const;
+export type InvitationChannel = (typeof invitationChannels)[number];
+
+export const platformInvitationStatuses = [
+  "pending",
+  "accepted",
+  "revoked",
+  "expired",
+  "cancelled",
+] as const;
+export type PlatformInvitationStatus = (typeof platformInvitationStatuses)[number];
+
+export type PendingAdminRoleAssignmentInput = AdminScopeDescriptor & {
+  roleKey: AdminRoleKey;
+  expiresAt?: number;
+};
+
+export type PlatformInvitation = TimestampFields & {
+  id: string;
+  type: PlatformInvitationType;
+  channel: InvitationChannel;
+  status: PlatformInvitationStatus;
+  tokenHash: string;
+  targetEmail?: string;
+  targetPhoneNumber?: string;
+  intendedRole: MarketplaceRole;
+  intendedProfileType: ProfileType;
+  linkedProfileId?: string;
+  pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
+  mfaRequirement: MfaRequirement;
+  invitedByUserId: string;
+  acceptedByUserId?: string;
+  expiresAt: number;
+  acceptedAt?: number;
+  revokedAt?: number;
+  revokedByUserId?: string;
+  messageId?: string;
+};
+
+export type CreatePlatformInvitationInput = {
+  actorUserId: string;
+  type: PlatformInvitationType;
+  channel: InvitationChannel;
+  tokenHash: string;
+  targetEmail?: string;
+  targetPhoneNumber?: string;
+  linkedProfileId?: string;
+  pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
+  expiresAt: number;
+  mfaRequirement?: MfaRequirement;
+};
+
+export type AcceptPlatformInvitationInput = {
+  tokenHash: string;
+  identity: FirebaseIdentityInput;
+};
+
+export type InviteAcceptanceResult = {
+  invitationId: string;
+  userId: string;
+  profileType: ProfileType;
+  profileId?: string;
+  status: "accepted";
+  mfaRequired: boolean;
+};
+
+export const uploadAssetPurposes = [
+  "transporter_truck_photo",
+  "produce_intake_photo",
+  "condition_evidence",
+  "dispute_evidence",
+  "profile_evidence",
+] as const;
+export type UploadAssetPurpose = (typeof uploadAssetPurposes)[number];
+
+export const uploadAssetStatuses = [
+  "pending_upload",
+  "uploaded",
+  "attached",
+  "rejected",
+  "deleted",
+] as const;
+export type UploadAssetStatus = (typeof uploadAssetStatuses)[number];
+
+export const uploadAccessLevels = ["private", "public_read"] as const;
+export type UploadAccessLevel = (typeof uploadAccessLevels)[number];
+
+export const uploadRelatedEntityTypes = [
+  "farmer",
+  "buyer",
+  "transporter_profile",
+  "warehouse_agent",
+  "inventory_batch",
+  "dispatch",
+  "dispute",
+] as const;
+export type UploadRelatedEntityType = (typeof uploadRelatedEntityTypes)[number];
+
+export type UploadAsset = TimestampFields & {
+  id: string;
+  ownerUserId: string;
+  ownerProfileType?: ProfileType;
+  ownerProfileId?: string;
+  purpose: UploadAssetPurpose;
+  status: UploadAssetStatus;
+  accessLevel: UploadAccessLevel;
+  bucket: string;
+  objectKey: string;
+  contentType: string;
+  sizeBytes: number;
+  checksumSha256?: string;
+  relatedEntityType?: UploadRelatedEntityType;
+  relatedEntityId?: string;
+  createdByUserId: string;
+  completedAt?: number;
+};
+
+export type PresignedUploadRequest = {
+  actorUserId: string;
+  purpose: UploadAssetPurpose;
+  contentType: string;
+  sizeBytes: number;
+  fileName?: string;
+  ownerProfileType?: ProfileType;
+  ownerProfileId?: string;
+  relatedEntityType?: UploadRelatedEntityType;
+  relatedEntityId?: string;
+  accessLevel?: UploadAccessLevel;
+};
+
+export type PresignedUploadResponse = {
+  uploadAssetId: string;
+  method: "PUT";
+  uploadUrl: string;
+  objectKey: string;
+  headers: Record<string, string>;
+  expiresAt: number;
+};
+
+export type CompleteUploadAssetInput = {
+  actorUserId: string;
+  uploadAssetId: string;
+  sizeBytes: number;
+  checksumSha256?: string;
 };

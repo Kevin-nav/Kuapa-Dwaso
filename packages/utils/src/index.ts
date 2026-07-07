@@ -4,6 +4,8 @@ import type {
   FeeRuleSnapshot,
   InventoryBatchStatus,
   InventoryReservationStatus,
+  PlatformInvitationStatus,
+  UploadAssetPurpose,
   ProduceGrade,
 } from "@kuapa-dwaso/types";
 
@@ -617,5 +619,107 @@ export function calculateDispatchTransportCostShare(
         farmerAmount: roundMoneyAmount(roundedCost - buyerAmount, decimalPlaces),
       };
     }
+  }
+}
+
+export const defaultInviteTtlMs = 7 * 24 * 60 * 60 * 1000;
+export const defaultUploadMaxSizeBytes = 8 * 1024 * 1024;
+
+export function calculateInviteExpiry(
+  createdAt: number,
+  ttlMs = defaultInviteTtlMs,
+): number {
+  if (!Number.isFinite(createdAt) || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+    throw new Error("Invite expiry requires a valid timestamp and positive TTL.");
+  }
+  return createdAt + ttlMs;
+}
+
+export function resolveInvitationStatus(
+  status: PlatformInvitationStatus,
+  expiresAt: number,
+  now = Date.now(),
+): PlatformInvitationStatus {
+  if (status === "pending" && expiresAt <= now) {
+    return "expired";
+  }
+  return status;
+}
+
+export function assertInvitationCanBeAccepted(input: {
+  status: PlatformInvitationStatus;
+  expiresAt: number;
+  now?: number;
+}): void {
+  const effectiveStatus = resolveInvitationStatus(input.status, input.expiresAt, input.now);
+  if (effectiveStatus !== "pending") {
+    throw new Error("Invitation is not pending.");
+  }
+}
+
+export function normalizeEmailAddress(email: string): string {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized)) {
+    throw new Error("Email address is invalid.");
+  }
+  return normalized;
+}
+
+export function normalizePhoneNumber(phoneNumber: string): string {
+  const normalized = phoneNumber.trim().replace(/[^\d+]/g, "");
+  if (normalized.length < 8) {
+    throw new Error("Phone number is invalid.");
+  }
+  return normalized;
+}
+
+export function assertInviteTargetMatchesIdentity(input: {
+  targetEmail?: string;
+  targetPhoneNumber?: string;
+  identityEmail?: string;
+  identityPhoneNumber?: string;
+}): void {
+  if (input.targetEmail !== undefined) {
+    if (input.identityEmail === undefined || normalizeEmailAddress(input.targetEmail) !== normalizeEmailAddress(input.identityEmail)) {
+      throw new Error("Invitation email does not match the verified identity.");
+    }
+    return;
+  }
+  if (input.targetPhoneNumber !== undefined) {
+    if (input.identityPhoneNumber === undefined || normalizePhoneNumber(input.targetPhoneNumber) !== normalizePhoneNumber(input.identityPhoneNumber)) {
+      throw new Error("Invitation phone number does not match the verified identity.");
+    }
+    return;
+  }
+  throw new Error("Invitation target is required.");
+}
+
+export function buildUploadObjectKey(input: {
+  environment: string;
+  purpose: UploadAssetPurpose;
+  ownerUserId: string;
+  uploadAssetId: string;
+  fileName?: string;
+}): string {
+  const safeEnvironment = normalizeCodeSegment(input.environment || "dev").toLowerCase();
+  const safePurpose = normalizeCodeSegment(input.purpose).toLowerCase();
+  const safeOwner = normalizeCodeSegment(input.ownerUserId).toLowerCase();
+  const safeUpload = normalizeCodeSegment(input.uploadAssetId).toLowerCase();
+  const extension = input.fileName?.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const suffix = extension === undefined || extension.length === 0 ? "" : `.${extension}`;
+  return `${safeEnvironment}/${safePurpose}/${safeOwner}/${safeUpload}${suffix}`;
+}
+
+export function assertUploadMetadata(input: {
+  contentType: string;
+  sizeBytes: number;
+  maxSizeBytes?: number;
+}): void {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(input.contentType)) {
+    throw new Error("Only JPEG, PNG, and WebP image uploads are allowed.");
+  }
+  const maxSizeBytes = input.maxSizeBytes ?? defaultUploadMaxSizeBytes;
+  if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > maxSizeBytes) {
+    throw new Error("Upload size is outside the allowed range.");
   }
 }

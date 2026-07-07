@@ -8,7 +8,7 @@ export const status = query({
     ok: v.literal(true)
   }),
   handler: () => ({
-    service: "kuapa-dwaso-convex",
-    ok: true
+    service: "kuapa-dwaso-convex" as const,
+    ok: true as const
   })
 });

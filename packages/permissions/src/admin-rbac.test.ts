@@ -13,6 +13,8 @@ test("platform owner receives every admin permission including access management
     new Set(adminPermissionKeys),
   );
   assert.equal(adminRoleHasPermission("platform_owner", "adminAccess:manage"), true);
+  assert.equal(adminRoleHasPermission("platform_owner", "invitations:manage"), true);
+  assert.equal(adminRoleHasPermission("platform_owner", "uploads:manage"), true);
 });
 
 test("operations manager can run operations without finance-only mutation rights", () => {
@@ -25,6 +27,7 @@ test("operations manager can run operations without finance-only mutation rights
   );
   assert.equal(adminRoleHasPermission("operations_manager", "fees:manage"), false);
   assert.equal(adminRoleHasPermission("operations_manager", "adminAccess:manage"), false);
+  assert.equal(adminRoleHasPermission("operations_manager", "invitations:manage"), true);
 });
 
 test("finance manager owns fee and payment capabilities without admin access management", () => {
@@ -37,6 +40,7 @@ test("finance manager owns fee and payment capabilities without admin access man
 test("viewer and analyst roles are read-only", () => {
   assert.equal(adminRoleHasPermission("admin_viewer", "reports:read"), true);
   assert.equal(adminRoleHasPermission("admin_viewer", "orders:manage"), false);
+  assert.equal(adminRoleHasPermission("admin_viewer", "invitations:manage"), false);
   assert.equal(adminRoleHasPermission("analyst", "reports:read"), true);
   assert.equal(adminRoleHasPermission("analyst", "disputes:manage"), false);
 });

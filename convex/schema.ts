@@ -17,6 +17,28 @@ const userStatus = v.union(
   v.literal("deactivated")
 );
 
+const authMethod = v.union(v.literal("phone"), v.literal("email_password"));
+const mfaRequirement = v.union(
+  v.literal("not_required"),
+  v.literal("sms_required"),
+  v.literal("totp_required"),
+  v.literal("required")
+);
+const mfaStatus = v.union(
+  v.literal("not_required"),
+  v.literal("pending"),
+  v.literal("verified"),
+  v.literal("failed")
+);
+const onboardingState = v.union(
+  v.literal("not_started"),
+  v.literal("profile_required"),
+  v.literal("pending_invite_acceptance"),
+  v.literal("pending_verification"),
+  v.literal("pending_approval"),
+  v.literal("complete")
+);
+
 const adminRoleKey = v.union(
   v.literal("platform_owner"),
   v.literal("operations_manager"),
@@ -212,6 +234,64 @@ const disputeStatus = v.union(
   v.literal("cancelled")
 );
 
+const profileType = v.union(
+  v.literal("farmer"),
+  v.literal("buyer"),
+  v.literal("transporter"),
+  v.literal("warehouse_agent"),
+  v.literal("admin")
+);
+const profileLinkStatus = v.union(
+  v.literal("pending"),
+  v.literal("linked"),
+  v.literal("rejected"),
+  v.literal("revoked")
+);
+const profileLinkSource = v.union(
+  v.literal("self_app"),
+  v.literal("agent_assisted_claim"),
+  v.literal("invite_acceptance"),
+  v.literal("admin_link")
+);
+const platformInvitationType = v.union(
+  v.literal("admin_invite"),
+  v.literal("warehouse_manager_invite"),
+  v.literal("warehouse_agent_invite"),
+  v.literal("transporter_invite")
+);
+const invitationChannel = v.union(v.literal("email"), v.literal("sms"));
+const platformInvitationStatus = v.union(
+  v.literal("pending"),
+  v.literal("accepted"),
+  v.literal("revoked"),
+  v.literal("expired"),
+  v.literal("cancelled")
+);
+const uploadAssetPurpose = v.union(
+  v.literal("transporter_truck_photo"),
+  v.literal("produce_intake_photo"),
+  v.literal("condition_evidence"),
+  v.literal("dispute_evidence"),
+  v.literal("profile_evidence")
+);
+const uploadAssetStatus = v.union(
+  v.literal("pending_upload"),
+  v.literal("uploaded"),
+  v.literal("attached"),
+  v.literal("rejected"),
+  v.literal("deleted")
+);
+const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
+const uploadRelatedEntityType = v.union(
+  v.literal("farmer"),
+  v.literal("buyer"),
+  v.literal("transporter_profile"),
+  v.literal("warehouse_agent"),
+  v.literal("inventory_batch"),
+  v.literal("dispatch"),
+  v.literal("dispute")
+);
+
 const actorRole = v.union(marketplaceRole, v.literal("system"));
 const genericRecord = v.record(v.string(), v.any());
 
@@ -238,6 +318,14 @@ const feeRuleSnapshot = v.object({
   snapshottedAt: v.number()
 });
 
+const pendingAdminRoleAssignment = v.object({
+  roleKey: adminRoleKey,
+  scopeType: adminScopeType,
+  scopeId: v.optional(v.string()),
+  scopeValue: v.optional(v.string()),
+  expiresAt: v.optional(v.number())
+});
+
 export default defineSchema({
   users: defineTable({
     authProviderId: v.optional(v.string()),
@@ -247,6 +335,13 @@ export default defineSchema({
     name: v.string(),
     role: marketplaceRole,
     status: userStatus,
+    authMethods: v.optional(v.array(authMethod)),
+    phoneVerified: v.optional(v.boolean()),
+    emailVerified: v.optional(v.boolean()),
+    mfaRequirement: v.optional(mfaRequirement),
+    mfaStatus: v.optional(mfaStatus),
+    mfaMethods: v.optional(v.array(v.string())),
+    onboardingState: v.optional(onboardingState),
     createdAt: v.number(),
     updatedAt: v.number()
   })
@@ -254,6 +349,76 @@ export default defineSchema({
     .index("by_role_status", ["role", "status"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_email", ["email"]),
+
+  profileLinks: defineTable({
+    userId: v.id("users"),
+    profileType,
+    profileId: v.string(),
+    status: profileLinkStatus,
+    source: profileLinkSource,
+    linkedByUserId: v.optional(v.id("users")),
+    invitationId: v.optional(v.id("platformInvitations")),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user_status", ["userId", "status"])
+    .index("by_profile", ["profileType", "profileId"])
+    .index("by_profile_status", ["profileType", "profileId", "status"])
+    .index("by_invitation", ["invitationId"]),
+
+  platformInvitations: defineTable({
+    type: platformInvitationType,
+    channel: invitationChannel,
+    status: platformInvitationStatus,
+    tokenHash: v.string(),
+    targetEmail: v.optional(v.string()),
+    targetPhoneNumber: v.optional(v.string()),
+    intendedRole: marketplaceRole,
+    intendedProfileType: profileType,
+    linkedProfileId: v.optional(v.string()),
+    pendingAdminRoleAssignment: v.optional(pendingAdminRoleAssignment),
+    mfaRequirement,
+    invitedByUserId: v.id("users"),
+    acceptedByUserId: v.optional(v.id("users")),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    revokedByUserId: v.optional(v.id("users")),
+    messageId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_status_expires_at", ["status", "expiresAt"])
+    .index("by_target_email_status", ["targetEmail", "status"])
+    .index("by_target_phone_status", ["targetPhoneNumber", "status"])
+    .index("by_type_status", ["type", "status"])
+    .index("by_invited_by_status", ["invitedByUserId", "status"]),
+
+  uploadAssets: defineTable({
+    ownerUserId: v.id("users"),
+    ownerProfileType: v.optional(profileType),
+    ownerProfileId: v.optional(v.string()),
+    purpose: uploadAssetPurpose,
+    status: uploadAssetStatus,
+    accessLevel: uploadAccessLevel,
+    bucket: v.string(),
+    objectKey: v.string(),
+    contentType: v.string(),
+    sizeBytes: v.number(),
+    checksumSha256: v.optional(v.string()),
+    relatedEntityType: v.optional(uploadRelatedEntityType),
+    relatedEntityId: v.optional(v.string()),
+    createdByUserId: v.id("users"),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_owner_status", ["ownerUserId", "status"])
+    .index("by_owner_purpose_status", ["ownerUserId", "purpose", "status"])
+    .index("by_object_key", ["objectKey"])
+    .index("by_related_entity", ["relatedEntityType", "relatedEntityId"])
+    .index("by_status_purpose", ["status", "purpose"]),
 
   adminRoleAssignments: defineTable({
     adminUserId: v.id("users"),
@@ -373,6 +538,7 @@ export default defineSchema({
     updatedAt: v.number()
   })
     .index("by_farmer_code", ["farmerCode"])
+    .index("by_user", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_preferred_warehouse", ["preferredWarehouseId"])
     .index("by_preferred_warehouse_verification_status", ["preferredWarehouseId", "verificationStatus"])

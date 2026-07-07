@@ -15,6 +15,18 @@ import {
   inventoryReservationStatuses,
   marketplaceRoles,
   notificationStatuses,
+  mfaRequirements,
+  mfaStatuses,
+  onboardingStates,
+  platformInvitationStatuses,
+  platformInvitationTypes,
+  invitationChannels,
+  profileLinkStatuses,
+  profileTypes,
+  uploadAccessLevels,
+  uploadAssetPurposes,
+  uploadAssetStatuses,
+  uploadRelatedEntityTypes,
   produceGrades,
   registrationSources,
   salePaymentStatuses,
@@ -40,6 +52,18 @@ import {
   type InventoryReservationStatus,
   type MarketplaceRole,
   type NotificationStatus,
+  type MfaRequirement,
+  type MfaStatus,
+  type OnboardingState,
+  type PlatformInvitationStatus,
+  type PlatformInvitationType,
+  type InvitationChannel,
+  type ProfileLinkStatus,
+  type ProfileType,
+  type UploadAccessLevel,
+  type UploadAssetPurpose,
+  type UploadAssetStatus,
+  type UploadRelatedEntityType,
   type ProduceGrade,
   type RegistrationSource,
   type SalePaymentStatus,
@@ -184,6 +208,66 @@ export function isDisputeStatus(value: unknown): value is DisputeStatus {
   return isOneOf(disputeStatuses, value);
 }
 
+export function isMfaRequirement(value: unknown): value is MfaRequirement {
+  return isOneOf(mfaRequirements, value);
+}
+
+export function isMfaStatus(value: unknown): value is MfaStatus {
+  return isOneOf(mfaStatuses, value);
+}
+
+export function isOnboardingState(value: unknown): value is OnboardingState {
+  return isOneOf(onboardingStates, value);
+}
+
+export function isPlatformInvitationType(
+  value: unknown,
+): value is PlatformInvitationType {
+  return isOneOf(platformInvitationTypes, value);
+}
+
+export function isInvitationChannel(value: unknown): value is InvitationChannel {
+  return isOneOf(invitationChannels, value);
+}
+
+export function isPlatformInvitationStatus(
+  value: unknown,
+): value is PlatformInvitationStatus {
+  return isOneOf(platformInvitationStatuses, value);
+}
+
+export function isProfileType(value: unknown): value is ProfileType {
+  return isOneOf(profileTypes, value);
+}
+
+export function isProfileLinkStatus(
+  value: unknown,
+): value is ProfileLinkStatus {
+  return isOneOf(profileLinkStatuses, value);
+}
+
+export function isUploadAssetPurpose(
+  value: unknown,
+): value is UploadAssetPurpose {
+  return isOneOf(uploadAssetPurposes, value);
+}
+
+export function isUploadAssetStatus(
+  value: unknown,
+): value is UploadAssetStatus {
+  return isOneOf(uploadAssetStatuses, value);
+}
+
+export function isUploadAccessLevel(value: unknown): value is UploadAccessLevel {
+  return isOneOf(uploadAccessLevels, value);
+}
+
+export function isUploadRelatedEntityType(
+  value: unknown,
+): value is UploadRelatedEntityType {
+  return isOneOf(uploadRelatedEntityTypes, value);
+}
+
 export function isPositiveQuantity(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
@@ -213,6 +297,61 @@ export function hasNonEmptyStringArray(value: unknown): value is string[] {
     Array.isArray(value) &&
     value.length > 0 &&
     value.every((item) => hasNonEmptyText(item))
+  );
+}
+
+export function isValidInviteTarget(input: {
+  channel: InvitationChannel;
+  targetEmail?: unknown;
+  targetPhoneNumber?: unknown;
+}): boolean {
+  if (input.channel === "email") {
+    return typeof input.targetEmail === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.targetEmail.trim());
+  }
+  return typeof input.targetPhoneNumber === "string" && input.targetPhoneNumber.trim().length >= 8;
+}
+
+export function isValidFirebaseIdentityForPhoneLink(input: {
+  phoneNumber?: unknown;
+  phoneVerified?: unknown;
+}): boolean {
+  return typeof input.phoneNumber === "string" && input.phoneNumber.trim().length >= 8 && input.phoneVerified === true;
+}
+
+export function isValidFirebaseIdentityForEmailLink(input: {
+  email?: unknown;
+  emailVerified?: unknown;
+}): boolean {
+  return typeof input.email === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim()) && input.emailVerified === true;
+}
+
+export const imageUploadContentTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export function isAllowedUploadContentType(contentType: unknown): contentType is string {
+  return typeof contentType === "string" && imageUploadContentTypes.includes(contentType as (typeof imageUploadContentTypes)[number]);
+}
+
+export function isAllowedUploadSize(sizeBytes: unknown, maxSizeBytes = 8 * 1024 * 1024): sizeBytes is number {
+  return typeof sizeBytes === "number" && Number.isInteger(sizeBytes) && sizeBytes > 0 && sizeBytes <= maxSizeBytes;
+}
+
+export function isValidUploadPresignRequest(input: {
+  purpose?: unknown;
+  contentType?: unknown;
+  sizeBytes?: unknown;
+  accessLevel?: unknown;
+  relatedEntityType?: unknown;
+}): boolean {
+  return (
+    isUploadAssetPurpose(input.purpose) &&
+    isAllowedUploadContentType(input.contentType) &&
+    isAllowedUploadSize(input.sizeBytes) &&
+    (input.accessLevel === undefined || isUploadAccessLevel(input.accessLevel)) &&
+    (input.relatedEntityType === undefined || isUploadRelatedEntityType(input.relatedEntityType))
   );
 }
 

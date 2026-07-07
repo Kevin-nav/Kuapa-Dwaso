@@ -2,12 +2,14 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
   adminAccessHasPermissionForScope,
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   getActor,
   getEffectiveAdminAccess,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   warehouseScopeTarget,
 } from "./workflowHelpers";
@@ -27,13 +29,17 @@ async function requireAdminForWarehouseCreateOrUpdate(
   ctx: Parameters<typeof getActor>[0],
   actorUserId: Parameters<typeof getActor>[1],
   action: "create" | "update",
-  target: { warehouseId?: Parameters<typeof warehouseScopeTarget>[1]; region?: string; district?: string },
+  target: {
+    warehouseId?: Parameters<typeof warehouseScopeTarget>[1] | undefined;
+    region?: string | undefined;
+    district?: string | undefined;
+  },
 ) {
   if (action === "create") {
-    const access = await requireAdminPermission(ctx, actorUserId, "warehouses:manage", {
+    const access = await requireAdminPermission(ctx, actorUserId, "warehouses:manage", adminScopeTarget({
       region: target.region,
       district: target.district,
-    });
+    }));
     return access.actor;
   }
   assertAllowed(target.warehouseId !== undefined, "Warehouse scope is required.");
@@ -78,7 +84,7 @@ export const create = mutation({
     assertAllowed(existing === null, "A warehouse with this code already exists.");
 
     const now = Date.now();
-    const warehouseId = await ctx.db.insert("warehouses", {
+    const warehouseId = await ctx.db.insert("warehouses", omitUndefinedValues({
       code,
       name: args.name.trim(),
       community: args.community.trim(),
@@ -95,7 +101,7 @@ export const create = mutation({
       status: args.status ?? "inactive",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(warehouseId);
     await insertAuditLog(ctx, {
@@ -135,7 +141,7 @@ export const update = mutation({
     const warehouse = await ctx.db.get(args.warehouseId);
     assertAllowed(warehouse !== null, "Warehouse was not found.");
 
-    await ctx.db.patch(args.warehouseId, {
+    await ctx.db.patch(args.warehouseId, omitUndefinedValues({
       name: args.name?.trim(),
       community: args.community?.trim(),
       district: cleanOptionalText(args.district),
@@ -149,7 +155,7 @@ export const update = mutation({
       operatingDays: args.operatingDays,
       dispatchDays: args.dispatchDays,
       updatedAt: Date.now(),
-    });
+    }));
 
     const after = await ctx.db.get(args.warehouseId);
     await insertAuditLog(ctx, {
@@ -272,11 +278,11 @@ export const list = query({
       .filter(
         (warehouse) =>
           access === undefined ||
-          adminAccessHasPermissionForScope(access, "warehouses:read", {
+          adminAccessHasPermissionForScope(access, "warehouses:read", adminScopeTarget({
             warehouseId: warehouse._id,
             region: warehouse.region,
             district: warehouse.district,
-          }),
+          })),
       )
       .slice(0, limit);
   },
