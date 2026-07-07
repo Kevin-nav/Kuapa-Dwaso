@@ -194,6 +194,10 @@ export const create = mutation({
     const targetPhoneNumber =
       args.targetPhoneNumber === undefined ? undefined : normalizePhoneNumber(args.targetPhoneNumber);
     assertAllowed(
+      (args.type !== "admin_invite" && args.type !== "warehouse_manager_invite") || args.channel === "email",
+      "Admin and warehouse-manager invitations must be delivered by email.",
+    );
+    assertAllowed(
       args.channel === "email" ? targetEmail !== undefined : targetPhoneNumber !== undefined,
       "Invitation target must match its delivery channel.",
     );
@@ -287,6 +291,11 @@ export const accept = mutation({
       identityEmail: args.identity.email,
       identityPhoneNumber: args.identity.phoneNumber,
     }));
+    if (invitation.type === "admin_invite" || invitation.type === "warehouse_manager_invite") {
+      assertAllowed(invitation.targetEmail !== undefined, "Privileged invitations must target an email address.");
+      assertAllowed(args.identity.email !== undefined, "Privileged invite acceptance requires a Firebase email identity.");
+      assertAllowed(args.identity.signInProvider === undefined || args.identity.signInProvider === "password", "Privileged invite acceptance requires Firebase email/password sign-in.");
+    }
     if (invitation.targetEmail !== undefined) {
       assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
     }
@@ -295,6 +304,10 @@ export const accept = mutation({
     }
     const mfaRequired = invitation.mfaRequirement !== "not_required";
     assertAllowed(!mfaRequired || args.identity.mfaSatisfied === true, "Required MFA has not been satisfied.");
+    assertAllowed(
+      !mfaRequired || (args.identity.mfaMethods !== undefined && args.identity.mfaMethods.length > 0),
+      "Required MFA method evidence is missing.",
+    );
 
     const userId = await upsertFirebaseUser(ctx, {
       identity: args.identity,

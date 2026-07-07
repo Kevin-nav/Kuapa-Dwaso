@@ -18,6 +18,21 @@ const userStatus = v.union(
   v.literal("rejected"),
   v.literal("deactivated")
 );
+const authMethod = v.union(v.literal("phone"), v.literal("email_password"));
+const mfaRequirement = v.union(
+  v.literal("not_required"),
+  v.literal("sms_required"),
+  v.literal("totp_required"),
+  v.literal("required")
+);
+const mfaStatus = v.union(
+  v.literal("not_required"),
+  v.literal("pending"),
+  v.literal("verified"),
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("recovery")
+);
 
 const userProfile = v.object({
   userId: v.string(),
@@ -41,7 +56,12 @@ export const upsertProfile = mutation({
     email: v.optional(v.string()),
     name: v.string(),
     role: marketplaceRole,
-    status: v.optional(userStatus)
+    status: v.optional(userStatus),
+    authMethods: v.optional(v.array(authMethod)),
+    phoneVerified: v.optional(v.boolean()),
+    emailVerified: v.optional(v.boolean()),
+    mfaRequirement: v.optional(mfaRequirement),
+    mfaStatus: v.optional(mfaStatus)
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
@@ -64,6 +84,11 @@ export const upsertProfile = mutation({
         name: args.name,
         role: args.role,
         status,
+        authMethods: args.authMethods,
+        phoneVerified: args.phoneVerified,
+        emailVerified: args.emailVerified,
+        mfaRequirement: args.mfaRequirement,
+        mfaStatus: args.mfaStatus,
         onboardingState: existing.onboardingState ?? "profile_required",
         updatedAt: now
       }));
@@ -78,6 +103,11 @@ export const upsertProfile = mutation({
       name: args.name,
       role: args.role,
       status,
+      authMethods: args.authMethods,
+      phoneVerified: args.phoneVerified,
+      emailVerified: args.emailVerified,
+      mfaRequirement: args.mfaRequirement,
+      mfaStatus: args.mfaStatus,
       onboardingState: "profile_required",
       createdAt: now,
       updatedAt: now
@@ -93,7 +123,12 @@ export const upsertProfileByAuthProviderId = mutation({
     email: v.optional(v.string()),
     name: v.string(),
     role: marketplaceRole,
-    status: v.optional(userStatus)
+    status: v.optional(userStatus),
+    authMethods: v.optional(v.array(authMethod)),
+    phoneVerified: v.optional(v.boolean()),
+    emailVerified: v.optional(v.boolean()),
+    mfaRequirement: v.optional(mfaRequirement),
+    mfaStatus: v.optional(mfaStatus)
   },
   returns: v.id("users"),
   handler: async (ctx, args) => {
@@ -112,6 +147,11 @@ export const upsertProfileByAuthProviderId = mutation({
         name: args.name,
         role: args.role,
         status,
+        authMethods: args.authMethods,
+        phoneVerified: args.phoneVerified,
+        emailVerified: args.emailVerified,
+        mfaRequirement: args.mfaRequirement,
+        mfaStatus: args.mfaStatus,
         onboardingState: existing.onboardingState ?? "profile_required",
         updatedAt: now
       }));
@@ -126,6 +166,11 @@ export const upsertProfileByAuthProviderId = mutation({
       name: args.name,
       role: args.role,
       status,
+      authMethods: args.authMethods,
+      phoneVerified: args.phoneVerified,
+      emailVerified: args.emailVerified,
+      mfaRequirement: args.mfaRequirement,
+      mfaStatus: args.mfaStatus,
       onboardingState: "profile_required",
       createdAt: now,
       updatedAt: now

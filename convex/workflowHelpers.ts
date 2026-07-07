@@ -168,6 +168,17 @@ export async function requireActiveAdmin(
   const actor = await getActor(ctx, actorUserId);
   assertAllowed(actor.role === "admin", "Actor must be an admin user.");
   assertAllowed(actor.status === "active", "Admin user must be active.");
+  assertAllowed(actor.emailVerified === true, "Admin email must be verified.");
+  assertAllowed(
+    actor.authMethods?.includes("email_password") === true,
+    "Admin must use Firebase email/password authentication.",
+  );
+  assertAllowed(
+    actor.mfaRequirement === undefined ||
+      actor.mfaRequirement === "not_required" ||
+      actor.mfaStatus === "verified",
+    "Admin MFA requirement has not been satisfied.",
+  );
   return actor;
 }
 

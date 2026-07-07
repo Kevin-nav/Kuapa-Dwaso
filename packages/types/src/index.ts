@@ -853,7 +853,7 @@ export type AuthMethod = (typeof authMethods)[number];
 export const mfaRequirements = ["not_required", "sms_required", "totp_required", "required"] as const;
 export type MfaRequirement = (typeof mfaRequirements)[number];
 
-export const mfaStatuses = ["not_required", "pending", "verified", "failed"] as const;
+export const mfaStatuses = ["not_required", "pending", "verified", "failed", "blocked", "recovery"] as const;
 export type MfaStatus = (typeof mfaStatuses)[number];
 
 export const onboardingStates = [

@@ -85,6 +85,10 @@ async function main() {
     name: "Backend Smoke Admin",
     role: "admin",
     status: "active",
+    authMethods: ["email_password"],
+    emailVerified: true,
+    mfaRequirement: "not_required",
+    mfaStatus: "not_required",
   });
   try {
     await mutation("platform owner bootstrap", api.adminAccess.bootstrapFirstPlatformOwner, {
@@ -443,6 +447,10 @@ async function main() {
     name: `Backend Smoke Scoped Admin ${runId}`,
     role: "admin",
     status: "active",
+    authMethods: ["email_password"],
+    emailVerified: true,
+    mfaRequirement: "not_required",
+    mfaStatus: "not_required",
   });
   await mutation("scoped warehouse manager assigned", api.adminAccess.assignDirectRole, {
     actorUserId: adminUserId,

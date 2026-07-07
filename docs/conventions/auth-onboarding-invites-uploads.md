@@ -157,6 +157,21 @@ Invite links use `PUBLIC_APP_URL` and currently resolve to:
 Raw invite tokens are delivered only by the API provider boundary. Convex stores
 only token hashes.
 
+## Privileged MFA Setup
+
+Admin and warehouse-manager users sign in with Firebase email/password. Invite
+acceptance fails closed unless the Firebase ID token has the invited verified
+email and, when required, Firebase second-factor evidence. Convex admin RBAC
+also requires active admin status, email/password auth, verified email, and
+verified MFA before granting privileged permissions.
+
+The admin app implements Firebase SMS MFA enrollment and sign-in challenge
+state with the Firebase Web SDK. Production projects still need Firebase Auth
+email/password enabled, email verification templates configured, multi-factor
+authentication enabled in the Firebase console, allowed domains configured for
+the deployed admin origin, and reCAPTCHA allowed to run on that origin.
+Arkesel is not used for privileged auth OTP in this slice.
+
 ## Rate Limits and Abuse Guards
 
 The API has an in-memory rate-limit provider for invite sends and upload

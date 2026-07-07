@@ -28,7 +28,9 @@ const mfaStatus = v.union(
   v.literal("not_required"),
   v.literal("pending"),
   v.literal("verified"),
-  v.literal("failed")
+  v.literal("failed"),
+  v.literal("blocked"),
+  v.literal("recovery")
 );
 const onboardingState = v.union(
   v.literal("not_started"),
