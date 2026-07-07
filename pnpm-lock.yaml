@@ -66,6 +66,9 @@ importers:
       '@kuapa-dwaso/dashboard-ui':
         specifier: workspace:*
         version: link:../../packages/dashboard-ui
+      '@kuapa-dwaso/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@kuapa-dwaso/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -118,6 +121,9 @@ importers:
       '@kuapa-dwaso/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@kuapa-dwaso/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@nestjs/common':
         specifier: ^11.1.27
         version: 11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2)

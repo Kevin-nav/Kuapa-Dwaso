@@ -18,8 +18,12 @@ export type ApiEnvironment = {
     fromEmail?: string;
   };
   sms: {
-    mock: boolean;
+    provider: "mock" | "arkesel";
+    unsupportedProvider?: string;
     fromName?: string;
+    arkeselApiKey?: string;
+    webhookSignatureSecret?: string;
+    webhookSignatureHeader: string;
   };
   uploads: {
     r2AccountId?: string;
@@ -96,11 +100,23 @@ export function getApiEnvironment(): ApiEnvironment {
     email.fromEmail = process.env.RESEND_FROM_EMAIL;
   }
 
+  const requestedSmsProvider = process.env.SMS_PROVIDER ?? "mock";
+  const smsProvider = requestedSmsProvider === "arkesel" ? "arkesel" : "mock";
   const sms: ApiEnvironment["sms"] = {
-    mock: process.env.SMS_PROVIDER === undefined || process.env.SMS_PROVIDER === "mock"
+    provider: smsProvider,
+    webhookSignatureHeader: process.env.ARKESEL_WEBHOOK_SIGNATURE_HEADER ?? "x-arkesel-signature"
   };
+  if (requestedSmsProvider !== "mock" && requestedSmsProvider !== "arkesel") {
+    sms.unsupportedProvider = requestedSmsProvider;
+  }
   if (process.env.SMS_FROM_NAME !== undefined) {
     sms.fromName = process.env.SMS_FROM_NAME;
+  }
+  if (process.env.ARKESEL_SMS_API_KEY !== undefined) {
+    sms.arkeselApiKey = process.env.ARKESEL_SMS_API_KEY;
+  }
+  if (process.env.ARKESEL_WEBHOOK_SIGNATURE_SECRET !== undefined) {
+    sms.webhookSignatureSecret = process.env.ARKESEL_WEBHOOK_SIGNATURE_SECRET;
   }
 
   const uploads: ApiEnvironment["uploads"] = {
