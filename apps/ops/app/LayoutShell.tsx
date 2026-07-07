@@ -156,23 +156,14 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       {/* Sidebar Navigation (Desktop) */}
       <aside className="sidebar">
         <div className="sidebar-brand-container" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 12px 16px 12px", borderBottom: "1px solid var(--color-ink-soft)", marginBottom: "16px" }}>
-          <div
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "6px",
-              backgroundColor: "var(--color-field)",
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 800,
-              fontSize: "0.875rem",
-              flexShrink: 0
-            }}
-          >
-            KD
-          </div>
+          <svg width="28" height="28" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            <circle cx="22" cy="30" r="6" fill="var(--color-field)" opacity="0.5" />
+            <circle cx="18" cy="60" r="6" fill="var(--color-field)" opacity="0.65" />
+            <circle cx="22" cy="90" r="6" fill="var(--color-field)" opacity="0.8" />
+            <circle cx="48" cy="45" r="8" fill="var(--color-field)" opacity="0.85" />
+            <circle cx="48" cy="75" r="8" fill="var(--color-field)" opacity="0.9" />
+            <circle cx="88" cy="60" r="22" fill="var(--color-field)" />
+          </svg>
           <span className="sidebar-brand-text" style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em", color: "white" }}>
             KuapaDwaso
           </span>

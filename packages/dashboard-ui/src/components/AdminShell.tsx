@@ -150,42 +150,28 @@ export function AdminShell({
         >
           {!isCollapsed && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "6px",
-                  backgroundColor: palette.field,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  fontSize: "0.875rem",
-                }}
-              >
-                KD
-              </div>
+              <svg width="28" height="28" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+                <circle cx="22" cy="30" r="6" fill={palette.field} opacity="0.5" />
+                <circle cx="18" cy="60" r="6" fill={palette.field} opacity="0.65" />
+                <circle cx="22" cy="90" r="6" fill={palette.field} opacity="0.8" />
+                <circle cx="48" cy="45" r="8" fill={palette.field} opacity="0.85" />
+                <circle cx="48" cy="75" r="8" fill={palette.field} opacity="0.9" />
+                <circle cx="88" cy="60" r="22" fill={palette.field} />
+              </svg>
               <span style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em" }}>
                 KuapaDwaso <span style={{ color: palette.accent }}>Admin</span>
               </span>
             </div>
           )}
           {isCollapsed && (
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "8px",
-                backgroundColor: palette.field,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 800,
-                fontSize: "1.1rem",
-              }}
-            >
-              K
-            </div>
+            <svg width="36" height="36" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+              <circle cx="22" cy="30" r="6" fill={palette.field} opacity="0.5" />
+              <circle cx="18" cy="60" r="6" fill={palette.field} opacity="0.65" />
+              <circle cx="22" cy="90" r="6" fill={palette.field} opacity="0.8" />
+              <circle cx="48" cy="45" r="8" fill={palette.field} opacity="0.85" />
+              <circle cx="48" cy="75" r="8" fill={palette.field} opacity="0.9" />
+              <circle cx="88" cy="60" r="22" fill={palette.field} />
+            </svg>
           )}
         </div>
 
