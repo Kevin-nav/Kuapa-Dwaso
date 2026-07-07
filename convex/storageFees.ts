@@ -6,6 +6,10 @@ import {
   auditSnapshot,
   getActor,
   insertAuditLog,
+  inventoryScopeTarget,
+  requireAdminPermission,
+  requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
 } from "./workflowHelpers";
 
 const storageFeeLedgerStatus = v.union(
@@ -30,6 +34,7 @@ export const accrueForBatch = mutation({
     assertAllowed(actor.role === "admin", "Only admins can accrue storage fees manually.");
     const batch = await ctx.db.get(args.inventoryBatchId);
     assertAllowed(batch !== null, "Inventory batch was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await inventoryScopeTarget(ctx, batch));
     const days = args.days ?? 1;
     assertAllowed(days > 0, "Storage fee days must be positive.");
 
@@ -84,6 +89,7 @@ export const updateLedgerStatus = mutation({
     assertAllowed(actor.role === "admin", "Only admins can update storage fee ledger status.");
     const ledger = await ctx.db.get(args.storageFeeLedgerId);
     assertAllowed(ledger !== null, "Storage fee ledger entry was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await warehouseScopeTarget(ctx, ledger.warehouseId));
 
     await ctx.db.patch(args.storageFeeLedgerId, {
       status: args.status,
@@ -118,8 +124,11 @@ export const listByBatch = query({
     if (actor.role === "farmer") {
       const farmer = await ctx.db.get(batch.farmerId);
       assertAllowed(farmer !== null && farmer.userId === actor._id, "Actor cannot view these fees.");
+    } else if (actor.role === "warehouse_agent") {
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, batch.warehouseId);
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot view these fees.");
+      await requireAdminPermission(ctx, args.actorUserId, "fees:read", await inventoryScopeTarget(ctx, batch));
     }
 
     return await ctx.db

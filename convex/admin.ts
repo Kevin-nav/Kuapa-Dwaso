@@ -1,7 +1,13 @@
-import { canViewAuditLogs } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { resolveRequestingRole } from "./observabilityAccess";
+import {
+  adminAccessHasPermissionForScope,
+  dispatchScopeTarget,
+  getEffectiveAdminAccess,
+  requireAdminPermission,
+  warehouseScopeTarget,
+} from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -14,7 +20,7 @@ const marketplaceRole = v.union(
 function assertCanViewAdminObservability(
   role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
-  if (!canViewAuditLogs(role)) {
+  if (role !== "admin") {
     throw new Error("Only admins can view platform observability.");
   }
 }
@@ -63,7 +69,13 @@ export const getPlatformSummaryCounts = query({
     openDisputes: v.number(),
   }),
   handler: async (ctx, args) => {
-    assertCanViewAdminObservability(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAdminObservability(role);
+    if (args.requestingUserId === undefined) {
+      throw new Error("Admin reporting requires requestingUserId.");
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId);
+    await requireAdminPermission(ctx, args.requestingUserId, "reports:read", {});
 
     const [
       farmers,
@@ -99,6 +111,20 @@ export const getPlatformSummaryCounts = query({
         .collect(),
     ]);
 
+    const scopedWarehouses = [];
+    for (const warehouse of warehouses) {
+      if (adminAccessHasPermissionForScope(access, "reports:read", await warehouseScopeTarget(ctx, warehouse._id))) {
+        scopedWarehouses.push(warehouse);
+      }
+    }
+    const scopedWarehouseIds = new Set(scopedWarehouses.map((warehouse) => warehouse._id));
+    const scopedInventoryBatches = inventoryBatches.filter((batch) => scopedWarehouseIds.has(batch.warehouseId));
+    const scopedAvailableInventoryBatches = availableInventoryBatches.filter((batch) => scopedWarehouseIds.has(batch.warehouseId));
+    const scopedSaleRecords = saleRecords.filter((sale) => scopedWarehouseIds.has(sale.warehouseId));
+    const scopedDispatches = dispatches.filter((dispatch) => scopedWarehouseIds.has(dispatch.warehouseId));
+    const scopedDisputes = disputes.filter((dispute) => dispute.warehouseId !== undefined && scopedWarehouseIds.has(dispute.warehouseId));
+    const scopedOpenDisputes = openDisputes.filter((dispute) => dispute.warehouseId !== undefined && scopedWarehouseIds.has(dispute.warehouseId));
+
     const salePaymentStatusCounts = {
       pending: 0,
       part_paid: 0,
@@ -109,7 +135,7 @@ export const getPlatformSummaryCounts = query({
     let soldQuantity = 0;
     let grossSalesAmount = 0;
     let netFarmerAmountDue = 0;
-    for (const sale of saleRecords) {
+    for (const sale of scopedSaleRecords) {
       soldQuantity += sale.quantitySold;
       grossSalesAmount += sale.grossAmount;
       netFarmerAmountDue += sale.netAmountDueToFarmer;
@@ -126,32 +152,32 @@ export const getPlatformSummaryCounts = query({
       cancelled: 0,
       issue_reported: 0,
     };
-    for (const dispatch of dispatches) {
+    for (const dispatch of scopedDispatches) {
       dispatchStatusCounts[dispatch.status] += 1;
     }
 
     return {
       farmers: farmers.length,
       warehouseAgents: warehouseAgents.length,
-      warehouses: warehouses.length,
+      warehouses: scopedWarehouses.length,
       buyers: buyers.length,
       transporterProfiles: transporterProfiles.length,
-      inventoryBatches: inventoryBatches.length,
-      availableInventoryBatches: availableInventoryBatches.length,
+      inventoryBatches: scopedInventoryBatches.length,
+      availableInventoryBatches: scopedAvailableInventoryBatches.length,
       buyerOrders: buyerOrders.length,
-      saleRecords: saleRecords.length,
+      saleRecords: scopedSaleRecords.length,
       soldQuantity,
       grossSalesAmount,
       netFarmerAmountDue,
       salePaymentStatusCounts,
-      dispatches: dispatches.length,
+      dispatches: scopedDispatches.length,
       dispatchStatusCounts,
       inTransitDispatches:
         dispatchStatusCounts.departed + dispatchStatusCounts.in_transit + dispatchStatusCounts.arrived,
       deliveredDispatches: dispatchStatusCounts.delivered + dispatchStatusCounts.closed,
       issueDispatches: dispatchStatusCounts.issue_reported,
-      disputes: disputes.length,
-      openDisputes: openDisputes.length,
+      disputes: scopedDisputes.length,
+      openDisputes: scopedOpenDisputes.length,
     };
   },
 });
@@ -166,9 +192,14 @@ export const getDispatchRouteSummaries = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanViewAdminObservability(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAdminObservability(role);
+    if (args.requestingUserId === undefined) {
+      throw new Error("Admin reporting requires requestingUserId.");
+    }
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const destination = args.destination?.trim();
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId);
     const dispatches =
       args.warehouseId !== undefined
         ? await ctx.db
@@ -183,6 +214,9 @@ export const getDispatchRouteSummaries = query({
         continue;
       }
       if (destination !== undefined && dispatch.destination !== destination) {
+        continue;
+      }
+      if (!adminAccessHasPermissionForScope(access, "reports:read", await dispatchScopeTarget(ctx, dispatch))) {
         continue;
       }
       const key = `${dispatch.warehouseId}|${dispatch.destination}`;
@@ -220,7 +254,12 @@ export const listRecentActivity = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanViewAdminObservability(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAdminObservability(role);
+    if (args.requestingUserId === undefined) {
+      throw new Error("Admin activity access requires requestingUserId.");
+    }
+    await requireAdminPermission(ctx, args.requestingUserId, "auditLogs:read", {});
 
     const limit = Math.min(Math.max(args.limit ?? 25, 1), 100);
     return await ctx.db

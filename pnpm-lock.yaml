@@ -201,6 +201,9 @@ importers:
       '@kuapa-dwaso/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@kuapa-dwaso/permissions':
+        specifier: workspace:*
+        version: link:../../packages/permissions
       '@kuapa-dwaso/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -388,7 +391,11 @@ importers:
 
   packages/sms-templates: {}
 
-  packages/test-utils: {}
+  packages/test-utils:
+    dependencies:
+      convex:
+        specifier: 1.41.0
+        version: 1.41.0(react@19.2.7)
 
   packages/types:
     devDependencies:

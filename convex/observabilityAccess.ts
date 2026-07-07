@@ -30,6 +30,10 @@ export const auditEntityTypeValidatorValues = [
   "dispute",
   "notification",
   "app_setting",
+  "admin_role_assignment",
+  "admin_access_group",
+  "admin_access_group_member",
+  "admin_access_group_role_assignment",
 ] as const;
 
 type RequestingRoleArgs = {

@@ -1,14 +1,17 @@
-import { canManageWarehouseAgents } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
   normalizeCodeSegment,
+  requireAdminPermission,
+  warehouseScopeTarget,
   type Actor,
 } from "./workflowHelpers";
 
@@ -52,10 +55,28 @@ async function makeUniqueAgentCode(
 
 async function requireAdmin(ctx: QueryCtx | MutationCtx, actorUserId: Id<"users">): Promise<Actor> {
   const actor = await getActor(ctx, actorUserId);
-  assertAllowed(canManageWarehouseAgents(actor.role), "Only admins can manage warehouse agents.");
+  assertAllowed(actor.role === "admin", "Only admins can manage warehouse agents.");
   assertAllowed(actor.status === "active", "Admin user must be active.");
-
   return actor;
+}
+
+async function requireCanManageWarehouseAgentRecord(
+  ctx: QueryCtx | MutationCtx,
+  actorUserId: Id<"users">,
+  warehouseAgent: { assignedWarehouseIds: Id<"warehouses">[] },
+): Promise<void> {
+  if (warehouseAgent.assignedWarehouseIds.length === 0) {
+    await requireAdminPermission(ctx, actorUserId, "warehouseAgents:manage", {});
+    return;
+  }
+  for (const warehouseId of warehouseAgent.assignedWarehouseIds) {
+    await requireAdminPermission(
+      ctx,
+      actorUserId,
+      "warehouseAgents:manage",
+      await warehouseScopeTarget(ctx, warehouseId),
+    );
+  }
 }
 
 async function assignWarehousesForAgent(
@@ -69,6 +90,12 @@ async function assignWarehousesForAgent(
   for (const warehouseId of assignedWarehouseIds) {
     const warehouse = await ctx.db.get(warehouseId);
     assertAllowed(warehouse !== null, "Assigned warehouse was not found.");
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      "warehouseAgents:manage",
+      await warehouseScopeTarget(ctx, warehouseId),
+    );
   }
 
   await ctx.db.patch(warehouseAgentId, {
@@ -130,6 +157,14 @@ export const create = mutation({
     const actor = await requireAdmin(ctx, args.actorUserId);
     const user = await ctx.db.get(args.userId);
     assertAllowed(user !== null, "Warehouse agent user was not found.");
+    for (const warehouseId of args.assignedWarehouseIds) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "warehouseAgents:manage",
+        await warehouseScopeTarget(ctx, warehouseId),
+      );
+    }
 
     const existing = await ctx.db
       .query("warehouseAgents")
@@ -179,6 +214,7 @@ export const updateStatus = mutation({
     const actor = await requireAdmin(ctx, args.actorUserId);
     const warehouseAgent = await ctx.db.get(args.warehouseAgentId);
     assertAllowed(warehouseAgent !== null, "Warehouse agent was not found.");
+    await requireCanManageWarehouseAgentRecord(ctx, args.actorUserId, warehouseAgent);
 
     const now = Date.now();
     await ctx.db.patch(args.warehouseAgentId, {
@@ -220,6 +256,9 @@ export const assignWarehouses = mutation({
   returns: v.id("warehouseAgents"),
   handler: async (ctx, args) => {
     const actor = await requireAdmin(ctx, args.actorUserId);
+    const warehouseAgent = await ctx.db.get(args.warehouseAgentId);
+    assertAllowed(warehouseAgent !== null, "Warehouse agent was not found.");
+    await requireCanManageWarehouseAgentRecord(ctx, args.actorUserId, warehouseAgent);
     return await assignWarehousesForAgent(
       ctx,
       actor,
@@ -240,6 +279,7 @@ export const assignWarehouse = mutation({
     const actor = await requireAdmin(ctx, args.actorUserId);
     const warehouseAgent = await ctx.db.get(args.warehouseAgentId);
     assertAllowed(warehouseAgent !== null, "Warehouse agent was not found.");
+    await requireCanManageWarehouseAgentRecord(ctx, args.actorUserId, warehouseAgent);
     const assignedWarehouseIds = warehouseAgent.assignedWarehouseIds.some(
       (warehouseId) => warehouseId === args.warehouseId,
     )
@@ -261,6 +301,7 @@ export const unassignWarehouse = mutation({
     const actor = await requireAdmin(ctx, args.actorUserId);
     const warehouseAgent = await ctx.db.get(args.warehouseAgentId);
     assertAllowed(warehouseAgent !== null, "Warehouse agent was not found.");
+    await requireCanManageWarehouseAgentRecord(ctx, args.actorUserId, warehouseAgent);
 
     return await assignWarehousesForAgent(
       ctx,
@@ -283,9 +324,30 @@ export const getById = query({
     const actor = await getActor(ctx, args.actorUserId);
     const warehouseAgent = await ctx.db.get(args.warehouseAgentId);
     assertAllowed(
-      actor.role === "admin" || warehouseAgent === null || warehouseAgent.userId === args.actorUserId,
+      warehouseAgent === null || warehouseAgent.userId === args.actorUserId || actor.role === "admin",
       "Only admins or the owning warehouse agent can view this record.",
     );
+    if (actor.role === "admin" && warehouseAgent !== null && warehouseAgent.userId !== args.actorUserId) {
+      const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+      if (warehouseAgent.assignedWarehouseIds.length === 0) {
+        assertAllowed(
+          adminAccessHasPermissionForScope(access, "warehouseAgents:read", {}),
+          "Admin access is not permitted for this warehouse agent.",
+        );
+      } else {
+        let allowed = false;
+        for (const warehouseId of warehouseAgent.assignedWarehouseIds) {
+          allowed =
+            allowed ||
+            adminAccessHasPermissionForScope(
+              access,
+              "warehouseAgents:read",
+              await warehouseScopeTarget(ctx, warehouseId),
+            );
+        }
+        assertAllowed(allowed, "Admin access is not permitted for this warehouse agent.");
+      }
+    }
 
     return warehouseAgent;
   },
@@ -299,16 +361,36 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(actor.role === "admin", "Only admins can list warehouse agents.");
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
 
     const limit = Math.min(args.limit ?? 50, 100);
-    return args.status === undefined
+    const candidates = args.status === undefined
       ? await ctx.db.query("warehouseAgents").take(limit)
       : await ctx.db
           .query("warehouseAgents")
           .withIndex("by_status", (q) => q.eq("status", args.status!))
           .take(limit);
+    const results = [];
+    for (const agent of candidates) {
+      let allowed = agent.assignedWarehouseIds.length === 0
+        ? adminAccessHasPermissionForScope(access, "warehouseAgents:read", {})
+        : false;
+      for (const warehouseId of agent.assignedWarehouseIds) {
+        allowed =
+          allowed ||
+          adminAccessHasPermissionForScope(
+            access,
+            "warehouseAgents:read",
+            await warehouseScopeTarget(ctx, warehouseId),
+          );
+      }
+      if (
+        allowed
+      ) {
+        results.push(agent);
+      }
+    }
+    return results;
   },
 });
 
@@ -324,6 +406,9 @@ export const getByUser = query({
       actor.role === "admin" || actor._id === args.userId,
       "Only admins or the owning warehouse agent can view this record.",
     );
+    if (actor.role === "admin" && actor._id !== args.userId) {
+      await requireAdminPermission(ctx, args.actorUserId, "warehouseAgents:read", {});
+    }
 
     return await ctx.db
       .query("warehouseAgents")
@@ -341,8 +426,12 @@ export const listByWarehouse = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(actor.role === "admin", "Only admins can list warehouse agents by warehouse.");
+    await requireAdminPermission(
+      ctx,
+      args.actorUserId,
+      "warehouseAgents:read",
+      await warehouseScopeTarget(ctx, args.warehouseId),
+    );
 
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =

@@ -25,6 +25,113 @@ export const userStatuses = [
 ] as const;
 export type UserStatus = (typeof userStatuses)[number];
 
+export const adminRoleKeys = [
+  "platform_owner",
+  "operations_manager",
+  "warehouse_manager",
+  "finance_manager",
+  "support_officer",
+  "auditor",
+  "analyst",
+  "admin_viewer",
+] as const;
+export type AdminRoleKey = (typeof adminRoleKeys)[number];
+
+export const adminScopeTypes = [
+  "global",
+  "region",
+  "district",
+  "warehouse",
+  "destination_market",
+] as const;
+export type AdminScopeType = (typeof adminScopeTypes)[number];
+
+export const adminRoleAssignmentStatuses = [
+  "active",
+  "revoked",
+  "expired",
+] as const;
+export type AdminRoleAssignmentStatus =
+  (typeof adminRoleAssignmentStatuses)[number];
+
+export const adminAccessGroupStatuses = [
+  "active",
+  "inactive",
+  "deactivated",
+] as const;
+export type AdminAccessGroupStatus =
+  (typeof adminAccessGroupStatuses)[number];
+
+export const adminAccessGroupMemberStatuses = [
+  "active",
+  "inactive",
+  "removed",
+] as const;
+export type AdminAccessGroupMemberStatus =
+  (typeof adminAccessGroupMemberStatuses)[number];
+
+export type AdminScopeDescriptor = {
+  scopeType: AdminScopeType;
+  scopeId?: string;
+  scopeValue?: string;
+};
+
+export type AdminRoleAssignment = TimestampFields &
+  AdminScopeDescriptor & {
+    id: string;
+    adminUserId: string;
+    roleKey: AdminRoleKey;
+    status: AdminRoleAssignmentStatus;
+    assignedBy: string;
+    assignedAt: number;
+    expiresAt?: number;
+  };
+
+export type AdminAccessGroup = TimestampFields & {
+  id: string;
+  name: string;
+  description?: string;
+  status: AdminAccessGroupStatus;
+  createdBy: string;
+};
+
+export type AdminAccessGroupMember = AdminScopeDescriptor & {
+  id: string;
+  groupId: string;
+  adminUserId: string;
+  status: AdminAccessGroupMemberStatus;
+  addedBy: string;
+  addedAt: number;
+  updatedAt: number;
+};
+
+export type AdminAccessGroupRoleAssignment = TimestampFields &
+  AdminScopeDescriptor & {
+    id: string;
+    groupId: string;
+    roleKey: AdminRoleKey;
+    status: AdminRoleAssignmentStatus;
+    assignedBy: string;
+    assignedAt: number;
+    expiresAt?: number;
+  };
+
+export type EffectiveAdminRoleGrant = AdminScopeDescriptor & {
+  roleKey: AdminRoleKey;
+  source: "direct" | "group";
+  assignmentId: string;
+  groupId?: string;
+  expiresAt?: number;
+};
+
+export type EffectiveAdminAccessSummary = {
+  adminUserId: string;
+  generatedAt: number;
+  isPlatformOwner: boolean;
+  roles: EffectiveAdminRoleGrant[];
+  permissions: string[];
+};
+
 export const warehouseStatuses = [
   "active",
   "inactive",
@@ -253,6 +360,10 @@ export const disputeEntityTypes = [
   "buyer",
   "notification",
   "app_setting",
+  "admin_role_assignment",
+  "admin_access_group",
+  "admin_access_group_member",
+  "admin_access_group_role_assignment",
 ] as const;
 export type DisputeEntityType = (typeof disputeEntityTypes)[number];
 

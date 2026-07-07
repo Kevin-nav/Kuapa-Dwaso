@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
+import type React from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWarehouse } from "../../context/WarehouseContext";
 import { 
@@ -40,6 +43,8 @@ function NewDisputeContent() {
   // Submission State
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedTicketCode, setSubmittedTicketCode] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Lock parameters if passed via query
   useEffect(() => {
@@ -82,21 +87,28 @@ function NewDisputeContent() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!summary.trim()) return;
+    if (!summary.trim() || isSubmitting) return;
 
     // Save dispute
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const ticketCode = `TKT-KUM-${randomSuffix}`;
 
-    createDispute({
+    setIsSubmitting(true);
+    setSubmitError("");
+    void createDispute({
       title: summary,
-      summary: notes,
+      summary: notes || summary,
       entityType: (entityType as any) || "inventory_batch",
       entityId: entityId || "unknown"
-    });
-
-    setSubmittedTicketCode(ticketCode);
-    setIsSubmitted(true);
+    })
+      .then(() => {
+        setSubmittedTicketCode(ticketCode);
+        setIsSubmitted(true);
+      })
+      .catch((error: unknown) => {
+        setSubmitError(error instanceof Error ? error.message : "Could not submit issue ticket.");
+      })
+      .finally(() => setIsSubmitting(false));
   };
 
   // Inline filter for entity list selection
@@ -319,10 +331,17 @@ function NewDisputeContent() {
           type="submit" 
           className="btn btn-primary"
           style={{ backgroundColor: "var(--color-danger)" }}
-          disabled={!summary.trim()}
+          disabled={!summary.trim() || isSubmitting}
         >
-          Submit Issue Ticket
+          {isSubmitting ? "Submitting..." : "Submit Issue Ticket"}
         </button>
+
+        {submitError && (
+          <div className="offline-banner" style={{ margin: 0, backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}>
+            <AlertTriangle size={16} />
+            <span>{submitError}</span>
+          </div>
+        )}
 
       </form>
     </div>

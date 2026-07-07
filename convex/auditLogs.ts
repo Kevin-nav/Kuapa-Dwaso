@@ -1,7 +1,19 @@
 import { canViewAuditLogs } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { resolveRequestingRole } from "./observabilityAccess";
+import {
+  adminAccessHasPermissionForScope,
+  buyerOrderScopeTarget,
+  dispatchScopeTarget,
+  farmerScopeTarget,
+  getEffectiveAdminAccess,
+  inventoryScopeTarget,
+  requireAdminPermission,
+  saleScopeTarget,
+  warehouseScopeTarget,
+} from "./workflowHelpers";
 
 const actorRole = v.union(
   v.literal("farmer"),
@@ -40,6 +52,10 @@ const auditEntityType = v.union(
   v.literal("dispute"),
   v.literal("notification"),
   v.literal("app_setting"),
+  v.literal("admin_role_assignment"),
+  v.literal("admin_access_group"),
+  v.literal("admin_access_group_member"),
+  v.literal("admin_access_group_role_assignment"),
 );
 
 const genericRecord = v.record(v.string(), v.any());
@@ -55,6 +71,36 @@ function assertCanViewAuditLogs(
   if (!canViewAuditLogs(role)) {
     throw new Error("Only admins can view audit logs.");
   }
+}
+
+async function auditLogScopeTarget(ctx: Parameters<typeof requireAdminPermission>[0], log: {
+  entityType: string;
+  entityId: string;
+}) {
+  if (log.entityType === "warehouse") {
+    return await warehouseScopeTarget(ctx, log.entityId as Id<"warehouses">);
+  }
+  if (log.entityType === "inventory_batch" || log.entityType === "storage_receipt") {
+    const batch = await ctx.db.get(log.entityId as Id<"inventoryBatches">);
+    return batch === null ? {} : await inventoryScopeTarget(ctx, batch);
+  }
+  if (log.entityType === "farmer") {
+    const farmer = await ctx.db.get(log.entityId as Id<"farmers">);
+    return farmer === null ? {} : await farmerScopeTarget(ctx, farmer);
+  }
+  if (log.entityType === "buyer_order") {
+    const order = await ctx.db.get(log.entityId as Id<"buyerOrders">);
+    return order === null ? {} : await buyerOrderScopeTarget(ctx, order);
+  }
+  if (log.entityType === "sale_record") {
+    const sale = await ctx.db.get(log.entityId as Id<"saleRecords">);
+    return sale === null ? {} : await saleScopeTarget(ctx, sale);
+  }
+  if (log.entityType === "dispatch") {
+    const dispatch = await ctx.db.get(log.entityId as Id<"dispatches">);
+    return dispatch === null ? {} : await dispatchScopeTarget(ctx, dispatch);
+  }
+  return {};
 }
 
 export const create = mutation({
@@ -86,15 +132,36 @@ export const listByEntity = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanViewAuditLogs(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAuditLogs(role);
+    if (role === "admin") {
+      if (args.requestingUserId === undefined) {
+        throw new Error("Admin audit log access requires requestingUserId.");
+      }
+      await requireAdminPermission(ctx, args.requestingUserId, "auditLogs:read", await auditLogScopeTarget(ctx, {
+        entityType: args.entityType,
+        entityId: args.entityId,
+      }));
+    }
 
-    return await ctx.db
+    const logs = await ctx.db
       .query("auditLogs")
       .withIndex("by_entity", (q) =>
         q.eq("entityType", args.entityType).eq("entityId", args.entityId),
       )
       .order("desc")
       .take(100);
+    if (role !== "admin") {
+      return logs;
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId!);
+    const results = [];
+    for (const log of logs) {
+      if (adminAccessHasPermissionForScope(access, "auditLogs:read", await auditLogScopeTarget(ctx, log))) {
+        results.push(log);
+      }
+    }
+    return results;
   },
 });
 
@@ -106,7 +173,14 @@ export const listRecent = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanViewAuditLogs(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAuditLogs(role);
+    if (role === "admin") {
+      if (args.requestingUserId === undefined) {
+        throw new Error("Admin audit log access requires requestingUserId.");
+      }
+      await requireAdminPermission(ctx, args.requestingUserId, "auditLogs:read", {});
+    }
 
     return await ctx.db
       .query("auditLogs")
@@ -131,7 +205,11 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanViewAuditLogs(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewAuditLogs(role);
+    if (role === "admin" && args.requestingUserId === undefined) {
+      throw new Error("Admin audit log access requires requestingUserId.");
+    }
 
     const limit = clampLimit(args.limit);
     const { actorId, action, entityId, entityType } = args;
@@ -162,7 +240,7 @@ export const list = query({
                 .order("desc")
                 .take(maxAuditLogLimit * 3);
 
-    return candidates
+    const filtered = candidates
       .filter((log) => actorId === undefined || log.actorId === actorId)
       .filter(
         (log) =>
@@ -180,7 +258,20 @@ export const list = query({
       .filter(
         (log) =>
           args.createdTo === undefined || log.createdAt <= args.createdTo,
-      )
-      .slice(0, limit);
+      );
+    if (role !== "admin") {
+      return filtered.slice(0, limit);
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId!);
+    const results = [];
+    for (const log of filtered) {
+      if (adminAccessHasPermissionForScope(access, "auditLogs:read", await auditLogScopeTarget(ctx, log))) {
+        results.push(log);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });

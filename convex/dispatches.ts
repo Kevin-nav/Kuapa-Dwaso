@@ -15,10 +15,13 @@ import {
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
+  dispatchScopeTarget,
   getActor,
   insertAuditLog,
+  requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   type Actor,
+  warehouseScopeTarget,
 } from "./workflowHelpers";
 
 const dispatchStatus = v.union(
@@ -90,6 +93,7 @@ async function assertCanOperateWarehouse(
     return;
   }
   assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can operate dispatches.");
+  await requireAdminPermission(ctx, actor._id, "dispatches:manage", await warehouseScopeTarget(ctx, warehouseId));
 }
 
 async function getSalesForOrder(
@@ -602,6 +606,7 @@ export const getById = query({
       );
     } else {
       assertAllowed(actor.role === "admin", "Actor cannot view dispatch details.");
+      await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", await dispatchScopeTarget(ctx, dispatch));
     }
 
     return await dispatchDetail(ctx, dispatch);
@@ -628,6 +633,13 @@ export const listForOperations = query({
     );
     if (actor.role === "warehouse_agent" && args.warehouseId !== undefined) {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
+    } else if (actor.role === "admin" && args.warehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "dispatches:read",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
     }
     const limit = Math.min(args.limit ?? 50, 100);
     const destination = args.destination?.trim();
@@ -687,6 +699,8 @@ export const listForOperations = query({
       }
       if (actor.role === "warehouse_agent") {
         await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, dispatch.warehouseId);
+      } else if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", await dispatchScopeTarget(ctx, dispatch));
       }
       results.push(await dispatchDetail(ctx, dispatch));
       if (results.length >= limit) {
@@ -719,6 +733,9 @@ export const listAssignedToTransporter = query({
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot list transporter dispatches.");
       assertAllowed(transporterId !== undefined, "Transporter id is required.");
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", {});
+      }
     }
 
     const limit = Math.min(args.limit ?? 50, 100);
@@ -764,6 +781,9 @@ export const getBuyerOrderDispatchStatus = query({
     if (dispatch === undefined) {
       return null;
     }
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", await dispatchScopeTarget(ctx, dispatch));
+    }
 
     return {
       dispatchId: dispatch._id,
@@ -799,6 +819,13 @@ export const listForFarmer = query({
       assertAllowed(farmer.userId === actor._id, "Farmers can only view their own dispatches.");
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot list farmer dispatches.");
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", {
+          warehouseId: farmer.preferredWarehouseId,
+          region: farmer.region,
+          district: farmer.community,
+        });
+      }
     }
     const sales = await ctx.db
       .query("saleRecords")
@@ -864,6 +891,9 @@ export const getTransporterDispatchDetail = query({
       );
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot view transporter dispatch details.");
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", await dispatchScopeTarget(ctx, dispatch));
+      }
     }
 
     return {

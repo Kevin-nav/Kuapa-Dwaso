@@ -1,7 +1,11 @@
-import { canViewAuditLogs } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { resolveRequestingRole } from "./observabilityAccess";
+import {
+  adminAccessHasPermissionForScope,
+  getEffectiveAdminAccess,
+  warehouseScopeTarget,
+} from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -28,7 +32,7 @@ type InventoryBucket = {
 function assertCanViewInventoryIntelligence(
   role: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin",
 ): void {
-  if (!canViewAuditLogs(role)) {
+  if (role !== "admin") {
     throw new Error("Only admins can view warehouse inventory intelligence.");
   }
 }
@@ -61,7 +65,12 @@ export const listWarehouseInventoryIntelligence = query({
     }),
   ),
   handler: async (ctx, args) => {
-    assertCanViewInventoryIntelligence(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanViewInventoryIntelligence(role);
+    if (args.requestingUserId === undefined) {
+      throw new Error("Admin inventory intelligence requires requestingUserId.");
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId);
 
     const batches =
       args.warehouseId === undefined
@@ -80,6 +89,9 @@ export const listWarehouseInventoryIntelligence = query({
 
       const warehouse = await ctx.db.get(batch.warehouseId);
       if (warehouse === null) {
+        continue;
+      }
+      if (!adminAccessHasPermissionForScope(access, "reports:read", await warehouseScopeTarget(ctx, warehouse._id))) {
         continue;
       }
 

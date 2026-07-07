@@ -21,8 +21,10 @@ import { insertNotificationRecord } from "./notifications";
 import {
   assertAllowed,
   auditSnapshot,
+  buyerOrderScopeTarget,
   getActor,
   insertAuditLog,
+  requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   type Actor,
 } from "./workflowHelpers";
@@ -501,6 +503,9 @@ export const create = mutation({
     const destinationMarket = cleanText(args.destinationMarket, "Destination market");
     const cropType = cleanText(args.cropType, "Crop type");
     const unit = cleanText(args.unit, "Unit");
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", { destinationMarket });
+    }
     assertPositiveNumber(args.requestedQuantity, "Requested quantity");
     if (args.maxPricePerUnit !== undefined) {
       assertPositiveNumber(args.maxPricePerUnit, "Max price per unit");
@@ -734,6 +739,7 @@ export const updateStatus = mutation({
     assertAllowed(actor.role === "admin", "Only admins can update buyer order status directly.");
     const order = await ctx.db.get(args.buyerOrderId);
     assertAllowed(order !== null, "Buyer order was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "orders:manage", await buyerOrderScopeTarget(ctx, order));
     assertAllowed(
       canTransitionBuyerOrderStatus(order.status, args.status),
       "Buyer order status transition is not allowed.",
@@ -825,6 +831,7 @@ export const cancel = mutation({
       assertAllowed(buyer.userId === actor._id, "Buyers can only cancel their own orders.");
     } else {
       assertAllowed(actor.role === "admin", "Only buyers and admins can cancel buyer orders.");
+      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", await buyerOrderScopeTarget(ctx, order));
     }
     assertAllowed(
       canTransitionBuyerOrderStatus(order.status, "cancelled"),
@@ -879,6 +886,7 @@ export const releaseReservations = mutation({
       }
     } else {
       assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can release reservations.");
+      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", await buyerOrderScopeTarget(ctx, order));
     }
 
     await closeReservationsForOrder(ctx, actor, order, "released");
@@ -926,6 +934,7 @@ export const expireReservations = mutation({
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(actor.role === "admin", "Only admins can expire reservations.");
+    await requireAdminPermission(ctx, args.actorUserId, "orders:manage", {});
     const now = args.now ?? Date.now();
     const limit = Math.min(args.limit ?? 50, 100);
     const active = await ctx.db
@@ -1019,6 +1028,9 @@ export const getById = query({
         actor.role === "admin" || actor.role === "warehouse_agent",
         "Actor cannot view this order.",
       );
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+      }
     }
 
     const reservations = await ctx.db
@@ -1050,6 +1062,9 @@ export const listForBuyer = query({
       assertAllowed(buyer.userId === actor._id, "Buyers can only list their own orders.");
     } else {
       assertAllowed(actor.role === "admin", "Only buyers and admins can list buyer orders.");
+      await requireAdminPermission(ctx, args.actorUserId, "orders:read", {
+        destinationMarket: buyer.destinationMarket,
+      });
     }
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
@@ -1099,13 +1114,22 @@ export const listForOperations = query({
               .take(limit * 3)
           : await ctx.db.query("buyerOrders").take(limit * 3);
 
-    return candidates
-      .filter((order) => args.status === undefined || order.status === args.status)
-      .filter(
-        (order) =>
-          args.destinationMarket === undefined ||
-          order.destinationMarket === args.destinationMarket.trim(),
-      )
-      .slice(0, limit);
+    const results = [];
+    for (const order of candidates) {
+      if (args.status !== undefined && order.status !== args.status) {
+        continue;
+      }
+      if (args.destinationMarket !== undefined && order.destinationMarket !== args.destinationMarket.trim()) {
+        continue;
+      }
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+      }
+      results.push(order);
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });

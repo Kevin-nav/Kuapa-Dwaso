@@ -1,0 +1,63 @@
+# Admin RBAC and Scoped Access
+
+Admin access is layered under the top-level `admin` marketplace role.
+
+The `users.role = "admin"` value identifies the admin app audience. It does not
+grant product access by itself. Admin users receive effective permissions from
+direct role assignments and active access-group memberships.
+
+## Role Keys
+
+Supported admin roles are:
+
+- `platform_owner`
+- `operations_manager`
+- `warehouse_manager`
+- `finance_manager`
+- `support_officer`
+- `auditor`
+- `analyst`
+- `admin_viewer`
+
+Role-to-permission mappings are centralized in `packages/permissions`.
+
+## Scopes
+
+Admin role assignments may be scoped to:
+
+- `global`
+- `region`
+- `district`
+- `warehouse`
+- `destination_market`
+
+Backend checks must evaluate both permission and scope. If a query or mutation
+cannot safely evaluate a scope, it must fail closed or require a global grant.
+
+## Assignment Sources
+
+Effective admin access combines:
+
+- Active direct assignments from `adminRoleAssignments`
+- Active group role assignments through active `adminAccessGroupMembers`
+
+Expired or revoked assignments are ignored. Inactive or deactivated groups do
+not contribute permissions.
+
+## Enforcement
+
+Convex is the product system of record for admin RBAC. Admin-facing mutations
+and queries must use the reusable admin access helpers in `convex/workflowHelpers.ts`.
+
+Warehouse-agent operational checks remain separate from admin RBAC. A warehouse
+agent can still operate only assigned warehouses through the existing warehouse
+agent checks.
+
+Admin access changes are audited through `auditLogs`.
+
+## Bootstrap
+
+Development and smoke environments can create the first platform owner through
+the guarded `adminAccess.bootstrapFirstPlatformOwner` mutation. It only works
+when no active global platform owner exists and writes an audit log. After that,
+platform owners must manage access through the normal admin access mutations.

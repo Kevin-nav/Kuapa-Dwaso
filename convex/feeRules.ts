@@ -1,13 +1,16 @@
-import { canConfigureFees } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
+  requireAdminPermission,
+  warehouseScopeTarget,
   type Actor,
 } from "./workflowHelpers";
 
@@ -107,8 +110,19 @@ function assertValidFeeRuleAmount(args: {
 
 async function requireFeeAdmin(ctx: QueryCtx | MutationCtx, actorUserId: Id<"users">): Promise<Actor> {
   const actor = await getActor(ctx, actorUserId);
-  assertAllowed(canConfigureFees(actor.role), "Only admins can configure fee rules.");
+  assertAllowed(actor.role === "admin", "Only admins can configure fee rules.");
+  assertAllowed(actor.status === "active", "Admin user must be active.");
   return actor;
+}
+
+async function feeScopeTarget(ctx: QueryCtx | MutationCtx, scope: RuleScope) {
+  if (scope.warehouseId !== undefined) {
+    return await warehouseScopeTarget(ctx, scope.warehouseId as Id<"warehouses">);
+  }
+  if (scope.destinationMarket !== undefined) {
+    return { destinationMarket: scope.destinationMarket };
+  }
+  return {};
 }
 
 async function nextVersionForFeeCode(ctx: QueryCtx | MutationCtx, code: string): Promise<number> {
@@ -287,6 +301,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const actor = await requireFeeAdmin(ctx, args.actorUserId);
     assertValidFeeRuleAmount(args);
+    await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await feeScopeTarget(ctx, args.scope));
 
     const now = Date.now();
     const code = args.code.trim().toUpperCase();
@@ -342,6 +357,10 @@ export const replace = mutation({
     const actor = await requireFeeAdmin(ctx, args.actorUserId);
     const previous = await ctx.db.get(args.replacesFeeRuleId);
     assertAllowed(previous !== null, "Fee rule was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await feeScopeTarget(ctx, previous.scope));
+    if (args.scope !== undefined) {
+      await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await feeScopeTarget(ctx, args.scope));
+    }
 
     const calculationType = args.calculationType ?? previous.calculationType;
     assertValidFeeRuleAmount({
@@ -404,6 +423,7 @@ export const updateStatus = mutation({
     const actor = await requireFeeAdmin(ctx, args.actorUserId);
     const feeRule = await ctx.db.get(args.feeRuleId);
     assertAllowed(feeRule !== null, "Fee rule was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "fees:manage", await feeScopeTarget(ctx, feeRule.scope));
 
     await ctx.db.patch(args.feeRuleId, {
       status: args.status,
@@ -442,6 +462,14 @@ export const createStorageRateRule = mutation({
   handler: async (ctx, args) => {
     const actor = await requireFeeAdmin(ctx, args.actorUserId);
     assertAllowed(args.ratePerUnitPerDay >= 0, "Storage rate must be non-negative.");
+    if (args.warehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "fees:manage",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
+    }
 
     const now = Date.now();
     const existing = await ctx.db
@@ -491,6 +519,14 @@ export const updateStorageRateRuleStatus = mutation({
     const actor = await requireFeeAdmin(ctx, args.actorUserId);
     const storageRateRule = await ctx.db.get(args.storageRateRuleId);
     assertAllowed(storageRateRule !== null, "Storage rate rule was not found.");
+    if (storageRateRule.warehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "fees:manage",
+        await warehouseScopeTarget(ctx, storageRateRule.warehouseId),
+      );
+    }
 
     await ctx.db.patch(args.storageRateRuleId, {
       status: args.status,
@@ -514,6 +550,7 @@ export const updateStorageRateRuleStatus = mutation({
 
 export const list = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     status: v.optional(feeRuleStatus),
     code: v.optional(v.string()),
     limit: v.optional(v.number()),
@@ -529,14 +566,31 @@ export const list = query({
             .withIndex("by_status_effective", (q) => q.eq("status", args.status!))
             .take(limit * 3);
 
-    return candidates
-      .filter((rule) => args.code === undefined || rule.code === args.code.trim().toUpperCase())
-      .slice(0, limit);
+    if (args.actorUserId === undefined) {
+      return candidates
+        .filter((rule) => args.code === undefined || rule.code === args.code.trim().toUpperCase())
+        .slice(0, limit);
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    const results = [];
+    for (const rule of candidates) {
+      if (args.code !== undefined && rule.code !== args.code.trim().toUpperCase()) {
+        continue;
+      }
+      if (adminAccessHasPermissionForScope(access, "fees:read", await feeScopeTarget(ctx, rule.scope))) {
+        results.push(rule);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });
 
 export const listStorageRateRules = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     status: v.optional(feeRuleStatus),
     warehouseId: v.optional(v.id("warehouses")),
     cropType: v.optional(v.string()),
@@ -555,11 +609,26 @@ export const listStorageRateRules = query({
             .withIndex("by_status_effective", (q) => q.eq("status", args.status!))
             .take(limit * 3);
 
-    return candidates
+    const filtered = candidates
       .filter((rule) => args.warehouseId === undefined || rule.warehouseId === args.warehouseId)
       .filter((rule) => args.cropType === undefined || rule.cropType === args.cropType)
       .filter((rule) => args.unit === undefined || rule.unit === args.unit)
-      .filter((rule) => args.grade === undefined || rule.grade === args.grade)
-      .slice(0, limit);
+      .filter((rule) => args.grade === undefined || rule.grade === args.grade);
+    if (args.actorUserId === undefined) {
+      return filtered.slice(0, limit);
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    const results = [];
+    for (const rule of filtered) {
+      const target =
+        rule.warehouseId === undefined ? {} : await warehouseScopeTarget(ctx, rule.warehouseId);
+      if (adminAccessHasPermissionForScope(access, "fees:read", target)) {
+        results.push(rule);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });

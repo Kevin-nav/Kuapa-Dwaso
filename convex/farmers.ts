@@ -2,13 +2,18 @@ import { canCreateFarmerProfile, canVerifyFarmer } from "@kuapa-dwaso/permission
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
+  farmerScopeTarget,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
   normalizeCodeSegment,
+  requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
 } from "./workflowHelpers";
 
 const verificationStatus = v.union(v.literal("pending"), v.literal("verified"), v.literal("rejected"));
@@ -66,6 +71,13 @@ export const createProfile = mutation({
     if (actor.role === "warehouse_agent") {
       assertAllowed(args.preferredWarehouseId !== undefined, "Warehouse agents must choose a warehouse.");
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.preferredWarehouseId);
+    } else {
+      assertAllowed(actor.role === "admin", "Only admins and warehouse agents can create farmer profiles.");
+      await requireAdminPermission(ctx, actor._id, "farmers:manage", {
+        warehouseId: args.preferredWarehouseId,
+        region: args.region,
+        district: args.community,
+      });
     }
 
     const now = Date.now();
@@ -107,10 +119,10 @@ export const updateStatus = mutation({
   returns: v.id("farmers"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(actor.role === "admin", "Only admins can update farmer status.");
 
     const farmer = await ctx.db.get(args.farmerId);
     assertAllowed(farmer !== null, "Farmer was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "farmers:manage", await farmerScopeTarget(ctx, farmer));
 
     await ctx.db.patch(args.farmerId, { status: args.status, updatedAt: Date.now() });
     const after = await ctx.db.get(args.farmerId);
@@ -137,10 +149,11 @@ export const updateVerificationStatus = mutation({
   returns: v.id("farmers"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(canVerifyFarmer(actor.role), "Only admins can update farmer verification.");
+    assertAllowed(actor.role === "admin" && canVerifyFarmer(actor.role), "Only admins can update farmer verification.");
 
     const farmer = await ctx.db.get(args.farmerId);
     assertAllowed(farmer !== null, "Farmer was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "farmers:verify", await farmerScopeTarget(ctx, farmer));
 
     await ctx.db.patch(args.farmerId, {
       verificationStatus: args.verificationStatus,
@@ -172,10 +185,18 @@ export const updatePreferredWarehouse = mutation({
   returns: v.id("farmers"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(actor.role === "admin", "Only admins can update preferred warehouses.");
 
     const farmer = await ctx.db.get(args.farmerId);
     assertAllowed(farmer !== null, "Farmer was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "farmers:manage", await farmerScopeTarget(ctx, farmer));
+    if (args.preferredWarehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "farmers:manage",
+        await warehouseScopeTarget(ctx, args.preferredWarehouseId),
+      );
+    }
 
     await ctx.db.patch(args.farmerId, {
       preferredWarehouseId: args.preferredWarehouseId,
@@ -214,6 +235,9 @@ export const getById = query({
       actor.role === "admin" || farmer.userId === actor._id,
       "Actor cannot view this farmer.",
     );
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId, "farmers:read", await farmerScopeTarget(ctx, farmer));
+    }
 
     return farmer;
   },
@@ -229,10 +253,14 @@ export const getByPhoneNumber = query({
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Only admins and warehouse agents can search farmers.");
 
-    return await ctx.db
+    const farmer = await ctx.db
       .query("farmers")
       .withIndex("by_phone_number", (q) => q.eq("phoneNumber", args.phoneNumber))
       .unique();
+    if (actor.role === "admin" && farmer !== null) {
+      await requireAdminPermission(ctx, args.actorUserId, "farmers:read", await farmerScopeTarget(ctx, farmer));
+    }
+    return farmer;
   },
 });
 
@@ -249,7 +277,12 @@ export const listByWarehouse = query({
     if (actor.role === "warehouse_agent") {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
     } else {
-      assertAllowed(actor.role === "admin", "Only admins and warehouse agents can list warehouse farmers.");
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "farmers:read",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
     }
 
     const limit = Math.min(args.limit ?? 50, 100);
@@ -278,8 +311,7 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
-    assertAllowed(actor.role === "admin", "Only admins can list all farmers.");
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
 
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
@@ -292,8 +324,18 @@ export const list = query({
             )
             .take(limit * 3);
 
-    return candidates
-      .filter((farmer) => args.status === undefined || farmer.status === args.status)
-      .slice(0, limit);
+    const results = [];
+    for (const farmer of candidates) {
+      if (args.status !== undefined && farmer.status !== args.status) {
+        continue;
+      }
+      if (adminAccessHasPermissionForScope(access, "farmers:read", await farmerScopeTarget(ctx, farmer))) {
+        results.push(farmer);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });

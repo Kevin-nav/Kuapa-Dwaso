@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+/* eslint-disable react/no-unescaped-entities */
+
+import type React from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWarehouse } from "./context/WarehouseContext";
@@ -71,6 +74,16 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         </div>
         
         <div className="topbar-right" style={{ position: "relative" }}>
+          <button
+            type="button"
+            className={`sync-pill ${syncStatus.class}`}
+            onClick={handleSyncToggle}
+            title="Toggle offline simulation"
+          >
+            {syncStatus.icon}
+            <span>{syncStatus.text}</span>
+          </button>
+
           <button 
             type="button" 
             className="profile-trigger"

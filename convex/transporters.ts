@@ -3,11 +3,14 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
+  requireAdminPermission,
 } from "./workflowHelpers";
 
 const verificationStatus = v.union(
@@ -47,6 +50,7 @@ function assertOptionalRating(value: number | undefined): void {
 }
 
 async function assertCanManageProfile(
+  ctx: Parameters<typeof getActor>[0],
   actor: Doc<"users">,
   profile: Doc<"transporterProfiles">,
 ): Promise<void> {
@@ -55,6 +59,9 @@ async function assertCanManageProfile(
     return;
   }
   assertAllowed(canManageTransporters(actor.role), "Only admins can manage transporter profiles.");
+  await requireAdminPermission(ctx, actor._id, "transporters:manage", {
+    destinationMarket: profile.destinationsServed[0],
+  });
 }
 
 export const create = mutation({
@@ -81,6 +88,12 @@ export const create = mutation({
     const userId = args.userId ?? (actor.role === "transporter" ? actor._id : undefined);
     if (actor.role === "transporter") {
       assertAllowed(userId === actor._id, "Transporters can only create their own profile.");
+    } else {
+      for (const destinationMarket of args.destinationsServed) {
+        await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+          destinationMarket,
+        });
+      }
     }
     if (userId !== undefined) {
       const linkedUser = await ctx.db.get(userId);
@@ -144,11 +157,14 @@ export const update = mutation({
     const actor = await getActor(ctx, args.actorUserId);
     const profile = await ctx.db.get(args.transporterId);
     assertAllowed(profile !== null, "Transporter profile was not found.");
-    await assertCanManageProfile(actor, profile);
+    await assertCanManageProfile(ctx, actor, profile);
     assertOptionalPositiveNumber(args.vehicleCapacity, "Vehicle capacity");
     assertOptionalRating(args.rating);
     if (args.rating !== undefined) {
       assertAllowed(canManageTransporters(actor.role), "Only admins can update transporter ratings.");
+      await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+        destinationMarket: profile.destinationsServed[0],
+      });
     }
 
     await ctx.db.patch(args.transporterId, {
@@ -193,6 +209,9 @@ export const updateVerificationStatus = mutation({
     assertAllowed(canManageTransporters(actor.role), "Only admins can verify transporter profiles.");
     const profile = await ctx.db.get(args.transporterId);
     assertAllowed(profile !== null, "Transporter profile was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+      destinationMarket: profile.destinationsServed[0],
+    });
 
     await ctx.db.patch(args.transporterId, {
       verificationStatus: args.verificationStatus,
@@ -226,6 +245,9 @@ export const updateStatus = mutation({
     assertAllowed(canManageTransporters(actor.role), "Only admins can update transporter status.");
     const profile = await ctx.db.get(args.transporterId);
     assertAllowed(profile !== null, "Transporter profile was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+      destinationMarket: profile.destinationsServed[0],
+    });
 
     await ctx.db.patch(args.transporterId, {
       status: args.status,
@@ -276,6 +298,11 @@ export const getById = query({
         actor.role === "admin" || actor.role === "warehouse_agent",
         "Actor cannot view transporter profile details.",
       );
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "transporters:read", {
+          destinationMarket: profile.destinationsServed[0],
+        });
+      }
     }
 
     return profile;
@@ -284,6 +311,7 @@ export const getById = query({
 
 export const list = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     status: v.optional(profileStatus),
     verificationStatus: v.optional(verificationStatus),
     baseLocation: v.optional(v.string()),
@@ -323,7 +351,7 @@ export const list = query({
     const routeServed = args.routeServed?.trim().toLowerCase();
     const destinationServed = args.destinationServed?.trim().toLowerCase();
 
-    return candidates
+    const filtered = candidates
       .filter((profile) => args.status === undefined || profile.status === args.status)
       .filter(
         (profile) =>
@@ -345,6 +373,16 @@ export const list = query({
           profile.destinationsServed.some(
             (destination) => destination.toLowerCase() === destinationServed,
           ),
+      );
+    if (args.actorUserId === undefined) {
+      return filtered.slice(0, limit);
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    return filtered
+      .filter((profile) =>
+        profile.destinationsServed.some((destinationMarket) =>
+          adminAccessHasPermissionForScope(access, "transporters:read", { destinationMarket }),
+        ),
       )
       .slice(0, limit);
   },

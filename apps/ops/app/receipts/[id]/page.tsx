@@ -1,7 +1,12 @@
 "use client";
 
-import React, { use, useState } from "react";
+/* eslint-disable react/no-unescaped-entities */
+
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../../context/WarehouseContext";
 import { 
   CheckCircle, 
@@ -23,15 +28,54 @@ export default function ReceiptPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const batchId = resolvedParams.id;
 
-  const { inventory, farmers, activeWarehouse, isOffline } = useWarehouse();
+  const { inventory, farmers, activeWarehouse, isOffline, actorUserId, errorMessage } = useWarehouse();
   
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
-  // Find matching batch
-  const batch = inventory.find(b => b.id === batchId);
+  const batchById = useQuery(
+    api.inventoryBatches.getById,
+    actorUserId && !batchId.startsWith("WH-")
+      ? {
+          actorUserId: actorUserId as Id<"users">,
+          inventoryBatchId: batchId as Id<"inventoryBatches">,
+        }
+      : "skip",
+  ) as Doc<"inventoryBatches"> | null | undefined;
+  const batchByReceiptCode = useQuery(
+    api.inventoryBatches.getByReceiptCode,
+    actorUserId && batchId.startsWith("WH-")
+      ? {
+          actorUserId: actorUserId as Id<"users">,
+          receiptCode: batchId,
+        }
+      : "skip",
+  ) as Doc<"inventoryBatches"> | null | undefined;
+
+  // Find matching batch from live query, falling back to the warehouse list while Convex refreshes.
+  const queriedBatch = batchId.startsWith("WH-") ? batchByReceiptCode : batchById;
+  const localBatch = inventory.find(b => b.id === batchId || b.receiptCode === batchId);
+  const batch = queriedBatch === undefined
+    ? localBatch
+    : queriedBatch === null
+      ? undefined
+      : {
+          ...queriedBatch,
+          id: queriedBatch._id,
+          farmerId: queriedBatch.farmerId,
+          warehouseId: queriedBatch.warehouseId,
+          receivedByWarehouseAgentId: queriedBatch.receivedByWarehouseAgentId,
+        };
   const farmer = batch ? farmers.find(f => f.id === batch.farmerId) : null;
+
+  if (queriedBatch === undefined && !localBatch) {
+    return (
+      <div className="section-card" style={{ textAlign: "center", padding: "48px 20px", color: "var(--gray-500)" }}>
+        Loading receipt...
+      </div>
+    );
+  }
 
   if (!batch) {
     return (
@@ -39,7 +83,7 @@ export default function ReceiptPage({ params }: PageProps) {
         <AlertTriangle size={48} style={{ color: "var(--color-danger)", marginBottom: "16px" }} />
         <h2 style={{ fontSize: "20px", fontWeight: "700" }}>Receipt Not Found</h2>
         <p style={{ color: "var(--gray-500)", marginTop: "8px" }}>
-          The requested receipt code or batch ID could not be loaded.
+          {errorMessage || "The requested receipt code or batch ID could not be loaded."}
         </p>
         <button 
           type="button" 
@@ -70,7 +114,7 @@ export default function ReceiptPage({ params }: PageProps) {
 
   const handleCopy = () => {
     if (typeof navigator !== "undefined") {
-      navigator.clipboard.writeText(batch.receiptCode);
+      void navigator.clipboard.writeText(batch.receiptCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@kuapa-dwaso/design-tokens": "workspace:*",
+    "@kuapa-dwaso/permissions": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
     "convex": "1.41.0",
     "lucide-react": "^0.475.0",

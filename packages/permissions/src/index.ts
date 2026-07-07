@@ -1,4 +1,5 @@
 import type {
+  AdminRoleKey,
   BuyerOrderStatus,
   DispatchStatus,
   InventoryBatchStatus,
@@ -37,6 +38,39 @@ export const permissionKeys = [
 ] as const;
 export type PermissionKey = (typeof permissionKeys)[number];
 
+export const adminPermissionKeys = [
+  "adminAccess:manage",
+  "warehouses:read",
+  "warehouses:manage",
+  "warehouseAgents:read",
+  "warehouseAgents:manage",
+  "farmers:read",
+  "farmers:manage",
+  "farmers:verify",
+  "inventory:read",
+  "inventory:manage",
+  "inventory:adjust",
+  "fees:read",
+  "fees:manage",
+  "buyers:read",
+  "buyers:manage",
+  "orders:read",
+  "orders:manage",
+  "sales:read",
+  "sales:managePaymentStatus",
+  "dispatches:read",
+  "dispatches:manage",
+  "transporters:read",
+  "transporters:manage",
+  "disputes:read",
+  "disputes:manage",
+  "auditLogs:read",
+  "reports:read",
+  "notifications:read",
+  "notifications:send",
+] as const;
+export type AdminPermissionKey = (typeof adminPermissionKeys)[number];
+
 const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
   farmer: new Set(["disputes:create"]),
   warehouse_agent: new Set([
@@ -57,6 +91,138 @@ const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
   transporter: new Set(["dispatches:updateStatus", "disputes:create"]),
   admin: new Set(permissionKeys),
 };
+
+const readOnlyAdminPermissions = [
+  "warehouses:read",
+  "warehouseAgents:read",
+  "farmers:read",
+  "inventory:read",
+  "fees:read",
+  "buyers:read",
+  "orders:read",
+  "sales:read",
+  "dispatches:read",
+  "transporters:read",
+  "disputes:read",
+  "auditLogs:read",
+  "reports:read",
+  "notifications:read",
+] as const satisfies readonly AdminPermissionKey[];
+
+export const adminPermissionsByRole: Record<
+  AdminRoleKey,
+  ReadonlySet<AdminPermissionKey>
+> = {
+  platform_owner: new Set(adminPermissionKeys),
+  operations_manager: new Set([
+    "warehouses:read",
+    "warehouses:manage",
+    "warehouseAgents:read",
+    "warehouseAgents:manage",
+    "farmers:read",
+    "farmers:manage",
+    "farmers:verify",
+    "inventory:read",
+    "inventory:manage",
+    "inventory:adjust",
+    "buyers:read",
+    "buyers:manage",
+    "orders:read",
+    "orders:manage",
+    "sales:read",
+    "dispatches:read",
+    "dispatches:manage",
+    "transporters:read",
+    "transporters:manage",
+    "disputes:read",
+    "disputes:manage",
+    "reports:read",
+    "notifications:read",
+    "notifications:send",
+  ]),
+  warehouse_manager: new Set([
+    "warehouses:read",
+    "warehouseAgents:read",
+    "farmers:read",
+    "farmers:manage",
+    "farmers:verify",
+    "inventory:read",
+    "inventory:manage",
+    "inventory:adjust",
+    "orders:read",
+    "orders:manage",
+    "sales:read",
+    "dispatches:read",
+    "dispatches:manage",
+    "transporters:read",
+    "disputes:read",
+    "disputes:manage",
+    "reports:read",
+    "notifications:read",
+    "notifications:send",
+  ]),
+  finance_manager: new Set([
+    "fees:read",
+    "fees:manage",
+    "orders:read",
+    "sales:read",
+    "sales:managePaymentStatus",
+    "dispatches:read",
+    "auditLogs:read",
+    "reports:read",
+  ]),
+  support_officer: new Set([
+    "warehouses:read",
+    "warehouseAgents:read",
+    "farmers:read",
+    "buyers:read",
+    "orders:read",
+    "inventory:read",
+    "sales:read",
+    "dispatches:read",
+    "disputes:read",
+    "disputes:manage",
+    "notifications:read",
+    "notifications:send",
+  ]),
+  auditor: new Set([
+    "warehouses:read",
+    "warehouseAgents:read",
+    "farmers:read",
+    "inventory:read",
+    "fees:read",
+    "buyers:read",
+    "orders:read",
+    "sales:read",
+    "dispatches:read",
+    "transporters:read",
+    "disputes:read",
+    "auditLogs:read",
+  ]),
+  analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "dispatches:read"]),
+  admin_viewer: new Set(readOnlyAdminPermissions),
+};
+
+export function getAdminRolePermissions(
+  roleKey: AdminRoleKey,
+): readonly AdminPermissionKey[] {
+  return [...adminPermissionsByRole[roleKey]];
+}
+
+export function adminRoleHasPermission(
+  roleKey: AdminRoleKey,
+  permission: AdminPermissionKey,
+): boolean {
+  return adminPermissionsByRole[roleKey].has(permission);
+}
+
+export function getAdminRolesForPermission(
+  permission: AdminPermissionKey,
+): readonly AdminRoleKey[] {
+  return (Object.keys(adminPermissionsByRole) as AdminRoleKey[]).filter((roleKey) =>
+    adminRoleHasPermission(roleKey, permission),
+  );
+}
 
 export function principalHasAnyRole(
   roles: readonly MarketplaceRole[],

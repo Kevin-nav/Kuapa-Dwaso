@@ -3,7 +3,14 @@ import { v } from "convex/values";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { resolveActor } from "./auth";
-import { auditSnapshot, insertAuditLog, type Actor } from "./workflowHelpers";
+import {
+  adminAccessHasPermissionForScope,
+  auditSnapshot,
+  getEffectiveAdminAccess,
+  insertAuditLog,
+  requireAdminPermission,
+  type Actor,
+} from "./workflowHelpers";
 
 const buyerType = v.union(
   v.literal("market_trader"),
@@ -60,6 +67,11 @@ export const createOrUpdateProfile = mutation({
 
     if (actor.role !== "admin" && args.userId !== undefined && actor._id !== args.userId) {
       throw new Error("Buyers can only manage their own buyer profile.");
+    }
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+        destinationMarket: args.destinationMarket,
+      });
     }
 
     const userId = args.userId ?? (actor.role === "buyer" ? actor._id : undefined);
@@ -150,6 +162,9 @@ export const updateVerificationStatus = mutation({
     if (buyer === null) {
       throw new Error("Buyer profile was not found.");
     }
+    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+      destinationMarket: buyer.destinationMarket,
+    });
 
     await ctx.db.patch(args.buyerId, {
       verificationStatus: args.verificationStatus,
@@ -193,6 +208,9 @@ export const updateStatus = mutation({
     if (buyer === null) {
       throw new Error("Buyer profile was not found.");
     }
+    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+      destinationMarket: buyer.destinationMarket,
+    });
 
     await ctx.db.patch(args.buyerId, {
       status: args.status,
@@ -233,29 +251,44 @@ export const getByUserId = query({
 
 export const getById = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     buyerId: v.id("buyers"),
   },
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.buyerId);
+    const buyer = await ctx.db.get(args.buyerId);
+    if (buyer !== null && args.actorUserId !== undefined) {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", {
+        destinationMarket: buyer.destinationMarket,
+      });
+    }
+    return buyer;
   },
 });
 
 export const getByPhoneNumber = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     phoneNumber: v.string(),
   },
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, args) => {
-    return await ctx.db
+    const buyer = await ctx.db
       .query("buyers")
       .withIndex("by_phone_number", (q) => q.eq("phoneNumber", args.phoneNumber.trim()))
       .unique();
+    if (buyer !== null && args.actorUserId !== undefined) {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", {
+        destinationMarket: buyer.destinationMarket,
+      });
+    }
+    return buyer;
   },
 });
 
 export const list = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     status: v.optional(buyerStatus),
     verificationStatus: v.optional(verificationStatus),
     destinationMarket: v.optional(v.string()),
@@ -292,7 +325,7 @@ export const list = query({
                   .take(limit * 3)
               : await ctx.db.query("buyers").take(limit * 3);
 
-    return candidates
+    const filtered = candidates
       .filter((buyer) => args.status === undefined || buyer.status === args.status)
       .filter(
         (buyer) =>
@@ -303,6 +336,16 @@ export const list = query({
         (buyer) =>
           args.destinationMarket === undefined ||
           buyer.destinationMarket === args.destinationMarket.trim(),
+      );
+    if (args.actorUserId === undefined) {
+      return filtered.slice(0, limit);
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    return filtered
+      .filter((buyer) =>
+        adminAccessHasPermissionForScope(access, "buyers:read", {
+          destinationMarket: buyer.destinationMarket,
+        }),
       )
       .slice(0, limit);
   },

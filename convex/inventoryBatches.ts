@@ -18,8 +18,11 @@ import {
   cleanOptionalText,
   getActor,
   insertAuditLog,
+  inventoryScopeTarget,
   normalizeCodeSegment,
+  requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
 } from "./workflowHelpers";
 
 const produceGrade = v.union(
@@ -124,6 +127,7 @@ async function ensureActorCanViewBatch(
 ): Promise<void> {
   const actor = await getActor(ctx, actorUserId);
   if (actor.role === "admin") {
+    await requireAdminPermission(ctx, actorUserId, "inventory:read", await inventoryScopeTarget(ctx, batch));
     return;
   }
 
@@ -289,7 +293,7 @@ export const updateStatus = mutation({
     if (actor.role === "warehouse_agent") {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, batch.warehouseId);
     } else {
-      assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can update inventory status.");
+      await requireAdminPermission(ctx, actor._id, "inventory:manage", await inventoryScopeTarget(ctx, batch));
     }
     assertAllowed(
       canTransitionInventoryBatchStatus(batch.status, args.status as InventoryBatchStatus),
@@ -337,7 +341,10 @@ export const updateDetails = mutation({
     if (actor.role === "warehouse_agent") {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, batch.warehouseId);
     } else {
-      assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can update inventory.");
+      await requireAdminPermission(ctx, actor._id, "inventory:manage", await inventoryScopeTarget(ctx, batch));
+      if (args.quantityAvailable !== undefined) {
+        await requireAdminPermission(ctx, actor._id, "inventory:adjust", await inventoryScopeTarget(ctx, batch));
+      }
     }
     if (args.quantityAvailable !== undefined) {
       assertAllowed(args.quantityAvailable >= 0, "Available quantity must be non-negative.");
@@ -431,6 +438,13 @@ export const listFarmerReceipts = query({
       actor.role === "admin" || farmer.userId === actor._id,
       "Actor cannot list this farmer's receipts.",
     );
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId, "inventory:read", {
+        warehouseId: farmer.preferredWarehouseId,
+        region: farmer.region,
+        district: farmer.community,
+      });
+    }
     const limit = Math.min(args.limit ?? 50, 100);
     const batches = await ctx.db
       .query("inventoryBatches")
@@ -458,7 +472,12 @@ export const listWarehouseInventory = query({
     if (actor.role === "warehouse_agent") {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
     } else {
-      assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can list warehouse inventory.");
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "inventory:read",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
     }
 
     const limit = Math.min(args.limit ?? 50, 100);

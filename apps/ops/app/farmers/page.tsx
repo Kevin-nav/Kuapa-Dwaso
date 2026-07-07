@@ -1,7 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, react-hooks/immutability, react/no-unescaped-entities */
+
+import type React from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../context/WarehouseContext";
 import { 
   UserSearch, 
@@ -22,7 +28,7 @@ type LookupRecord = {
 
 export default function FarmersPage() {
   const router = useRouter();
-  const { farmers, registerFarmer, activeWarehouse, setDraftIntake } = useWarehouse();
+  const { farmers, registerFarmer, activeWarehouse, assignedWarehouses, setDraftIntake, actorUserId, errorMessage } = useWarehouse();
   
   // Lookups cache
   const [recentLookups, setRecentLookups] = useState<LookupRecord[]>([]);
@@ -31,6 +37,9 @@ export default function FarmersPage() {
   const [searchPhone, setSearchPhone] = useState("");
   const [searched, setSearched] = useState(false);
   const [searchResult, setSearchResult] = useState<any>(null);
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Registration Mode
   const [isRegistering, setIsRegistering] = useState(false);
@@ -43,7 +52,7 @@ export default function FarmersPage() {
     ownerName: "",
     region: "Ashanti",
     community: "",
-    preferredWarehouseId: "wh-1"
+    preferredWarehouseId: ""
   });
 
   // Validation errors
@@ -66,6 +75,40 @@ export default function FarmersPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (activeWarehouse.id !== "unassigned") {
+      setFormData(prev => ({
+        ...prev,
+        preferredWarehouseId: prev.preferredWarehouseId || activeWarehouse.id
+      }));
+    }
+  }, [activeWarehouse.id]);
+
+  const backendLookup = useQuery(
+    api.farmers.getByPhoneNumber,
+    actorUserId && lookupPhone
+      ? {
+          actorUserId: actorUserId as Id<"users">,
+          phoneNumber: lookupPhone,
+        }
+      : "skip",
+  ) as Doc<"farmers"> | null | undefined;
+
+  useEffect(() => {
+    if (!searched || !lookupPhone || backendLookup === undefined) {
+      return;
+    }
+    if (backendLookup !== null) {
+      const farmer = { ...backendLookup, id: backendLookup._id };
+      setSearchResult(farmer);
+      saveRecentLookup({
+        id: farmer.id,
+        fullName: farmer.fullName,
+        phoneNumber: farmer.phoneNumber
+      });
+    }
+  }, [backendLookup, lookupPhone, searched]);
 
   const saveRecentLookup = (record: LookupRecord) => {
     setRecentLookups(prev => {
@@ -95,9 +138,11 @@ export default function FarmersPage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchPhone) return;
+    setSubmitError("");
 
     // Standardize comparison
     const cleanedSearch = searchPhone.replace(/\s/g, "");
+    const normalizedPhone = `+233${cleanedSearch.slice(-9)}`;
     
     // Find matching farmer
     const match = farmers.find(f => {
@@ -106,6 +151,7 @@ export default function FarmersPage() {
     });
 
     setSearched(true);
+    setLookupPhone(normalizedPhone);
     if (match) {
       setSearchResult(match);
       saveRecentLookup({
@@ -164,6 +210,7 @@ export default function FarmersPage() {
 
   const handleRegistrationSubmit = (e: React.FormEvent, startIntake: boolean) => {
     e.preventDefault();
+    if (isSubmitting) return;
     
     // Validate all fields
     const newErrors: Record<string, string> = {};
@@ -185,46 +232,50 @@ export default function FarmersPage() {
       return;
     }
 
-    // Call register
     const registrationPayload: any = {
       fullName: formData.fullName,
-      phoneNumber: `+233 ${phoneDigits.slice(-9)}`,
+      phoneNumber: `+233${phoneDigits.slice(-9)}`,
       community: formData.community,
       region: formData.region,
-      preferredWarehouseId: formData.preferredWarehouseId
+      preferredWarehouseId: formData.preferredWarehouseId || activeWarehouse.id
     };
     if (formData.belongsToOther && formData.ownerName.trim()) {
       registrationPayload.householdPhoneOwnerName = formData.ownerName;
     }
-    const newFarmer = registerFarmer(registrationPayload);
 
-    if (startIntake) {
-      // Pre-fill intake step 1
-      setDraftIntake({
-        farmerId: newFarmer.id,
-        warehouseId: formData.preferredWarehouseId,
-        step: 2 // Skip directly to crop selection
-      });
-      router.push("/intake");
-    } else {
-      // Clear forms and show lookup screen again with result pre-selected
-      setIsRegistering(false);
-      setSearchPhone(formData.phoneNumber);
-      setSearchResult(newFarmer);
-      setSearched(true);
-      // Reset form
-      setFormData({
-        fullName: "",
-        phoneNumber: "",
-        belongsToOther: false,
-        ownerName: "",
-        region: "Ashanti",
-        community: "",
-        preferredWarehouseId: "wh-1"
-      });
-      setTouched({});
-      setErrors({});
-    }
+    setIsSubmitting(true);
+    setSubmitError("");
+    void registerFarmer(registrationPayload)
+      .then((newFarmer) => {
+        if (startIntake) {
+          setDraftIntake({
+            farmerId: newFarmer.id,
+            warehouseId: registrationPayload.preferredWarehouseId,
+            step: 2
+          });
+          router.push("/intake");
+          return;
+        }
+        setIsRegistering(false);
+        setSearchPhone(formData.phoneNumber);
+        setSearchResult(newFarmer);
+        setSearched(true);
+        setFormData({
+          fullName: "",
+          phoneNumber: "",
+          belongsToOther: false,
+          ownerName: "",
+          region: "Ashanti",
+          community: "",
+          preferredWarehouseId: activeWarehouse.id
+        });
+        setTouched({});
+        setErrors({});
+      })
+      .catch((error: unknown) => {
+        setSubmitError(error instanceof Error ? error.message : "Could not register farmer.");
+      })
+      .finally(() => setIsSubmitting(false));
   };
 
   const triggerRegisterMode = () => {
@@ -384,27 +435,38 @@ export default function FarmersPage() {
                 value={formData.preferredWarehouseId}
                 onChange={(e) => handleFormChange("preferredWarehouseId", e.target.value)}
               >
-                <option value="wh-1">Kumasi Central Warehouse (this warehouse)</option>
-                <option value="wh-2">Sunyani Transit Depot</option>
-                <option value="wh-3">Tamale Silo Terminal</option>
+                {assignedWarehouses.map(warehouse => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}{warehouse.id === activeWarehouse.id ? " (this warehouse)" : ""}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
+
+          {(submitError || errorMessage) && (
+            <div className="offline-banner" style={{ margin: 0, backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}>
+              <AlertCircle size={16} />
+              <span>{submitError || errorMessage}</span>
+            </div>
+          )}
 
           {/* Sticky Actions Bar */}
           <div className="sticky-actions-bar">
             <button 
               type="submit" 
               className="btn btn-primary"
+              disabled={isSubmitting || activeWarehouse.id === "unassigned"}
             >
               <Plus size={20} />
-              <span>Register & Start Intake</span>
+              <span>{isSubmitting ? "Registering..." : "Register & Start Intake"}</span>
             </button>
             <button 
               type="button" 
               className="btn btn-outline" 
               style={{ border: "0" }}
               onClick={(e) => handleRegistrationSubmit(e, false)}
+              disabled={isSubmitting || activeWarehouse.id === "unassigned"}
             >
               Register Only
             </button>
@@ -448,7 +510,7 @@ export default function FarmersPage() {
             type="submit" 
             className="btn btn-primary" 
             style={{ height: "52px" }}
-            disabled={!searchPhone}
+            disabled={!searchPhone || !actorUserId}
           >
             <UserSearch size={20} />
             <span>Search Farmer Database</span>
@@ -459,7 +521,11 @@ export default function FarmersPage() {
       {/* Result Cards Display */}
       {searched && (
         <section aria-label="Search Result">
-          {searchResult ? (
+          {lookupPhone && backendLookup === undefined ? (
+            <div className="section-card" style={{ textAlign: "center", padding: "32px 20px", color: "var(--gray-500)" }}>
+              Searching farmer database...
+            </div>
+          ) : searchResult ? (
             <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
                 {/* Initials circle */}

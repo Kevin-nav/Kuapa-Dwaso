@@ -1,12 +1,15 @@
-import { canCreateWarehouse, canUpdateWarehouse } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
+  requireAdminPermission,
+  warehouseScopeTarget,
 } from "./workflowHelpers";
 
 const warehouseStatus = v.union(
@@ -24,12 +27,23 @@ async function requireAdminForWarehouseCreateOrUpdate(
   ctx: Parameters<typeof getActor>[0],
   actorUserId: Parameters<typeof getActor>[1],
   action: "create" | "update",
+  target: { warehouseId?: Parameters<typeof warehouseScopeTarget>[1]; region?: string; district?: string },
 ) {
-  const actor = await getActor(ctx, actorUserId);
-  const allowed =
-    action === "create" ? canCreateWarehouse(actor.role) : canUpdateWarehouse(actor.role);
-  assertAllowed(allowed, "Only admins can manage warehouses.");
-  return actor;
+  if (action === "create") {
+    const access = await requireAdminPermission(ctx, actorUserId, "warehouses:manage", {
+      region: target.region,
+      district: target.district,
+    });
+    return access.actor;
+  }
+  assertAllowed(target.warehouseId !== undefined, "Warehouse scope is required.");
+  const access = await requireAdminPermission(
+    ctx,
+    actorUserId,
+    "warehouses:manage",
+    await warehouseScopeTarget(ctx, target.warehouseId),
+  );
+  return access.actor;
 }
 
 export const create = mutation({
@@ -52,7 +66,10 @@ export const create = mutation({
   },
   returns: v.id("warehouses"),
   handler: async (ctx, args) => {
-    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "create");
+    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "create", {
+      region: args.region,
+      district: args.district,
+    });
     const code = normalizeWarehouseCode(args.code);
     const existing = await ctx.db
       .query("warehouses")
@@ -112,7 +129,9 @@ export const update = mutation({
   },
   returns: v.id("warehouses"),
   handler: async (ctx, args) => {
-    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "update");
+    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "update", {
+      warehouseId: args.warehouseId,
+    });
     const warehouse = await ctx.db.get(args.warehouseId);
     assertAllowed(warehouse !== null, "Warehouse was not found.");
 
@@ -155,7 +174,9 @@ export const updateStatus = mutation({
   },
   returns: v.id("warehouses"),
   handler: async (ctx, args) => {
-    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "update");
+    const actor = await requireAdminForWarehouseCreateOrUpdate(ctx, args.actorUserId, "update", {
+      warehouseId: args.warehouseId,
+    });
     const warehouse = await ctx.db.get(args.warehouseId);
     assertAllowed(warehouse !== null, "Warehouse was not found.");
 
@@ -192,6 +213,7 @@ export const getByCode = query({
 
 export const list = query({
   args: {
+    actorUserId: v.optional(v.id("users")),
     status: v.optional(warehouseStatus),
     community: v.optional(v.string()),
     district: v.optional(v.string()),
@@ -231,6 +253,11 @@ export const list = query({
                   .take(limit * 3)
               : await ctx.db.query("warehouses").take(limit * 3);
 
+    const access =
+      args.actorUserId === undefined
+        ? undefined
+        : await getEffectiveAdminAccess(ctx, args.actorUserId);
+
     return candidates
       .filter((warehouse) => args.community === undefined || warehouse.community === args.community)
       .filter((warehouse) => args.district === undefined || warehouse.district === args.district)
@@ -241,6 +268,15 @@ export const list = query({
           warehouse.supportedCrops.some(
             (crop) => crop.toLowerCase() === args.supportedCrop!.toLowerCase(),
           ),
+      )
+      .filter(
+        (warehouse) =>
+          access === undefined ||
+          adminAccessHasPermissionForScope(access, "warehouses:read", {
+            warehouseId: warehouse._id,
+            region: warehouse.region,
+            district: warehouse.district,
+          }),
       )
       .slice(0, limit);
   },

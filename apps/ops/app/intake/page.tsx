@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, react/no-unescaped-entities */
+
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWarehouse } from "../context/WarehouseContext";
@@ -20,7 +22,11 @@ export default function IntakePage() {
     addIntake, 
     draftIntake, 
     setDraftIntake,
-    isOffline
+    isOffline,
+    activeWarehouse,
+    assignedWarehouses,
+    storageRateRules,
+    errorMessage
   } = useWarehouse();
 
   // Stepper state
@@ -28,7 +34,7 @@ export default function IntakePage() {
 
   // Form Fields
   const [selectedFarmerId, setSelectedFarmerId] = useState("");
-  const [warehouseId, setWarehouseId] = useState("wh-1");
+  const [warehouseId, setWarehouseId] = useState("");
   
   const [cropType, setCropType] = useState("");
   const [variety, setVariety] = useState("");
@@ -48,6 +54,7 @@ export default function IntakePage() {
 
   // Storage Rate
   const [storageRate, setStorageRate] = useState(0.15);
+  const [storageRateRuleId, setStorageRateRuleId] = useState("");
 
   // Money
   const [askingPrice, setAskingPrice] = useState("");
@@ -58,6 +65,7 @@ export default function IntakePage() {
 
   // Submit states
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   // Crop-to-variety lists
   const varietiesByCrop: Record<string, string[]> = {
@@ -91,6 +99,7 @@ export default function IntakePage() {
       if (draftIntake.receivedDate) setReceivedDate(draftIntake.receivedDate);
       if (draftIntake.shelfLifeDays) setShelfLifeDays(draftIntake.shelfLifeDays);
       if (draftIntake.storageRate) setStorageRate(draftIntake.storageRate);
+      if (draftIntake.storageRateRuleId) setStorageRateRuleId(draftIntake.storageRateRuleId);
       if (draftIntake.askingPrice) setAskingPrice(draftIntake.askingPrice);
       if (draftIntake.minimumPrice) setMinimumPrice(draftIntake.minimumPrice);
       
@@ -98,6 +107,12 @@ export default function IntakePage() {
       if (draftIntake.step) setStep(draftIntake.step);
     }
   }, [draftIntake]);
+
+  useEffect(() => {
+    if (!warehouseId && activeWarehouse.id !== "unassigned") {
+      setWarehouseId(activeWarehouse.id);
+    }
+  }, [activeWarehouse.id, warehouseId]);
 
   // 2. Auto-set default storage rate and variety when crop type changes
   useEffect(() => {
@@ -133,6 +148,7 @@ export default function IntakePage() {
       receivedDate,
       shelfLifeDays,
       storageRate,
+      storageRateRuleId,
       askingPrice,
       minimumPrice,
       step: nextStep
@@ -141,6 +157,7 @@ export default function IntakePage() {
   };
 
   const selectedFarmer = farmers.find(f => f.id === selectedFarmerId);
+  const selectedStorageRateRule = storageRateRules.find(rule => rule.id === storageRateRuleId);
 
   // Dynamic filter for inline farmer search
   const filteredFarmers = searchQuery
@@ -179,40 +196,48 @@ export default function IntakePage() {
   const handleSubmit = () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setSubmitError("");
 
     // Calculate dates
     const receivedTime = new Date(receivedDate || "").getTime();
     const sellByTime = receivedTime + shelfLifeDays * 24 * 60 * 60 * 1000;
 
-    // Simulate 1.5s pressed/loading state
-    setTimeout(() => {
-      const intakePayload: any = {
-        farmerId: selectedFarmerId,
-        cropType,
-        variety,
-        grade,
-        quantityReceived: quantity,
-        quantityAvailable: quantity,
-        unit,
-        receivedAt: receivedTime,
-        expectedShelfLifeDays: shelfLifeDays,
-        sellByDate: sellByTime,
-      };
-      if (conditionNotes && conditionNotes.trim()) {
-        intakePayload.conditionNotes = conditionNotes.trim();
-      }
-      if (askingPrice) {
-        intakePayload.askingPricePerUnit = parseFloat(askingPrice);
-      }
-      if (minimumPrice) {
-        intakePayload.minimumPricePerUnit = parseFloat(minimumPrice);
-      }
-      const batch = addIntake(intakePayload);
-
-      setIsSubmitting(false);
-      // Navigate directly to the receipt layout
-      router.push(`/receipts/${batch.id}`);
-    }, 1500);
+    const intakePayload: any = {
+      farmerId: selectedFarmerId,
+      warehouseId,
+      cropType,
+      variety,
+      grade,
+      quantityReceived: quantity,
+      quantityAvailable: quantity,
+      unit,
+      receivedAt: receivedTime,
+      expectedShelfLifeDays: shelfLifeDays,
+      sellByDate: sellByTime,
+      manualStorageRatePerUnitPerDay: storageRate,
+      storageRateCurrency: "GHS",
+    };
+    if (storageRateRuleId) {
+      intakePayload.storageRateRuleId = storageRateRuleId;
+      delete intakePayload.manualStorageRatePerUnitPerDay;
+    }
+    if (conditionNotes && conditionNotes.trim()) {
+      intakePayload.conditionNotes = conditionNotes.trim();
+    }
+    if (askingPrice) {
+      intakePayload.askingPricePerUnit = parseFloat(askingPrice);
+    }
+    if (minimumPrice) {
+      intakePayload.minimumPricePerUnit = parseFloat(minimumPrice);
+    }
+    void addIntake(intakePayload)
+      .then((batch) => {
+        router.push(`/receipts/${batch.id}`);
+      })
+      .catch((error: unknown) => {
+        setSubmitError(error instanceof Error ? error.message : "Could not create intake receipt.");
+      })
+      .finally(() => setIsSubmitting(false));
   };
 
   return (
@@ -345,9 +370,11 @@ export default function IntakePage() {
                 value={warehouseId}
                 onChange={(e) => setWarehouseId(e.target.value)}
               >
-                <option value="wh-1">Kumasi Central Warehouse (current)</option>
-                <option value="wh-2">Sunyani Transit Depot</option>
-                <option value="wh-3">Tamale Silo Terminal</option>
+                {assignedWarehouses.map(warehouse => (
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}{warehouse.id === activeWarehouse.id ? " (current)" : ""}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -569,6 +596,31 @@ export default function IntakePage() {
 
             <div className="form-group">
               <label className="form-label" htmlFor="storageRate">Storage Fee Rate (GHS)</label>
+              {storageRateRules.length > 0 && (
+                <select
+                  className="form-select"
+                  value={storageRateRuleId}
+                  onChange={(e) => {
+                    const nextRuleId = e.target.value;
+                    setStorageRateRuleId(nextRuleId);
+                    const rule = storageRateRules.find(item => item.id === nextRuleId);
+                    if (rule) {
+                      setStorageRate(rule.ratePerUnitPerDay);
+                    }
+                  }}
+                  style={{ marginBottom: "8px" }}
+                  aria-label="Storage rate rule"
+                >
+                  <option value="">Manual rate</option>
+                  {storageRateRules
+                    .filter(rule => (!rule.cropType || rule.cropType === cropType) && rule.unit === unit && (!rule.grade || rule.grade === grade))
+                    .map(rule => (
+                      <option key={rule.id} value={rule.id}>
+                        {rule.cropType || "Any crop"} / {rule.unit} / {rule.grade || "any grade"} - GHS {rule.ratePerUnitPerDay.toFixed(2)}
+                      </option>
+                    ))}
+                </select>
+              )}
               <div style={{ position: "relative" }}>
                 <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", fontWeight: "700" }}>GHS</span>
                 <input 
@@ -582,7 +634,7 @@ export default function IntakePage() {
                 />
               </div>
               <div style={{ fontSize: "13px", color: "var(--gray-500)", marginTop: "4px" }}>
-                Applied: GHS {storageRate.toFixed(2)} per {unit} per day.
+                Applied: GHS {storageRate.toFixed(2)} per {unit} per day{selectedStorageRateRule ? " from active storage rule." : "."}
               </div>
             </div>
           </div>
@@ -718,11 +770,18 @@ export default function IntakePage() {
             </div>
           )}
 
+          {(submitError || errorMessage) && (
+            <div className="offline-banner" style={{ margin: "0", backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}>
+              <AlertTriangle size={16} />
+              <span>{submitError || errorMessage}</span>
+            </div>
+          )}
+
           <button 
             type="button" 
             className="btn btn-primary" 
             style={{ height: "56px", fontSize: "18px" }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || activeWarehouse.id === "unassigned"}
             onClick={handleSubmit}
           >
             {isSubmitting ? (

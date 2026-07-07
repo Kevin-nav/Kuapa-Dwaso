@@ -5,6 +5,13 @@ import {
   assertActorRoleMatchesUser,
   resolveRequestingRole,
 } from "./observabilityAccess";
+import {
+  adminAccessHasPermissionForScope,
+  disputeScopeTarget,
+  getEffectiveAdminAccess,
+  requireAdminPermission,
+  warehouseScopeTarget,
+} from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -79,6 +86,17 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await assertActorRoleMatchesUser(ctx.db, args);
     assertCanCreateDispute(args.actorRole);
+    if (args.actorRole === "admin") {
+      if (args.actorUserId === undefined) {
+        throw new Error("Admin dispute creation requires actorUserId.");
+      }
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "disputes:manage",
+        args.warehouseId === undefined ? {} : await warehouseScopeTarget(ctx, args.warehouseId),
+      );
+    }
     requireNonBlank(args.actorId, "Actor ID");
     requireNonBlank(args.entityId, "Entity ID");
     requireNonBlank(args.summary, "Dispute summary");
@@ -130,10 +148,18 @@ export const updateStatus = mutation({
   handler: async (ctx, args) => {
     await assertActorRoleMatchesUser(ctx.db, args);
     assertCanManageDisputes(args.actorRole);
+    if (args.actorRole === "admin") {
+      if (args.actorUserId === undefined) {
+        throw new Error("Admin dispute management requires actorUserId.");
+      }
+    }
 
     const existing = await ctx.db.get(args.disputeId);
     if (existing === null) {
       throw new Error("Dispute not found.");
+    }
+    if (args.actorRole === "admin") {
+      await requireAdminPermission(ctx, args.actorUserId!, "disputes:manage", await disputeScopeTarget(ctx, existing));
     }
     requireNonBlank(args.actorId, "Actor ID");
     const resolution = args.resolution;
@@ -185,7 +211,11 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    assertCanManageDisputes(await resolveRequestingRole(ctx.db, args));
+    const role = await resolveRequestingRole(ctx.db, args);
+    assertCanManageDisputes(role);
+    if (role === "admin" && args.requestingUserId === undefined) {
+      throw new Error("Admin dispute listing requires requestingUserId.");
+    }
 
     const { entityType, entityId, status, warehouseId } = args;
     const candidates =
@@ -211,7 +241,7 @@ export const list = query({
                 .take(maxDisputeLimit)
             : await ctx.db.query("disputes").order("desc").take(maxDisputeLimit);
 
-    return candidates
+    const filtered = candidates
       .filter((dispute) => status === undefined || dispute.status === status)
       .filter((dispute) => warehouseId === undefined || dispute.warehouseId === warehouseId)
       .filter(
@@ -220,7 +250,20 @@ export const list = query({
       )
       .filter(
         (dispute) => entityId === undefined || dispute.entityId === entityId,
-      )
-      .slice(0, clampLimit(args.limit));
+      );
+    if (role !== "admin") {
+      return filtered.slice(0, clampLimit(args.limit));
+    }
+    const access = await getEffectiveAdminAccess(ctx, args.requestingUserId!);
+    const results = [];
+    for (const dispute of filtered) {
+      if (adminAccessHasPermissionForScope(access, "disputes:read", await disputeScopeTarget(ctx, dispute))) {
+        results.push(dispute);
+      }
+      if (results.length >= clampLimit(args.limit)) {
+        break;
+      }
+    }
+    return results;
   },
 });

@@ -24,7 +24,10 @@ import {
   auditSnapshot,
   getActor,
   insertAuditLog,
+  requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  saleScopeTarget,
+  warehouseScopeTarget,
   type Actor,
 } from "./workflowHelpers";
 
@@ -147,6 +150,7 @@ async function assertCanOperateBatch(
     return;
   }
   assertAllowed(actor.role === "admin", "Only admins and assigned warehouse agents can operate sales.");
+  await requireAdminPermission(ctx, actor._id, "orders:manage", await warehouseScopeTarget(ctx, batch.warehouseId));
 }
 
 async function insertFarmerSaleNotification(
@@ -517,6 +521,7 @@ export const updatePaymentStatus = mutation({
     assertAllowed(canUpdateSalePaymentStatus(actor.role), "Actor cannot update sale payment status.");
     const sale = await ctx.db.get(args.saleRecordId);
     assertAllowed(sale !== null, "Sale record was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "sales:managePaymentStatus", await saleScopeTarget(ctx, sale));
     assertAllowed(
       canTransitionSalePaymentStatus(sale.paymentStatus, args.paymentStatus),
       "Sale payment status transition is not allowed.",
@@ -586,6 +591,7 @@ export const getById = query({
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, sale.warehouseId);
     } else {
       assertAllowed(actor.role === "admin", "Actor cannot view this sale.");
+      await requireAdminPermission(ctx, args.actorUserId, "sales:read", await saleScopeTarget(ctx, sale));
     }
 
     return await saleDetail(ctx, sale);
@@ -608,6 +614,13 @@ export const listForFarmer = query({
       assertAllowed(farmer.userId === actor._id, "Farmers can only view their own sales.");
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot list farmer sales.");
+      if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "sales:read", {
+          warehouseId: farmer.preferredWarehouseId,
+          region: farmer.region,
+          district: farmer.community,
+        });
+      }
     }
 
     const limit = Math.min(args.limit ?? 50, 100);
@@ -638,6 +651,13 @@ export const listForOperations = query({
     assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Only admins and warehouse agents can list operational sales.");
     if (actor.role === "warehouse_agent" && args.warehouseId !== undefined) {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
+    } else if (actor.role === "admin" && args.warehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "sales:read",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
     }
 
     const limit = Math.min(args.limit ?? 50, 100);
@@ -675,6 +695,8 @@ export const listForOperations = query({
       }
       if (actor.role === "warehouse_agent") {
         await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, sale.warehouseId);
+      } else if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "sales:read", await saleScopeTarget(ctx, sale));
       }
       filtered.push(await saleDetail(ctx, sale));
       if (filtered.length >= limit) {

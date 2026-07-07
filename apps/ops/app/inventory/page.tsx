@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, react-hooks/purity, react/no-unescaped-entities */
+
+import type React from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "convex/react";
+import { allowedInventoryBatchStatusTransitions } from "@kuapa-dwaso/permissions";
+import { api } from "../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../context/WarehouseContext";
 import { 
   Search, 
@@ -10,7 +17,6 @@ import {
   AlertTriangle, 
   User, 
   X,
-  Info,
   ArrowLeft
 } from "lucide-react";
 import type { InventoryBatchStatus } from "@kuapa-dwaso/types";
@@ -25,7 +31,9 @@ function InventoryContent() {
     updateBatchStatus, 
     updateBatchCondition,
     getBatchTimeline,
-    disputes
+    disputes,
+    actorUserId,
+    errorMessage
   } = useWarehouse();
 
   // Filters State
@@ -54,6 +62,8 @@ function InventoryContent() {
   const [statusReason, setStatusReason] = useState("");
 
   const [newCondition, setNewCondition] = useState("");
+  const [mutationError, setMutationError] = useState("");
+  const [isMutating, setIsMutating] = useState(false);
 
   // Process search params pre-filtering
   useEffect(() => {
@@ -77,6 +87,16 @@ function InventoryContent() {
   const activeDisputes = activeBatch 
     ? disputes.filter(d => d.entityType === "inventory_batch" && d.entityId === activeBatch.id)
     : [];
+  const activeFeeLedger = useQuery(
+    api.storageFees.listByBatch,
+    actorUserId && activeBatch
+      ? {
+          actorUserId: actorUserId as Id<"users">,
+          inventoryBatchId: activeBatch.id as Id<"inventoryBatches">,
+          limit: 50,
+        }
+      : "skip",
+  ) as Doc<"storageFeeLedger">[] | undefined;
 
   // Seed values when opening sub-modals
   useEffect(() => {
@@ -184,30 +204,50 @@ function InventoryContent() {
     if (!activeBatch) return;
 
     const reasonStr = `${adjustReasonCategory}${adjustReasonText.trim() ? `: ${adjustReasonText.trim()}` : ""}`;
-    updateBatchQuantity(activeBatch.id, newQty, reasonStr);
-    
-    // Reset and Close
-    setShowAdjustQtyModal(false);
-    setAdjustReasonText("");
+    setIsMutating(true);
+    setMutationError("");
+    void updateBatchQuantity(activeBatch.id, newQty, reasonStr)
+      .then(() => {
+        setShowAdjustQtyModal(false);
+        setAdjustReasonText("");
+      })
+      .catch((error: unknown) => {
+        setMutationError(error instanceof Error ? error.message : "Could not update quantity.");
+      })
+      .finally(() => setIsMutating(false));
   };
 
   const handleChangeStatusSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBatch) return;
 
-    updateBatchStatus(activeBatch.id, newStatus, statusReason || `Status updated to ${newStatus}`);
-    
-    // Reset and Close
-    setShowChangeStatusModal(false);
-    setStatusReason("");
+    setIsMutating(true);
+    setMutationError("");
+    void updateBatchStatus(activeBatch.id, newStatus, statusReason || `Status updated to ${newStatus}`)
+      .then(() => {
+        setShowChangeStatusModal(false);
+        setStatusReason("");
+      })
+      .catch((error: unknown) => {
+        setMutationError(error instanceof Error ? error.message : "Could not update status.");
+      })
+      .finally(() => setIsMutating(false));
   };
 
   const handleUpdateConditionSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBatch) return;
 
-    updateBatchCondition(activeBatch.id, newCondition);
-    setShowUpdateConditionModal(false);
+    setIsMutating(true);
+    setMutationError("");
+    void updateBatchCondition(activeBatch.id, newCondition)
+      .then(() => {
+        setShowUpdateConditionModal(false);
+      })
+      .catch((error: unknown) => {
+        setMutationError(error instanceof Error ? error.message : "Could not update condition notes.");
+      })
+      .finally(() => setIsMutating(false));
   };
 
   const clearFilters = () => {
@@ -401,13 +441,23 @@ function InventoryContent() {
             </div>
           </div>
 
+          {(mutationError || errorMessage) && (
+            <div className="offline-banner" style={{ margin: "0", backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}>
+              <AlertTriangle size={16} />
+              <span>{mutationError || errorMessage}</span>
+            </div>
+          )}
+
           {/* Actions Tray */}
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <button 
               type="button" 
               className="btn btn-outline" 
               style={{ flex: 1, height: "46px", fontSize: "14px" }}
-              onClick={() => setShowChangeStatusModal(true)}
+              onClick={() => {
+                setNewStatus(allowedInventoryBatchStatusTransitions[activeBatch.status][0] ?? activeBatch.status);
+                setShowChangeStatusModal(true);
+              }}
             >
               Change Status
             </button>
@@ -491,8 +541,8 @@ function InventoryContent() {
                   <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowAdjustQtyModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                    Commit Change
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isMutating}>
+                    {isMutating ? "Saving..." : "Commit Change"}
                   </button>
                 </div>
               </form>
@@ -519,11 +569,11 @@ function InventoryContent() {
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as any)}
                   >
-                    <option value="received">Received (Uninspected)</option>
-                    <option value="available">Available (Active Stock)</option>
-                    <option value="reserved">Reserved (Fully committed)</option>
-                    <option value="expired">Expired (Past sell-by date)</option>
-                    <option value="spoiled">Spoiled (Damaged/Rotten)</option>
+                    {allowedInventoryBatchStatusTransitions[activeBatch.status].map(status => (
+                      <option key={status} value={status}>
+                        {status.replace(/_/g, " ")}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -543,8 +593,8 @@ function InventoryContent() {
                   <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowChangeStatusModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                    Commit Status
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isMutating || allowedInventoryBatchStatusTransitions[activeBatch.status].length === 0}>
+                    {isMutating ? "Saving..." : "Commit Status"}
                   </button>
                 </div>
               </form>
@@ -579,8 +629,8 @@ function InventoryContent() {
                   <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowUpdateConditionModal(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-                    Update Notes
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isMutating}>
+                    {isMutating ? "Saving..." : "Update Notes"}
                   </button>
                 </div>
               </form>
@@ -611,6 +661,24 @@ function InventoryContent() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {activeFeeLedger === undefined ? (
+                    <div style={{ color: "var(--gray-500)", fontSize: "14px", padding: "8px 0" }}>
+                      Loading ledger entries...
+                    </div>
+                  ) : activeFeeLedger.length === 0 ? (
+                    <div style={{ color: "var(--gray-500)", fontSize: "14px", padding: "8px 0" }}>
+                      No storage fee ledger entries have been recorded for this batch.
+                    </div>
+                  ) : (
+                    activeFeeLedger.map(entry => (
+                      <div key={entry._id} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0", borderBottom: "1px dashed var(--color-line)" }}>
+                        <span style={{ color: "var(--gray-500)" }}>
+                          {new Date(entry.feeDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · {entry.status.replace(/_/g, " ")}
+                        </span>
+                        <strong style={{ color: "var(--color-ink)" }}>GHS {entry.amount.toFixed(2)}</strong>
+                      </div>
+                    ))
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "8px 0", borderBottom: "1px dashed var(--color-line)" }}>
                     <span style={{ color: "var(--gray-500)" }}>Daily Rate snapshot</span>
                     <strong style={{ color: "var(--color-ink)" }}>GHS {activeBatch.storageRateSnapshot?.ratePerUnitPerDay?.toFixed(2)} / {activeBatch.unit}</strong>

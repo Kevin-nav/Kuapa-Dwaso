@@ -17,6 +17,43 @@ const userStatus = v.union(
   v.literal("deactivated")
 );
 
+const adminRoleKey = v.union(
+  v.literal("platform_owner"),
+  v.literal("operations_manager"),
+  v.literal("warehouse_manager"),
+  v.literal("finance_manager"),
+  v.literal("support_officer"),
+  v.literal("auditor"),
+  v.literal("analyst"),
+  v.literal("admin_viewer")
+);
+
+const adminScopeType = v.union(
+  v.literal("global"),
+  v.literal("region"),
+  v.literal("district"),
+  v.literal("warehouse"),
+  v.literal("destination_market")
+);
+
+const adminRoleAssignmentStatus = v.union(
+  v.literal("active"),
+  v.literal("revoked"),
+  v.literal("expired")
+);
+
+const adminAccessGroupStatus = v.union(
+  v.literal("active"),
+  v.literal("inactive"),
+  v.literal("deactivated")
+);
+
+const adminAccessGroupMemberStatus = v.union(
+  v.literal("active"),
+  v.literal("inactive"),
+  v.literal("removed")
+);
+
 const warehouseStatus = v.union(
   v.literal("active"),
   v.literal("inactive"),
@@ -217,6 +254,67 @@ export default defineSchema({
     .index("by_role_status", ["role", "status"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_email", ["email"]),
+
+  adminRoleAssignments: defineTable({
+    adminUserId: v.id("users"),
+    roleKey: adminRoleKey,
+    scopeType: adminScopeType,
+    scopeId: v.optional(v.string()),
+    scopeValue: v.optional(v.string()),
+    status: adminRoleAssignmentStatus,
+    assignedBy: v.id("users"),
+    assignedAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_admin_user_status", ["adminUserId", "status"])
+    .index("by_admin_user_role_status", ["adminUserId", "roleKey", "status"])
+    .index("by_role_status", ["roleKey", "status"])
+    .index("by_status_expires_at", ["status", "expiresAt"])
+    .index("by_scope_status", ["scopeType", "scopeId", "status"]),
+
+  adminAccessGroups: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    status: adminAccessGroupStatus,
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_status", ["status"])
+    .index("by_name", ["name"]),
+
+  adminAccessGroupMembers: defineTable({
+    groupId: v.id("adminAccessGroups"),
+    adminUserId: v.id("users"),
+    status: adminAccessGroupMemberStatus,
+    addedBy: v.id("users"),
+    addedAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_admin_user_status", ["adminUserId", "status"])
+    .index("by_group_status", ["groupId", "status"])
+    .index("by_group_admin_user", ["groupId", "adminUserId"]),
+
+  adminAccessGroupRoleAssignments: defineTable({
+    groupId: v.id("adminAccessGroups"),
+    roleKey: adminRoleKey,
+    scopeType: adminScopeType,
+    scopeId: v.optional(v.string()),
+    scopeValue: v.optional(v.string()),
+    status: adminRoleAssignmentStatus,
+    assignedBy: v.id("users"),
+    assignedAt: v.number(),
+    expiresAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_group_status", ["groupId", "status"])
+    .index("by_group_role_status", ["groupId", "roleKey", "status"])
+    .index("by_role_status", ["roleKey", "status"])
+    .index("by_status_expires_at", ["status", "expiresAt"])
+    .index("by_scope_status", ["scopeType", "scopeId", "status"]),
 
   warehouses: defineTable({
     code: v.string(),

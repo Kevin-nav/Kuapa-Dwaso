@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+/* eslint-disable react-hooks/purity, react/no-unescaped-entities */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWarehouse } from "./context/WarehouseContext";
@@ -16,7 +17,7 @@ import {
 
 export default function OpsHomePage() {
   const router = useRouter();
-  const { inventory, disputes, activeAgent } = useWarehouse();
+  const { inventory, disputes, activeAgent, activeWarehouse, assignedWarehouses, isLoading, errorMessage } = useWarehouse();
 
   // Dynamically compute stats from our state
   // 1. Intakes received today
@@ -70,9 +71,24 @@ export default function OpsHomePage() {
           Welcome back, {activeAgent.fullName.split(" ")[0]}
         </h1>
         <p style={{ color: "var(--gray-600)", fontSize: "14px" }}>
-          Ready to manage producer crop collections and intake workflows.
+          {assignedWarehouses.length > 0
+            ? `Ready to manage producer crop collections at ${activeWarehouse.name}.`
+            : "Warehouse assignment is required before intake workflows can begin."}
         </p>
       </div>
+
+      {isLoading && (
+        <div className="section-card" style={{ color: "var(--gray-500)", padding: "16px" }}>
+          Loading warehouse operations data...
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="offline-banner" style={{ margin: 0, backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}>
+          <AlertTriangle size={16} />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {/* 2x2 Stats Count Grid */}
       <section className="stats-grid" aria-label="Operations Overview Stats">
@@ -176,7 +192,7 @@ export default function OpsHomePage() {
               <div 
                 key={batch.id} 
                 className="activity-row"
-                onClick={() => router.push(`/receipts/${batch.id}`)}
+                onClick={() => router.push(`/receipts/${batch.receiptCode || batch.id}`)}
               >
                 <div className="activity-left">
                   <div className="activity-title">

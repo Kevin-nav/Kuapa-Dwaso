@@ -1,6 +1,12 @@
 {
   "name": "@kuapa-dwaso/test-utils",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "smoke:backend": "node src/backend-smoke-flow.mjs"
+  },
+  "dependencies": {
+    "convex": "1.41.0"
+  }
 }
-

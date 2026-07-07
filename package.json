@@ -12,6 +12,7 @@
     "convex:dev": "convex dev",
     "convex:dev:once": "convex dev --once",
     "convex:deploy": "convex deploy",
+    "smoke:backend": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

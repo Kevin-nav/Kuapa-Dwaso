@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { getActor } from "./workflowHelpers";
+import { assertAllowed, getActor, requireAdminPermission } from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -105,5 +105,29 @@ export const listForActor = query({
             .take(limit);
 
     return candidates;
+  },
+});
+
+export const listByRelatedEntity = query({
+  args: {
+    actorUserId: v.id("users"),
+    relatedEntityType: v.string(),
+    relatedEntityId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can inspect related notifications.");
+    await requireAdminPermission(ctx, args.actorUserId, "notifications:read", {});
+
+    return await ctx.db
+      .query("notifications")
+      .withIndex("by_related_entity", (q) =>
+        q
+          .eq("relatedEntityType", args.relatedEntityType)
+          .eq("relatedEntityId", args.relatedEntityId),
+      )
+      .take(Math.min(args.limit ?? 50, 100));
   },
 });

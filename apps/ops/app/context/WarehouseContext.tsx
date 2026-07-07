@@ -1,254 +1,78 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import type { 
-  Farmer, 
-  InventoryBatch, 
-  Warehouse, 
-  WarehouseAgent,
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
+import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import type { Doc, Id } from "../../../../convex/_generated/dataModel";
+import type {
+  Farmer,
+  FeeRuleSnapshot,
+  InventoryBatch,
   InventoryBatchStatus,
-  FeeRuleSnapshot
+  ProduceGrade,
+  StorageFeeLedger,
+  StorageRateRule,
+  Warehouse,
+  WarehouseAgent,
 } from "@kuapa-dwaso/types";
 
-// Declare Dispute locally since it is not in the shared @kuapa-dwaso/types
 export type Dispute = {
   id: string;
   title: string;
   summary: string;
-  entityType: "farmer" | "buyer" | "warehouse_agent" | "inventory_batch" | "buyer_order" | "storage_receipt";
+  entityType:
+    | "farmer"
+    | "warehouse"
+    | "warehouse_agent"
+    | "inventory_batch"
+    | "storage_receipt"
+    | "buyer_order"
+    | "sale_record"
+    | "dispatch"
+    | "storage_fee_ledger"
+    | "buyer"
+    | "notification"
+    | "app_setting";
   entityId: string;
   status: "open" | "under_review" | "resolved" | "cancelled";
+  warehouseId?: string;
   createdAt: number;
   resolvedAt?: number;
   resolutionNotes?: string;
 };
 
-// Seed Data matching packages/dashboard-ui/src/mockDb.ts
-const defaultWarehouse: Warehouse = {
-  id: "wh-1",
-  code: "WH-KUM-001",
-  name: "Kumasi Central Warehouse",
-  community: "Kumasi Central",
-  district: "Kumasi Metropolitan",
-  region: "Ashanti",
-  servedCommunities: ["Adum", "Kejetia", "Bantama", "Bantama Farm Gate"],
-  supportedCrops: ["Maize", "Cocoa", "Cassava", "Yam", "Tomato"],
-  storageCapacity: 500,
-  capacityUnit: "tonnes",
-  assignedWarehouseAgentIds: ["agent-1"],
-  destinationMarketsServed: ["Kumasi Central Market", "Techiman Market"],
-  operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-  dispatchDays: ["Tuesday", "Wednesday"],
-  status: "active",
-  createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
-  updatedAt: Date.now() - 15 * 24 * 60 * 60 * 1000,
+type FarmerCreateInput = Omit<
+  Farmer,
+  "id" | "farmerCode" | "createdAt" | "updatedAt" | "registrationSource" | "verificationStatus" | "status"
+>;
+
+type IntakeInput = {
+  farmerId: string;
+  warehouseId?: string;
+  cropType: string;
+  variety?: string;
+  grade: ProduceGrade;
+  quantityReceived: number;
+  quantityAvailable?: number;
+  unit: string;
+  receivedAt?: number;
+  expectedShelfLifeDays?: number;
+  sellByDate?: number;
+  storageRateRuleId?: string;
+  manualStorageRatePerUnitPerDay?: number;
+  storageRateCurrency?: string;
+  askingPricePerUnit?: number;
+  minimumPricePerUnit?: number;
+  conditionNotes?: string;
 };
-
-const defaultAgent: WarehouseAgent = {
-  id: "agent-1",
-  userId: "user-agent-1",
-  agentCode: "AGT-001",
-  fullName: "Emmanuel Osei",
-  phoneNumber: "+233 24 123 4567",
-  assignedWarehouseIds: ["wh-1"],
-  status: "approved",
-  createdAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-  updatedAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-};
-
-const defaultFarmers: Farmer[] = [
-  {
-    id: "farmer-1",
-    farmerCode: "FRM-KUM-001",
-    fullName: "Kofi Mensah",
-    phoneNumber: "+233 20 111 2222",
-    community: "Bantama Farm Gate",
-    region: "Ashanti",
-    preferredWarehouseId: "wh-1",
-    registrationSource: "agent_assisted",
-    verificationStatus: "verified",
-    status: "active",
-    createdAt: Date.now() - 20 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 20 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "farmer-2",
-    farmerCode: "FRM-SUN-002",
-    fullName: "Yaa Konadu",
-    phoneNumber: "+233 50 333 4444",
-    community: "Abesim South",
-    region: "Bono",
-    preferredWarehouseId: "wh-2",
-    registrationSource: "self_app",
-    verificationStatus: "pending",
-    status: "active",
-    createdAt: Date.now() - 5 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 5 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "farmer-3",
-    farmerCode: "FRM-TAM-003",
-    fullName: "Baba Sule",
-    phoneNumber: "+233 24 555 6666",
-    community: "Nyankpala West",
-    region: "Northern",
-    preferredWarehouseId: "wh-3",
-    registrationSource: "admin",
-    verificationStatus: "rejected",
-    status: "suspended",
-    createdAt: Date.now() - 40 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
-  }
-];
-
-const defaultInventory: InventoryBatch[] = [
-  {
-    id: "batch-1",
-    receiptCode: "RCP-KUM-802",
-    farmerId: "farmer-1",
-    warehouseId: "wh-1",
-    receivedByWarehouseAgentId: "agent-1",
-    cropType: "Maize",
-    variety: "Obatanpa Quality Protein Maize",
-    quantityReceived: 100,
-    quantityAvailable: 85,
-    unit: "bag",
-    grade: "A",
-    status: "available",
-    photos: [],
-    receivedAt: Date.now() - 12 * 24 * 60 * 60 * 1000,
-    sellByDate: Date.now() + 180 * 24 * 60 * 60 * 1000,
-    askingPricePerUnit: 250,
-    storageFeeAccrued: 18.00,
-    lastFeeCalculatedAt: Date.now(),
-    storageRateSnapshot: {
-      label: "Standard Maize Storage Rate",
-      calculationType: "per_unit_per_day",
-      payer: "farmer",
-      ratePerUnitPerDay: 0.15,
-      currency: "GHS",
-      snapshottedAt: Date.now() - 12 * 24 * 60 * 60 * 1000,
-    },
-    createdAt: Date.now() - 12 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 12 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "batch-2",
-    receiptCode: "RCP-KUM-803",
-    farmerId: "farmer-1",
-    warehouseId: "wh-1",
-    receivedByWarehouseAgentId: "agent-1",
-    cropType: "Cocoa",
-    variety: "West African Amelonado",
-    quantityReceived: 50,
-    quantityAvailable: 50,
-    unit: "bag",
-    grade: "A",
-    status: "available",
-    photos: [],
-    receivedAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-    sellByDate: Date.now() + 365 * 24 * 60 * 60 * 1000,
-    askingPricePerUnit: 400,
-    storageFeeAccrued: 100.00,
-    lastFeeCalculatedAt: Date.now(),
-    storageRateSnapshot: {
-      label: "Premium Cocoa Storage Rate",
-      calculationType: "per_unit_per_day",
-      payer: "farmer",
-      ratePerUnitPerDay: 0.50,
-      currency: "GHS",
-      snapshottedAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-    },
-    createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "batch-3",
-    receiptCode: "RCP-SUN-011",
-    farmerId: "farmer-2",
-    warehouseId: "wh-2",
-    receivedByWarehouseAgentId: "agent-2",
-    cropType: "Maize",
-    variety: "Standard Yellow Maize",
-    quantityReceived: 60,
-    quantityAvailable: 30,
-    unit: "bag",
-    grade: "B",
-    status: "partially_reserved",
-    photos: [],
-    receivedAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-    sellByDate: Date.now() + 5 * 24 * 60 * 60 * 1000,
-    askingPricePerUnit: 220,
-    storageFeeAccrued: 225.00,
-    lastFeeCalculatedAt: Date.now(),
-    storageRateSnapshot: {
-      label: "Standard Maize Storage Rate",
-      calculationType: "per_unit_per_day",
-      payer: "farmer",
-      ratePerUnitPerDay: 0.15,
-      currency: "GHS",
-      snapshottedAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-    },
-    createdAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 25 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "batch-4",
-    receiptCode: "RCP-TAM-909",
-    farmerId: "farmer-3",
-    warehouseId: "wh-3",
-    receivedByWarehouseAgentId: "agent-2",
-    cropType: "Yam",
-    variety: "Pona",
-    quantityReceived: 300,
-    quantityAvailable: 0,
-    unit: "tubers",
-    grade: "C",
-    status: "spoiled",
-    photos: [],
-    receivedAt: Date.now() - 45 * 24 * 60 * 60 * 1000,
-    sellByDate: Date.now() - 5 * 24 * 60 * 60 * 1000,
-    askingPricePerUnit: 15,
-    storageFeeAccrued: 0,
-    lastFeeCalculatedAt: Date.now(),
-    storageRateSnapshot: {
-      label: "Flat Yam Storage Rate",
-      calculationType: "per_unit_per_day",
-      payer: "farmer",
-      ratePerUnitPerDay: 0.05,
-      currency: "GHS",
-      snapshottedAt: Date.now() - 45 * 24 * 60 * 60 * 1000,
-    },
-    createdAt: Date.now() - 45 * 24 * 60 * 60 * 1000,
-    updatedAt: Date.now() - 45 * 24 * 60 * 60 * 1000,
-  }
-];
-
-const defaultDisputes: Dispute[] = [
-  {
-    id: "disp-1",
-    title: "Spoiled Yam Batch at Tamale",
-    summary: "Farmer Baba Sule claims that the warehouse ventilation failure caused the spoilage of 300 tubers of Pona Yam, which was marked as grade C.",
-    entityType: "inventory_batch",
-    entityId: "batch-4",
-    status: "open",
-    createdAt: Date.now() - 4 * 24 * 60 * 60 * 1000,
-  },
-  {
-    id: "disp-2",
-    title: "Incorrect Storage Rate Application",
-    summary: "Farmer Kofi Mensah claims that Cocoa Batch RCP-KUM-803 was charged GHS 0.50/day instead of flat GHS 0.15/day because it was mistakenly tagged as Grade A Cocoa instead of Standard Mixed.",
-    entityType: "farmer",
-    entityId: "farmer-1",
-    status: "under_review",
-    createdAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
-  }
-];
 
 type SyncAction = {
   id: string;
   action: "CREATE_FARMER" | "CREATE_INTAKE" | "UPDATE_QTY" | "UPDATE_STATUS" | "UPDATE_CONDITION" | "CREATE_DISPUTE";
-  payload: any;
+  payload: unknown;
   timestamp: number;
 };
 
@@ -262,396 +86,589 @@ type TimelineEvent = {
 type WarehouseContextType = {
   isOffline: boolean;
   setIsOffline: (val: boolean) => void;
+  isLoading: boolean;
+  errorMessage: string | undefined;
+  actorUserId: string | undefined;
   syncQueue: SyncAction[];
   farmers: Farmer[];
   inventory: InventoryBatch[];
   disputes: Dispute[];
+  storageRateRules: StorageRateRule[];
   activeWarehouse: Warehouse;
+  assignedWarehouses: Warehouse[];
   activeAgent: WarehouseAgent;
   draftIntake: any;
   setDraftIntake: (draft: any) => void;
   draftRegistration: any;
   setDraftRegistration: (draft: any) => void;
-  registerFarmer: (farmer: Omit<Farmer, "id" | "farmerCode" | "createdAt" | "updatedAt" | "registrationSource" | "verificationStatus" | "status">) => Farmer;
-  addIntake: (intake: Omit<InventoryBatch, "id" | "receiptCode" | "createdAt" | "updatedAt" | "receivedByWarehouseAgentId" | "warehouseId" | "lastFeeCalculatedAt" | "storageRateSnapshot" | "storageFeeAccrued" | "photos" | "status">) => InventoryBatch;
-  createDispute: (dispute: Omit<Dispute, "id" | "createdAt" | "status">) => Dispute;
-  updateBatchQuantity: (batchId: string, newQty: number, reason: string) => void;
-  updateBatchStatus: (batchId: string, status: InventoryBatchStatus, reason: string) => void;
-  updateBatchCondition: (batchId: string, notes: string) => void;
+  registerFarmer: (farmer: FarmerCreateInput) => Promise<Farmer>;
+  addIntake: (intake: IntakeInput) => Promise<InventoryBatch>;
+  createDispute: (dispute: {
+    title?: string;
+    summary: string;
+    entityType: Dispute["entityType"];
+    entityId: string;
+    warehouseId?: string;
+  }) => Promise<Dispute>;
+  updateBatchQuantity: (batchId: string, newQty: number, reason: string) => Promise<void>;
+  updateBatchStatus: (batchId: string, status: InventoryBatchStatus, reason: string) => Promise<void>;
+  updateBatchCondition: (batchId: string, notes: string) => Promise<void>;
   getBatchTimeline: (batchId: string) => TimelineEvent[];
+  getStorageFeeLedger: (batchId: string) => StorageFeeLedger[];
   triggerSync: () => void;
+};
+
+const fallbackWarehouse: Warehouse = {
+  id: "unassigned",
+  code: "UNASSIGNED",
+  name: "No assigned warehouse",
+  community: "Assignment required",
+  servedCommunities: [],
+  supportedCrops: [],
+  assignedWarehouseAgentIds: [],
+  destinationMarketsServed: [],
+  operatingDays: [],
+  status: "inactive",
+  createdAt: 0,
+  updatedAt: 0,
+};
+
+const fallbackAgent: WarehouseAgent = {
+  id: "unassigned",
+  userId: "unassigned",
+  agentCode: "UNASSIGNED",
+  fullName: "Warehouse Agent",
+  phoneNumber: "",
+  assignedWarehouseIds: [],
+  status: "pending",
+  createdAt: 0,
+  updatedAt: 0,
 };
 
 const WarehouseContext = createContext<WarehouseContextType | undefined>(undefined);
 
+function getConfiguredActorUserId(): string | undefined {
+  const envActorUserId = process.env.NEXT_PUBLIC_OPS_ACTOR_USER_ID;
+  if (envActorUserId !== undefined && envActorUserId.trim().length > 0) {
+    return envActorUserId.trim();
+  }
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  const localActorUserId = window.localStorage.getItem("kuapa_ops_actor_user_id");
+  return localActorUserId === null || localActorUserId.trim().length === 0
+    ? undefined
+    : localActorUserId.trim();
+}
+
+function toWarehouse(doc: Doc<"warehouses">): Warehouse {
+  return { ...doc, id: doc._id };
+}
+
+function toWarehouseAgent(doc: Doc<"warehouseAgents">): WarehouseAgent {
+  return { ...doc, id: doc._id, userId: doc.userId };
+}
+
+function toFarmer(doc: Doc<"farmers">): Farmer {
+  const farmer: Farmer = {
+    id: doc._id,
+    farmerCode: doc.farmerCode,
+    fullName: doc.fullName,
+    phoneNumber: doc.phoneNumber,
+    community: doc.community,
+    registrationSource: doc.registrationSource,
+    verificationStatus: doc.verificationStatus,
+    status: doc.status,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+  if (doc.userId !== undefined) farmer.userId = doc.userId;
+  if (doc.region !== undefined) farmer.region = doc.region;
+  if (doc.householdPhoneOwnerName !== undefined) farmer.householdPhoneOwnerName = doc.householdPhoneOwnerName;
+  if (doc.preferredWarehouseId !== undefined) farmer.preferredWarehouseId = doc.preferredWarehouseId;
+  return farmer;
+}
+
+function toInventoryBatch(doc: Doc<"inventoryBatches">): InventoryBatch {
+  return {
+    ...doc,
+    id: doc._id,
+    farmerId: doc.farmerId,
+    warehouseId: doc.warehouseId,
+    receivedByWarehouseAgentId: doc.receivedByWarehouseAgentId,
+    storageRateSnapshot: doc.storageRateSnapshot as FeeRuleSnapshot,
+  };
+}
+
+function toStorageRateRule(doc: Doc<"storageRateRules">): StorageRateRule {
+  const rule: StorageRateRule = {
+    id: doc._id,
+    unit: doc.unit,
+    ratePerUnitPerDay: doc.ratePerUnitPerDay,
+    currency: doc.currency,
+    status: doc.status,
+    effectiveFrom: doc.effectiveFrom,
+    version: doc.version,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+  };
+  if (doc.warehouseId !== undefined) rule.warehouseId = doc.warehouseId;
+  if (doc.cropType !== undefined) rule.cropType = doc.cropType;
+  if (doc.grade !== undefined) rule.grade = doc.grade;
+  if (doc.effectiveTo !== undefined) rule.effectiveTo = doc.effectiveTo;
+  return rule;
+}
+
+function toStorageFeeLedger(doc: Doc<"storageFeeLedger">): StorageFeeLedger {
+  const ledger: StorageFeeLedger = {
+    id: doc._id,
+    inventoryBatchId: doc.inventoryBatchId,
+    farmerId: doc.farmerId,
+    warehouseId: doc.warehouseId,
+    feeDate: doc.feeDate,
+    quantityCharged: doc.quantityCharged,
+    unit: doc.unit,
+    appliedRuleSnapshot: doc.appliedRuleSnapshot as FeeRuleSnapshot,
+    amount: doc.amount,
+    status: doc.status,
+    createdAt: doc.createdAt,
+  };
+  if (doc.amountDeducted !== undefined) ledger.amountDeducted = doc.amountDeducted;
+  if (doc.deductedSaleRecordIds !== undefined) ledger.deductedSaleRecordIds = doc.deductedSaleRecordIds;
+  return ledger;
+}
+
+function createLocalTimeline(batch: InventoryBatch): TimelineEvent[] {
+  return [
+    {
+      status: batch.status,
+      timestamp: batch.createdAt,
+      actor: "Warehouse operations",
+    },
+  ];
+}
+
 export function WarehouseProvider({ children }: { children: React.ReactNode }) {
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [actorUserId, setActorUserId] = useState<string | undefined>(() => getConfiguredActorUserId());
+  const [activeWarehouseId, setActiveWarehouseId] = useState<string | undefined>();
   const [isOffline, setIsOffline] = useState(false);
-  const [syncQueue, setSyncQueue] = useState<SyncAction[]>([]);
-  const [farmers, setFarmers] = useState<Farmer[]>([]);
-  const [inventory, setInventory] = useState<InventoryBatch[]>([]);
-  const [disputes, setDisputes] = useState<Dispute[]>([]);
-  
+  const [syncQueue] = useState<SyncAction[]>([]);
   const [draftIntake, setDraftIntakeState] = useState<any>(null);
   const [draftRegistration, setDraftRegistrationState] = useState<any>(null);
-
-  const [timelines, setTimelines] = useState<Record<string, TimelineEvent[]>>({});
+  const [localDisputes, setLocalDisputes] = useState<Dispute[]>([]);
+  const [localTimelines, setLocalTimelines] = useState<Record<string, TimelineEvent[]>>({});
+  const [ledgerByBatchId, setLedgerByBatchId] = useState<Record<string, StorageFeeLedger[]>>({});
+  const [actionError, setActionError] = useState<string | undefined>();
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const getLocal = <T,>(key: string, def: T): T => {
-        const val = localStorage.getItem(`kuapa_ops_${key}`);
-        return val ? JSON.parse(val) : def;
-      };
-
-      setFarmers(getLocal("farmers", defaultFarmers));
-      setInventory(getLocal("inventory", defaultInventory));
-      setDisputes(getLocal("disputes", defaultDisputes));
-      setSyncQueue(getLocal("syncQueue", []));
-      setDraftIntakeState(getLocal("draftIntake", null));
-      setDraftRegistrationState(getLocal("draftRegistration", null));
-      setIsOffline(getLocal("isOffline", false));
-      setTimelines(getLocal("timelines", {
-        "batch-1": [
-          { status: "received", timestamp: Date.now() - 12 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei" },
-          { status: "verified", timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei" },
-          { status: "available", timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei" },
-        ],
-        "batch-2": [
-          { status: "received", timestamp: Date.now() - 4 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei" },
-          { status: "available", timestamp: Date.now() - 4 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei" },
-        ],
-        "batch-3": [
-          { status: "received", timestamp: Date.now() - 25 * 24 * 60 * 60 * 1000, actor: "Abena Mensah" },
-          { status: "partially_reserved", timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000, actor: "Abena Mensah" },
-        ],
-        "batch-4": [
-          { status: "received", timestamp: Date.now() - 45 * 24 * 60 * 60 * 1000, actor: "Abena Mensah" },
-          { status: "spoiled", timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000, actor: "Emmanuel Osei", reason: "Ventilation breakdown" },
-        ]
-      }));
-
-      setIsHydrated(true);
+    setActorUserId(getConfiguredActorUserId());
+    if (typeof window === "undefined") {
+      return;
     }
+    const getLocal = <T,>(key: string, fallback: T): T => {
+      const value = window.localStorage.getItem(`kuapa_ops_${key}`);
+      return value === null ? fallback : (JSON.parse(value) as T);
+    };
+    setDraftIntakeState(getLocal("draftIntake", null));
+    setDraftRegistrationState(getLocal("draftRegistration", null));
+    setIsOffline(getLocal("isOffline", false));
   }, []);
 
   useEffect(() => {
-    if (isHydrated) {
-      localStorage.setItem("kuapa_ops_farmers", JSON.stringify(farmers));
-      localStorage.setItem("kuapa_ops_inventory", JSON.stringify(inventory));
-      localStorage.setItem("kuapa_ops_disputes", JSON.stringify(disputes));
-      localStorage.setItem("kuapa_ops_syncQueue", JSON.stringify(syncQueue));
-      localStorage.setItem("kuapa_ops_isOffline", JSON.stringify(isOffline));
-      localStorage.setItem("kuapa_ops_timelines", JSON.stringify(timelines));
-    }
-  }, [farmers, inventory, disputes, syncQueue, isOffline, timelines, isHydrated]);
-
-  const setDraftIntake = (draft: any) => {
-    setDraftIntakeState(draft);
     if (typeof window !== "undefined") {
-      localStorage.setItem("kuapa_ops_draftIntake", JSON.stringify(draft));
+      window.localStorage.setItem("kuapa_ops_isOffline", JSON.stringify(isOffline));
     }
-  };
+  }, [isOffline]);
 
-  const setDraftRegistration = (draft: any) => {
-    setDraftRegistrationState(draft);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("kuapa_ops_draftRegistration", JSON.stringify(draft));
+  const typedActorUserId = actorUserId as Id<"users"> | undefined;
+  const agent = useQuery(
+    api.warehouseAgents.getByUser,
+    typedActorUserId === undefined
+      ? "skip"
+      : {
+          actorUserId: typedActorUserId,
+          userId: typedActorUserId,
+        },
+  ) as Doc<"warehouseAgents"> | null | undefined;
+
+  const warehouseDocs = useQuery(api.warehouses.list, { status: "active", limit: 100 }) as
+    | Doc<"warehouses">[]
+    | undefined;
+
+  const assignedWarehouses = useMemo(() => {
+    if (agent === undefined || agent === null || warehouseDocs === undefined) {
+      return [];
     }
-  };
-
-  const executeAction = (actionType: string, payload: any) => {
-    switch (actionType) {
-      case "CREATE_FARMER": {
-        setFarmers(prev => {
-          if (prev.some(f => f.id === payload.id)) return prev;
-          return [...prev, payload];
-        });
-        break;
-      }
-      case "CREATE_INTAKE": {
-        setInventory(prev => {
-          if (prev.some(b => b.id === payload.id)) return prev;
-          return [payload, ...prev];
-        });
-        setTimelines(prev => ({
-          ...prev,
-          [payload.id]: [
-            { status: payload.status, timestamp: payload.receivedAt, actor: "Emmanuel Osei" }
-          ]
-        }));
-        break;
-      }
-      case "UPDATE_QTY": {
-        setInventory(prev => prev.map(b => b.id === payload.batchId ? { 
-          ...b, 
-          quantityAvailable: payload.newQty,
-          status: payload.newQty === 0 ? "spoiled" as const : b.status,
-          updatedAt: Date.now() 
-        } : b));
-        setTimelines(prev => ({
-          ...prev,
-          [payload.batchId]: [
-            ...(prev[payload.batchId] || []),
-            { 
-              status: payload.newQty === 0 ? "spoiled" : "adjusted", 
-              timestamp: Date.now(), 
-              actor: "Emmanuel Osei", 
-              reason: `Adjusted quantity: ${payload.reason}` 
-            }
-          ]
-        }));
-        break;
-      }
-      case "UPDATE_STATUS": {
-        setInventory(prev => prev.map(b => b.id === payload.batchId ? { 
-          ...b, 
-          status: payload.status, 
-          updatedAt: Date.now() 
-        } : b));
-        setTimelines(prev => ({
-          ...prev,
-          [payload.batchId]: [
-            ...(prev[payload.batchId] || []),
-            { 
-              status: payload.status, 
-              timestamp: Date.now(), 
-              actor: "Emmanuel Osei", 
-              reason: payload.reason 
-            }
-          ]
-        }));
-        break;
-      }
-      case "UPDATE_CONDITION": {
-        setInventory(prev => prev.map(b => b.id === payload.batchId ? { 
-          ...b, 
-          conditionNotes: payload.notes, 
-          updatedAt: Date.now() 
-        } : b));
-        break;
-      }
-      case "CREATE_DISPUTE": {
-        setDisputes(prev => {
-          if (prev.some(d => d.id === payload.id)) return prev;
-          return [payload, ...prev];
-        });
-        break;
-      }
-    }
-  };
-
-  const triggerSync = () => {
-    if (syncQueue.length === 0) return;
-    const sortedQueue = [...syncQueue].sort((a, b) => a.timestamp - b.timestamp);
-    sortedQueue.forEach(item => {
-      executeAction(item.action, item.payload);
-    });
-    setSyncQueue([]);
-  };
+    const assignedIds = new Set(agent.assignedWarehouseIds);
+    return warehouseDocs.filter((warehouse) => assignedIds.has(warehouse._id)).map(toWarehouse);
+  }, [agent, warehouseDocs]);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (!isOffline && isHydrated && syncQueue.length > 0) {
-      timer = setTimeout(() => {
-        triggerSync();
-      }, 1500);
+    if (assignedWarehouses.length === 0) {
+      setActiveWarehouseId(undefined);
+      return;
     }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isOffline, syncQueue, isHydrated]);
+    setActiveWarehouseId((current) =>
+      current !== undefined && assignedWarehouses.some((warehouse) => warehouse.id === current)
+        ? current
+        : assignedWarehouses[0]?.id,
+    );
+  }, [assignedWarehouses]);
 
-  const registerFarmer = (farmerData: Omit<Farmer, "id" | "farmerCode" | "createdAt" | "updatedAt" | "registrationSource" | "verificationStatus" | "status">) => {
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const codePrefix = farmerData.region === "Ashanti" ? "KUM" : farmerData.region === "Bono" ? "SUN" : "TAM";
-    const farmer: Farmer = {
-      ...farmerData,
-      id: `farmer-${Date.now()}`,
-      farmerCode: `FRM-${codePrefix}-${randomSuffix}`,
-      registrationSource: "agent_assisted",
-      verificationStatus: "verified",
-      status: "active",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  const activeWarehouse = assignedWarehouses.find((warehouse) => warehouse.id === activeWarehouseId) ?? assignedWarehouses[0] ?? fallbackWarehouse;
+  const typedActiveWarehouseId =
+    activeWarehouse.id === fallbackWarehouse.id ? undefined : (activeWarehouse.id as Id<"warehouses">);
 
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "CREATE_FARMER",
-        payload: farmer,
-        timestamp: Date.now()
-      }]);
-      setFarmers(prev => [...prev, farmer]);
-    } else {
-      executeAction("CREATE_FARMER", farmer);
+  const farmerDocs = useQuery(
+    api.farmers.listByWarehouse,
+    typedActorUserId === undefined || typedActiveWarehouseId === undefined
+      ? "skip"
+      : {
+          actorUserId: typedActorUserId,
+          warehouseId: typedActiveWarehouseId,
+          limit: 100,
+        },
+  ) as Doc<"farmers">[] | undefined;
+
+  const inventoryDocs = useQuery(
+    api.inventoryBatches.listWarehouseInventory,
+    typedActorUserId === undefined || typedActiveWarehouseId === undefined
+      ? "skip"
+      : {
+          actorUserId: typedActorUserId,
+          warehouseId: typedActiveWarehouseId,
+          limit: 100,
+        },
+  ) as Doc<"inventoryBatches">[] | undefined;
+
+  const storageRateRuleDocs = useQuery(
+    api.feeRules.listStorageRateRules,
+    typedActiveWarehouseId === undefined
+      ? "skip"
+      : {
+          status: "active",
+          warehouseId: typedActiveWarehouseId,
+          limit: 100,
+        },
+  ) as Doc<"storageRateRules">[] | undefined;
+
+  const createFarmer = useMutation(api.farmers.createProfile);
+  const createIntake = useMutation(api.inventoryBatches.createIntake);
+  const updateInventoryDetails = useMutation(api.inventoryBatches.updateDetails);
+  const updateInventoryStatus = useMutation(api.inventoryBatches.updateStatus);
+  const createDisputeMutation = useMutation(api.disputes.create);
+
+  const farmers = useMemo(() => (farmerDocs ?? []).map(toFarmer), [farmerDocs]);
+  const inventory = useMemo(() => (inventoryDocs ?? []).map(toInventoryBatch), [inventoryDocs]);
+  const storageRateRules = useMemo(
+    () => (storageRateRuleDocs ?? []).map(toStorageRateRule),
+    [storageRateRuleDocs],
+  );
+  const activeAgent = useMemo(
+    () => (agent === undefined || agent === null ? fallbackAgent : toWarehouseAgent(agent)),
+    [agent],
+  );
+
+  useEffect(() => {
+    setLocalTimelines((current) => {
+      const next = { ...current };
+      for (const batch of inventory) {
+        if (next[batch.id] === undefined) {
+          next[batch.id] = createLocalTimeline(batch);
+        }
+      }
+      return next;
+    });
+  }, [inventory]);
+
+  const setDraftIntake = useCallback((draft: any) => {
+    setDraftIntakeState(draft);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("kuapa_ops_draftIntake", JSON.stringify(draft));
     }
+  }, []);
 
-    setDraftRegistration(null);
-    return farmer;
-  };
+  const setDraftRegistration = useCallback((draft: any) => {
+    setDraftRegistrationState(draft);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("kuapa_ops_draftRegistration", JSON.stringify(draft));
+    }
+  }, []);
 
-  const addIntake = (intakeData: Omit<InventoryBatch, "id" | "receiptCode" | "createdAt" | "updatedAt" | "receivedByWarehouseAgentId" | "warehouseId" | "lastFeeCalculatedAt" | "storageRateSnapshot" | "storageFeeAccrued" | "photos" | "status">) => {
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const codePrefix = defaultWarehouse.region === "Ashanti" ? "KUM" : defaultWarehouse.region === "Bono" ? "SUN" : "TAM";
-    
-    const ratePerDay = intakeData.cropType.toLowerCase() === "cocoa" ? 0.50 : intakeData.cropType.toLowerCase() === "maize" ? 0.15 : 0.05;
-    const rateLabel = `${intakeData.cropType} Standard Rate`;
+  const requireActor = useCallback((): Id<"users"> => {
+    if (typedActorUserId === undefined) {
+      throw new Error("Set NEXT_PUBLIC_OPS_ACTOR_USER_ID or localStorage kuapa_ops_actor_user_id to a warehouse-agent user id.");
+    }
+    return typedActorUserId;
+  }, [typedActorUserId]);
 
-    const storageRateSnapshot: FeeRuleSnapshot = {
-      label: rateLabel,
-      calculationType: "per_unit_per_day",
-      payer: "farmer",
-      ratePerUnitPerDay: ratePerDay,
-      currency: "GHS",
-      snapshottedAt: Date.now(),
-    };
+  const registerFarmer = useCallback(
+    async (farmerData: FarmerCreateInput) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      const preferredWarehouseId = farmerData.preferredWarehouseId ?? activeWarehouse.id;
+      const createArgs: Parameters<typeof createFarmer>[0] = {
+        actorUserId: actorId,
+        fullName: farmerData.fullName,
+        phoneNumber: farmerData.phoneNumber,
+        community: farmerData.community,
+        preferredWarehouseId: preferredWarehouseId as Id<"warehouses">,
+        registrationSource: "agent_assisted",
+      };
+      if (farmerData.region !== undefined) createArgs.region = farmerData.region;
+      if (farmerData.householdPhoneOwnerName !== undefined) {
+        createArgs.householdPhoneOwnerName = farmerData.householdPhoneOwnerName;
+      }
+      const farmerId = await createFarmer(createArgs);
+      const farmer: Farmer = {
+        id: farmerId,
+        farmerCode: "Pending refresh",
+        fullName: farmerData.fullName,
+        phoneNumber: farmerData.phoneNumber,
+        community: farmerData.community,
+        preferredWarehouseId,
+        registrationSource: "agent_assisted",
+        verificationStatus: "pending",
+        status: "active",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      if (farmerData.userId !== undefined) farmer.userId = farmerData.userId;
+      if (farmerData.region !== undefined) farmer.region = farmerData.region;
+      if (farmerData.householdPhoneOwnerName !== undefined) {
+        farmer.householdPhoneOwnerName = farmerData.householdPhoneOwnerName;
+      }
+      setDraftRegistration(null);
+      return farmer;
+    },
+    [activeWarehouse.id, createFarmer, requireActor, setDraftRegistration],
+  );
 
-    const batch: InventoryBatch = {
-      ...intakeData,
-      id: `batch-${Date.now()}`,
-      receiptCode: `RCP-${codePrefix}-${randomSuffix}`,
-      receivedByWarehouseAgentId: defaultAgent.id,
-      warehouseId: defaultWarehouse.id,
-      photos: [],
-      storageFeeAccrued: 0,
-      lastFeeCalculatedAt: Date.now(),
-      storageRateSnapshot,
-      status: "received",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "CREATE_INTAKE",
-        payload: batch,
-        timestamp: Date.now()
-      }]);
-      setInventory(prev => [batch, ...prev]);
-      setTimelines(prev => ({
-        ...prev,
-        [batch.id]: [{ status: "received", timestamp: batch.receivedAt, actor: "Emmanuel Osei" }]
+  const addIntake = useCallback(
+    async (intakeData: IntakeInput) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      const warehouseId = (intakeData.warehouseId ?? activeWarehouse.id) as Id<"warehouses">;
+      const createArgs: Parameters<typeof createIntake>[0] = {
+        actorUserId: actorId,
+        farmerId: intakeData.farmerId as Id<"farmers">,
+        warehouseId,
+        cropType: intakeData.cropType,
+        quantityReceived: intakeData.quantityReceived,
+        unit: intakeData.unit,
+        grade: intakeData.grade,
+      };
+      if (intakeData.variety !== undefined) createArgs.variety = intakeData.variety;
+      if (intakeData.conditionNotes !== undefined) createArgs.conditionNotes = intakeData.conditionNotes;
+      if (intakeData.receivedAt !== undefined) createArgs.receivedAt = intakeData.receivedAt;
+      if (intakeData.expectedShelfLifeDays !== undefined) {
+        createArgs.expectedShelfLifeDays = intakeData.expectedShelfLifeDays;
+      }
+      if (intakeData.sellByDate !== undefined) createArgs.sellByDate = intakeData.sellByDate;
+      if (intakeData.storageRateRuleId !== undefined) {
+        createArgs.storageRateRuleId = intakeData.storageRateRuleId as Id<"storageRateRules">;
+      }
+      if (intakeData.manualStorageRatePerUnitPerDay !== undefined) {
+        createArgs.manualStorageRatePerUnitPerDay = intakeData.manualStorageRatePerUnitPerDay;
+      }
+      if (intakeData.storageRateCurrency !== undefined) createArgs.storageRateCurrency = intakeData.storageRateCurrency;
+      if (intakeData.askingPricePerUnit !== undefined) createArgs.askingPricePerUnit = intakeData.askingPricePerUnit;
+      if (intakeData.minimumPricePerUnit !== undefined) {
+        createArgs.minimumPricePerUnit = intakeData.minimumPricePerUnit;
+      }
+      const inventoryBatchId = await createIntake(createArgs);
+      const now = Date.now();
+      const batch: InventoryBatch = {
+        id: inventoryBatchId,
+        receiptCode: "Pending refresh",
+        farmerId: intakeData.farmerId,
+        warehouseId,
+        receivedByWarehouseAgentId: activeAgent.id,
+        cropType: intakeData.cropType,
+        quantityReceived: intakeData.quantityReceived,
+        quantityAvailable: intakeData.quantityReceived,
+        unit: intakeData.unit,
+        grade: intakeData.grade,
+        photos: [],
+        receivedAt: intakeData.receivedAt ?? now,
+        storageRateSnapshot: {
+          label: "Storage fee",
+          calculationType: "per_unit_per_day",
+          payer: "farmer",
+          ratePerUnitPerDay: intakeData.manualStorageRatePerUnitPerDay ?? 0,
+          currency: intakeData.storageRateCurrency ?? "GHS",
+          snapshottedAt: now,
+        },
+        storageFeeAccrued: 0,
+        lastFeeCalculatedAt: intakeData.receivedAt ?? now,
+        status: "received",
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (intakeData.variety !== undefined) batch.variety = intakeData.variety;
+      if (intakeData.conditionNotes !== undefined) batch.conditionNotes = intakeData.conditionNotes;
+      if (intakeData.expectedShelfLifeDays !== undefined) {
+        batch.expectedShelfLifeDays = intakeData.expectedShelfLifeDays;
+      }
+      if (intakeData.sellByDate !== undefined) batch.sellByDate = intakeData.sellByDate;
+      if (intakeData.askingPricePerUnit !== undefined) batch.askingPricePerUnit = intakeData.askingPricePerUnit;
+      if (intakeData.minimumPricePerUnit !== undefined) batch.minimumPricePerUnit = intakeData.minimumPricePerUnit;
+      setLocalTimelines((current) => ({
+        ...current,
+        [inventoryBatchId]: createLocalTimeline(batch),
       }));
-    } else {
-      executeAction("CREATE_INTAKE", batch);
-    }
+      setDraftIntake(null);
+      return batch;
+    },
+    [activeAgent.id, activeWarehouse.id, createIntake, requireActor, setDraftIntake],
+  );
 
-    setDraftIntake(null);
-    return batch;
-  };
+  const createDispute = useCallback(
+    async (disputeData: {
+      title?: string;
+      summary: string;
+      entityType: Dispute["entityType"];
+      entityId: string;
+      warehouseId?: string;
+    }) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      const summary = disputeData.title === undefined || disputeData.title.trim().length === 0
+        ? disputeData.summary
+        : `${disputeData.title}: ${disputeData.summary}`;
+      const disputeId = await createDisputeMutation({
+        actorId,
+        actorUserId: actorId,
+        actorRole: "warehouse_agent",
+        entityType: disputeData.entityType,
+        entityId: disputeData.entityId,
+        openedByUserId: actorId,
+        warehouseId: (disputeData.warehouseId ?? activeWarehouse.id) as Id<"warehouses">,
+        summary,
+      });
+      const dispute: Dispute = {
+        id: disputeId,
+        title: disputeData.title ?? "Operational issue",
+        summary,
+        entityType: disputeData.entityType,
+        entityId: disputeData.entityId,
+        warehouseId: disputeData.warehouseId ?? activeWarehouse.id,
+        status: "open",
+        createdAt: Date.now(),
+      };
+      setLocalDisputes((current) => [dispute, ...current]);
+      return dispute;
+    },
+    [activeWarehouse.id, createDisputeMutation, requireActor],
+  );
 
-  const createDispute = (disputeData: Omit<Dispute, "id" | "createdAt" | "status">) => {
-    const dispute: Dispute = {
-      ...disputeData,
-      id: `disp-${Date.now()}`,
-      status: "open",
-      createdAt: Date.now()
-    };
-
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "CREATE_DISPUTE",
-        payload: dispute,
-        timestamp: Date.now()
-      }]);
-      setDisputes(prev => [dispute, ...prev]);
-    } else {
-      executeAction("CREATE_DISPUTE", dispute);
-    }
-    return dispute;
-  };
-
-  const updateBatchQuantity = (batchId: string, newQty: number, reason: string) => {
-    const payload = { batchId, newQty, reason };
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "UPDATE_QTY",
-        payload,
-        timestamp: Date.now()
-      }]);
-      setInventory(prev => prev.map(b => b.id === batchId ? { 
-        ...b, 
-        quantityAvailable: newQty, 
-        status: newQty === 0 ? "spoiled" : b.status 
-      } : b));
-      setTimelines(prev => ({
-        ...prev,
+  const updateBatchQuantity = useCallback(
+    async (batchId: string, newQty: number, reason: string) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      await updateInventoryDetails({
+        actorUserId: actorId,
+        inventoryBatchId: batchId as Id<"inventoryBatches">,
+        quantityAvailable: newQty,
+        reason,
+      });
+      setLocalTimelines((current) => ({
+        ...current,
         [batchId]: [
-          ...(prev[batchId] || []),
-          { 
-            status: newQty === 0 ? "spoiled" : "adjusted", 
-            timestamp: Date.now(), 
-            actor: "Emmanuel Osei", 
-            reason: `Offline Pending: Adjusted quantity to ${newQty} kg. Reason: ${reason}` 
-          }
-        ]
+          ...(current[batchId] ?? []),
+          {
+            status: "details_updated",
+            timestamp: Date.now(),
+            actor: activeAgent.fullName,
+            reason: `Adjusted quantity: ${reason}`,
+          },
+        ],
       }));
-    } else {
-      executeAction("UPDATE_QTY", payload);
-    }
-  };
+    },
+    [activeAgent.fullName, requireActor, updateInventoryDetails],
+  );
 
-  const updateBatchStatus = (batchId: string, status: InventoryBatchStatus, reason: string) => {
-    const payload = { batchId, status, reason };
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "UPDATE_STATUS",
-        payload,
-        timestamp: Date.now()
-      }]);
-      setInventory(prev => prev.map(b => b.id === batchId ? { ...b, status } : b));
-      setTimelines(prev => ({
-        ...prev,
+  const updateBatchStatus = useCallback(
+    async (batchId: string, status: InventoryBatchStatus, reason: string) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      await updateInventoryStatus({
+        actorUserId: actorId,
+        inventoryBatchId: batchId as Id<"inventoryBatches">,
+        status,
+        reason,
+      });
+      setLocalTimelines((current) => ({
+        ...current,
         [batchId]: [
-          ...(prev[batchId] || []),
-          { 
-            status, 
-            timestamp: Date.now(), 
-            actor: "Emmanuel Osei", 
-            reason: `Offline Pending: Changed status to ${status}. Reason: ${reason}` 
-          }
-        ]
+          ...(current[batchId] ?? []),
+          {
+            status,
+            timestamp: Date.now(),
+            actor: activeAgent.fullName,
+            reason,
+          },
+        ],
       }));
-    } else {
-      executeAction("UPDATE_STATUS", payload);
-    }
-  };
+    },
+    [activeAgent.fullName, requireActor, updateInventoryStatus],
+  );
 
-  const updateBatchCondition = (batchId: string, notes: string) => {
-    const payload = { batchId, notes };
-    if (isOffline) {
-      setSyncQueue(prev => [...prev, {
-        id: `sync-${Date.now()}-${Math.random()}`,
-        action: "UPDATE_CONDITION",
-        payload,
-        timestamp: Date.now()
-      }]);
-      setInventory(prev => prev.map(b => b.id === batchId ? { ...b, conditionNotes: notes } : b));
-    } else {
-      executeAction("UPDATE_CONDITION", payload);
-    }
-  };
+  const updateBatchCondition = useCallback(
+    async (batchId: string, notes: string) => {
+      setActionError(undefined);
+      const actorId = requireActor();
+      await updateInventoryDetails({
+        actorUserId: actorId,
+        inventoryBatchId: batchId as Id<"inventoryBatches">,
+        conditionNotes: notes,
+        reason: "Condition notes updated by warehouse agent.",
+      });
+    },
+    [requireActor, updateInventoryDetails],
+  );
 
-  const getBatchTimeline = (batchId: string) => {
-    return timelines[batchId] || [];
-  };
+  const getBatchTimeline = useCallback(
+    (batchId: string) => localTimelines[batchId] ?? [],
+    [localTimelines],
+  );
 
-  return (
-    <WarehouseContext.Provider value={{
+  const getStorageFeeLedger = useCallback(
+    (batchId: string) => ledgerByBatchId[batchId] ?? [],
+    [ledgerByBatchId],
+  );
+
+  const isLoading =
+    actorUserId !== undefined &&
+    (agent === undefined ||
+      warehouseDocs === undefined ||
+      (typedActiveWarehouseId !== undefined && (farmerDocs === undefined || inventoryDocs === undefined)));
+
+  const errorMessage =
+    actionError ??
+    (actorUserId === undefined
+      ? "Missing warehouse-agent actor id. Set NEXT_PUBLIC_OPS_ACTOR_USER_ID or localStorage kuapa_ops_actor_user_id."
+      : agent === null
+        ? "No warehouse-agent profile was found for this actor user."
+        : agent !== undefined && assignedWarehouses.length === 0
+          ? "This warehouse agent has no active assigned warehouses."
+          : undefined);
+
+  const value = useMemo<WarehouseContextType>(
+    () => ({
       isOffline,
       setIsOffline,
+      isLoading,
+      errorMessage,
+      actorUserId,
       syncQueue,
       farmers,
       inventory,
-      disputes,
-      activeWarehouse: defaultWarehouse,
-      activeAgent: defaultAgent,
+      disputes: localDisputes,
+      storageRateRules,
+      activeWarehouse,
+      assignedWarehouses,
+      activeAgent,
       draftIntake,
       setDraftIntake,
       draftRegistration,
@@ -663,11 +680,42 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       updateBatchStatus,
       updateBatchCondition,
       getBatchTimeline,
-      triggerSync
-    }}>
-      {children}
-    </WarehouseContext.Provider>
+      getStorageFeeLedger,
+      triggerSync: () => undefined,
+    }),
+    [
+      addIntake,
+      actorUserId,
+      activeAgent,
+      activeWarehouse,
+      assignedWarehouses,
+      createDispute,
+      draftIntake,
+      draftRegistration,
+      errorMessage,
+      farmers,
+      getBatchTimeline,
+      getStorageFeeLedger,
+      inventory,
+      isLoading,
+      isOffline,
+      localDisputes,
+      registerFarmer,
+      setDraftIntake,
+      setDraftRegistration,
+      storageRateRules,
+      syncQueue,
+      updateBatchCondition,
+      updateBatchQuantity,
+      updateBatchStatus,
+    ],
   );
+
+  void setActionError;
+  void setLedgerByBatchId;
+  void toStorageFeeLedger;
+
+  return <WarehouseContext.Provider value={value}>{children}</WarehouseContext.Provider>;
 }
 
 export function useWarehouse() {
