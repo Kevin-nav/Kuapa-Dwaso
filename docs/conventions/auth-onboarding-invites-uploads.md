@@ -65,11 +65,51 @@ https://resend.com/docs/dashboard/api-keys/introduction. In local development,
 missing Resend env vars return a mock delivery result. In production, missing
 Resend env vars fail closed.
 
-SMS remains mock-first. `SMS_PROVIDER=mock` is the only supported provider
-mode. `SMS_FROM_NAME` is reserved for a future real provider. The API exposes a
-generic SMS send interface with invite, notification, and OTP message kinds,
-but only invite delivery is currently used and no custom OTP provider is
-implemented.
+SMS remains mock-first for local development. Supported provider modes are
+`SMS_PROVIDER=mock` and `SMS_PROVIDER=arkesel`. `SMS_FROM_NAME` is the branded
+sender ID sent to the provider, and Arkesel credentials stay API-only:
+
+```text
+SMS_PROVIDER=mock
+SMS_FROM_NAME=KuapaDwaso
+ARKESEL_SMS_API_KEY=
+ARKESEL_WEBHOOK_SIGNATURE_HEADER=x-arkesel-signature
+ARKESEL_WEBHOOK_SIGNATURE_SECRET=
+```
+
+Arkesel delivery uses the V2 JSON SMS endpoint through the API provider seam.
+Template rendering remains platform-owned; Arkesel receives only rendered text
+and normalized E.164 recipients. Firebase Phone Auth remains the phone
+authentication mechanism for farmer, buyer, and transporter signup/login in
+this slice. Do not route product auth OTP through Arkesel until a separate auth
+migration is designed.
+
+Sender IDs must be 1-11 alphanumeric characters with at least one letter. Do
+not use emojis, spaces, punctuation, or special symbols. MTN Ghana requires
+sender ID approval before production delivery; unapproved sender IDs can be
+blocked or rejected.
+
+Arkesel delivery reports post to:
+
+```text
+POST /sms/webhooks/arkesel/delivery
+```
+
+The available Arkesel documentation does not confirm webhook signature
+verification. By default the endpoint accepts unsigned delivery reports and
+records raw payloads for audit. When `ARKESEL_WEBHOOK_SIGNATURE_SECRET` is set,
+the endpoint fails closed unless the configured signature header is present and
+matches the current HMAC-SHA256 verifier. Confirm the exact signature algorithm
+and header format with Arkesel support before enabling this in production.
+
+Production preflight questions for Arkesel support:
+
+- Does Arkesel sign delivery webhooks? If so, what header and algorithm are
+  used?
+- Can Arkesel provide outbound webhook IP ranges for allowlisting?
+- What webhook retry policy and backoff apply when the API returns non-2xx?
+- What are the V2 SMS API rate limits per second and per minute?
+- Are there MTN Ghana setup or recurring fees for branded sender ID approval?
 
 Cloudflare R2 credentials are API-only:
 
