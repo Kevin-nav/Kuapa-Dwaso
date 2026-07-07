@@ -131,3 +131,57 @@ export const listByRelatedEntity = query({
       .take(Math.min(args.limit ?? 50, 100));
   },
 });
+
+export const listForAdmin = query({
+  args: {
+    actorUserId: v.id("users"),
+    status: v.optional(notificationStatus),
+    recipientRole: v.optional(marketplaceRole),
+    relatedEntityType: v.optional(v.string()),
+    relatedEntityId: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can inspect platform notifications.");
+    await requireAdminPermission(ctx, args.actorUserId, "notifications:read", {});
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.relatedEntityType !== undefined && args.relatedEntityId !== undefined
+        ? await ctx.db
+            .query("notifications")
+            .withIndex("by_related_entity", (q) =>
+              q.eq("relatedEntityType", args.relatedEntityType!).eq("relatedEntityId", args.relatedEntityId!),
+            )
+            .take(limit * 4)
+        : args.recipientRole !== undefined && args.status !== undefined
+          ? await ctx.db
+              .query("notifications")
+              .withIndex("by_role_status", (q) => q.eq("recipientRole", args.recipientRole!).eq("status", args.status!))
+              .take(limit * 4)
+          : args.status !== undefined
+            ? await ctx.db
+                .query("notifications")
+                .withIndex("by_status", (q) => q.eq("status", args.status!))
+                .take(limit * 4)
+            : await ctx.db.query("notifications").take(limit * 4);
+
+    return candidates
+      .filter((notification) => args.status === undefined || notification.status === args.status)
+      .filter((notification) => args.recipientRole === undefined || notification.recipientRole === args.recipientRole)
+      .filter(
+        (notification) =>
+          args.relatedEntityType === undefined ||
+          notification.relatedEntityType === args.relatedEntityType,
+      )
+      .filter(
+        (notification) =>
+          args.relatedEntityId === undefined ||
+          notification.relatedEntityId === args.relatedEntityId,
+      )
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, limit);
+  },
+});

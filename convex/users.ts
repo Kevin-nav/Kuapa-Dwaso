@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
-import { omitUndefinedValues } from "./workflowHelpers";
+import { omitUndefinedValues, requireAdminPermission } from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -171,6 +171,52 @@ export const getById = query({
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
     return user === null ? null : toUserProfile(user);
+  }
+});
+
+export const listAdmins = query({
+  args: {
+    actorUserId: v.id("users"),
+    status: v.optional(userStatus),
+    limit: v.optional(v.number())
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    await requireAdminPermission(ctx, args.actorUserId, "adminAccess:manage", {});
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.status === undefined
+        ? (
+            await Promise.all(
+              (["pending", "active", "suspended", "rejected", "deactivated"] as const).map((status) =>
+                ctx.db
+                  .query("users")
+                  .withIndex("by_role_status", (q) => q.eq("role", "admin").eq("status", status))
+                  .take(limit),
+              ),
+            )
+          ).flat()
+        : await ctx.db
+            .query("users")
+            .withIndex("by_role_status", (q) => q.eq("role", "admin").eq("status", args.status!))
+            .take(limit * 2);
+
+    return candidates.slice(0, limit).map((user) => ({
+      userId: user._id,
+      authProviderId: user.authProviderId,
+      authProvider: user.authProvider,
+      phoneNumber: user.phoneNumber,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      status: user.status,
+      authMethods: user.authMethods ?? [],
+      mfaRequirement: user.mfaRequirement ?? "not_required",
+      mfaStatus: user.mfaStatus ?? "not_required",
+      onboardingState: user.onboardingState ?? "not_started",
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
   }
 });
 

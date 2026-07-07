@@ -13,10 +13,12 @@ import {
 } from "./feeRules";
 import { insertNotificationRecord } from "./notifications";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   adminScopeTarget,
   auditSnapshot,
   cleanOptionalText,
+  getEffectiveAdminAccess,
   getActor,
   insertAuditLog,
   inventoryScopeTarget,
@@ -512,5 +514,74 @@ export const listWarehouseInventory = query({
       .filter((batch) => args.grade === undefined || batch.grade === args.grade)
       .filter((batch) => args.status === undefined || batch.status === args.status)
       .slice(0, limit);
+  },
+});
+
+export const listForAdmin = query({
+  args: {
+    actorUserId: v.id("users"),
+    warehouseId: v.optional(v.id("warehouses")),
+    status: v.optional(inventoryBatchStatus),
+    cropType: v.optional(v.string()),
+    grade: v.optional(produceGrade),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can list operational inventory.");
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    if (args.warehouseId !== undefined) {
+      await requireAdminPermission(
+        ctx,
+        args.actorUserId,
+        "inventory:read",
+        await warehouseScopeTarget(ctx, args.warehouseId),
+      );
+    }
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.warehouseId !== undefined && args.status !== undefined
+        ? await ctx.db
+            .query("inventoryBatches")
+            .withIndex("by_warehouse_status", (q) =>
+              q.eq("warehouseId", args.warehouseId!).eq("status", args.status!),
+            )
+            .take(limit * 4)
+        : args.warehouseId !== undefined
+          ? await ctx.db
+              .query("inventoryBatches")
+              .withIndex("by_warehouse_status", (q) => q.eq("warehouseId", args.warehouseId!))
+              .take(limit * 4)
+          : args.status !== undefined
+            ? await ctx.db
+                .query("inventoryBatches")
+                .withIndex("by_status", (q) => q.eq("status", args.status!))
+                .take(limit * 4)
+            : await ctx.db.query("inventoryBatches").take(limit * 4);
+
+    const results = [];
+    for (const batch of candidates) {
+      if (args.warehouseId !== undefined && batch.warehouseId !== args.warehouseId) {
+        continue;
+      }
+      if (args.status !== undefined && batch.status !== args.status) {
+        continue;
+      }
+      if (args.cropType !== undefined && batch.cropType !== args.cropType.trim()) {
+        continue;
+      }
+      if (args.grade !== undefined && batch.grade !== args.grade) {
+        continue;
+      }
+      if (adminAccessHasPermissionForScope(access, "inventory:read", await inventoryScopeTarget(ctx, batch))) {
+        results.push(batch);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });

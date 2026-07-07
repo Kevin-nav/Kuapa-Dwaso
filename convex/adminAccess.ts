@@ -72,6 +72,12 @@ const adminPermissionKey = v.union(
   v.literal("reports:read"),
   v.literal("notifications:read"),
   v.literal("notifications:send"),
+  v.literal("invitations:read"),
+  v.literal("invitations:manage"),
+  v.literal("profileLinks:read"),
+  v.literal("profileLinks:manage"),
+  v.literal("uploads:read"),
+  v.literal("uploads:manage"),
 );
 
 function normalizeScope(args: {
@@ -254,6 +260,101 @@ export const listDirectAssignmentsByUser = query({
       .query("adminRoleAssignments")
       .withIndex("by_admin_user_status", (q) => q.eq("adminUserId", args.adminUserId))
       .collect();
+  },
+});
+
+export const listGroupMembershipsByUser = query({
+  args: {
+    actorUserId: v.id("users"),
+    adminUserId: v.id("users"),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    if (args.actorUserId !== args.adminUserId) {
+      await requireAdminPermission(ctx, args.actorUserId, "adminAccess:manage", { scopeType: "global" } as AdminScopeTarget);
+    } else {
+      await requireActiveAdmin(ctx, args.actorUserId);
+    }
+    const memberships = await ctx.db
+      .query("adminAccessGroupMembers")
+      .withIndex("by_admin_user_status", (q) => q.eq("adminUserId", args.adminUserId))
+      .collect();
+    return await Promise.all(
+      memberships.map(async (membership) => ({
+        ...membership,
+        group: await ctx.db.get(membership.groupId),
+      })),
+    );
+  },
+});
+
+export const listGroups = query({
+  args: {
+    actorUserId: v.id("users"),
+    status: v.optional(adminAccessGroupStatus),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    await requireAdminPermission(ctx, args.actorUserId, "adminAccess:manage", { scopeType: "global" } as AdminScopeTarget);
+    const limit = Math.min(args.limit ?? 50, 100);
+    const groups =
+      args.status === undefined
+        ? await ctx.db.query("adminAccessGroups").take(limit * 2)
+        : await ctx.db
+            .query("adminAccessGroups")
+            .withIndex("by_status", (q) => q.eq("status", args.status!))
+            .take(limit * 2);
+    return await Promise.all(
+      groups.slice(0, limit).map(async (group) => {
+        const activeMembers = await ctx.db
+          .query("adminAccessGroupMembers")
+          .withIndex("by_group_status", (q) => q.eq("groupId", group._id).eq("status", "active"))
+          .collect();
+        const activeRoleAssignments = await ctx.db
+          .query("adminAccessGroupRoleAssignments")
+          .withIndex("by_group_status", (q) => q.eq("groupId", group._id).eq("status", "active"))
+          .collect();
+        return {
+          ...group,
+          activeMemberCount: activeMembers.length,
+          activeRoleAssignmentCount: activeRoleAssignments.length,
+        };
+      }),
+    );
+  },
+});
+
+export const getGroupDetails = query({
+  args: {
+    actorUserId: v.id("users"),
+    groupId: v.id("adminAccessGroups"),
+  },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, args) => {
+    await requireAdminPermission(ctx, args.actorUserId, "adminAccess:manage", { scopeType: "global" } as AdminScopeTarget);
+    const group = await ctx.db.get(args.groupId);
+    if (group === null) {
+      return null;
+    }
+    const members = await ctx.db
+      .query("adminAccessGroupMembers")
+      .withIndex("by_group_status", (q) => q.eq("groupId", args.groupId))
+      .collect();
+    const roleAssignments = await ctx.db
+      .query("adminAccessGroupRoleAssignments")
+      .withIndex("by_group_status", (q) => q.eq("groupId", args.groupId))
+      .collect();
+    return {
+      group,
+      members: await Promise.all(
+        members.map(async (member) => ({
+          ...member,
+          adminUser: await ctx.db.get(member.adminUserId),
+        })),
+      ),
+      roleAssignments,
+    };
   },
 });
 

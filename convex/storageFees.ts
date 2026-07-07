@@ -2,8 +2,10 @@ import { calculateFeeAmountFromSnapshot } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
+  getEffectiveAdminAccess,
   getActor,
   insertAuditLog,
   inventoryScopeTarget,
@@ -136,5 +138,68 @@ export const listByBatch = query({
       .withIndex("by_batch_date", (q) => q.eq("inventoryBatchId", args.inventoryBatchId))
       .order("desc")
       .take(Math.min(args.limit ?? 50, 100));
+  },
+});
+
+export const listForAdmin = query({
+  args: {
+    actorUserId: v.id("users"),
+    warehouseId: v.optional(v.id("warehouses")),
+    inventoryBatchId: v.optional(v.id("inventoryBatches")),
+    status: v.optional(storageFeeLedgerStatus),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(actor.role === "admin", "Only admins can inspect storage fee ledgers.");
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    if (args.warehouseId !== undefined) {
+      await requireAdminPermission(ctx, args.actorUserId, "fees:read", await warehouseScopeTarget(ctx, args.warehouseId));
+    }
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.inventoryBatchId !== undefined
+        ? await ctx.db
+            .query("storageFeeLedger")
+            .withIndex("by_batch_date", (q) => q.eq("inventoryBatchId", args.inventoryBatchId!))
+            .order("desc")
+            .take(limit * 4)
+        : args.warehouseId !== undefined && args.status !== undefined
+          ? await ctx.db
+              .query("storageFeeLedger")
+              .withIndex("by_warehouse_status_date", (q) =>
+                q.eq("warehouseId", args.warehouseId!).eq("status", args.status!),
+              )
+              .order("desc")
+              .take(limit * 4)
+          : args.status !== undefined
+            ? await ctx.db
+                .query("storageFeeLedger")
+                .withIndex("by_status_date", (q) => q.eq("status", args.status!))
+                .order("desc")
+                .take(limit * 4)
+            : await ctx.db.query("storageFeeLedger").take(limit * 4);
+
+    const results = [];
+    for (const ledger of candidates) {
+      if (args.warehouseId !== undefined && ledger.warehouseId !== args.warehouseId) {
+        continue;
+      }
+      if (args.inventoryBatchId !== undefined && ledger.inventoryBatchId !== args.inventoryBatchId) {
+        continue;
+      }
+      if (args.status !== undefined && ledger.status !== args.status) {
+        continue;
+      }
+      if (adminAccessHasPermissionForScope(access, "fees:read", await warehouseScopeTarget(ctx, ledger.warehouseId))) {
+        results.push(ledger);
+      }
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });
