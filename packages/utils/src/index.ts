@@ -5,6 +5,7 @@ import type {
   InventoryBatchStatus,
   InventoryReservationStatus,
   PlatformInvitationStatus,
+  SmsDeliveryStatus,
   UploadAssetPurpose,
   ProduceGrade,
 } from "@kuapa-dwaso/types";
@@ -673,6 +674,36 @@ export function normalizePhoneNumber(phoneNumber: string): string {
   return normalized;
 }
 
+export function normalizeE164PhoneNumber(phoneNumber: string): string {
+  const compact = phoneNumber.trim().replace(/[\s().-]/g, "");
+  const digitsOnly = compact.replace(/\D/g, "");
+  let normalized: string;
+
+  if (/^0\d{9}$/.test(digitsOnly)) {
+    normalized = `+233${digitsOnly.slice(1)}`;
+  } else if (/^233\d{9}$/.test(digitsOnly)) {
+    normalized = `+${digitsOnly}`;
+  } else if (compact.startsWith("+")) {
+    normalized = `+${digitsOnly}`;
+  } else {
+    throw new Error("Phone number must be in E.164 format.");
+  }
+
+  if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
+    throw new Error("Phone number must be in E.164 format.");
+  }
+
+  return normalized;
+}
+
+export function normalizeGhanaPhoneNumber(phoneNumber: string): string {
+  const normalized = normalizeE164PhoneNumber(phoneNumber);
+  if (!/^\+233\d{9}$/.test(normalized)) {
+    throw new Error("Ghana phone number must use +233 followed by 9 digits.");
+  }
+  return normalized;
+}
+
 export function assertInviteTargetMatchesIdentity(input: {
   targetEmail?: string;
   targetPhoneNumber?: string;
@@ -708,6 +739,110 @@ export function buildUploadObjectKey(input: {
   const extension = input.fileName?.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const suffix = extension === undefined || extension.length === 0 ? "" : `.${extension}`;
   return `${safeEnvironment}/${safePurpose}/${safeOwner}/${safeUpload}${suffix}`;
+}
+
+const gsm7BasicCharacters =
+  "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ" +
+  "\u001b" +
+  "ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?" +
+  "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+const gsm7ExtensionCharacters = "^{}\\[~]|€";
+
+export type SmsEncoding = "gsm-7" | "ucs-2";
+
+export type SmsSegmentEstimate = {
+  encoding: SmsEncoding;
+  characterCount: number;
+  encodedLength: number;
+  segments: number;
+  singleSegmentLimit: number;
+  multipartSegmentLimit: number;
+  credits: number;
+  isMultipart: boolean;
+};
+
+export function estimateSmsSegments(message: string): SmsSegmentEstimate {
+  const gsm7Length = countGsm7Units(message);
+  if (gsm7Length !== undefined) {
+    return buildSmsSegmentEstimate({
+      encoding: "gsm-7",
+      characterCount: [...message].length,
+      encodedLength: gsm7Length,
+      singleSegmentLimit: 160,
+      multipartSegmentLimit: 153,
+    });
+  }
+
+  return buildSmsSegmentEstimate({
+    encoding: "ucs-2",
+    characterCount: [...message].length,
+    encodedLength: message.length,
+    singleSegmentLimit: 70,
+    multipartSegmentLimit: 67,
+  });
+}
+
+export function normalizeSmsDeliveryStatus(status: string): SmsDeliveryStatus {
+  switch (status.trim().toLowerCase()) {
+    case "sent":
+    case "submitted":
+    case "success":
+      return "sent";
+    case "delivered":
+    case "delivery_success":
+      return "delivered";
+    case "pending":
+    case "queued":
+    case "processing":
+      return "pending";
+    case "expired":
+      return "expired";
+    case "rejected":
+    case "undeliverable":
+      return "rejected";
+    case "failed":
+    case "failure":
+    case "error":
+      return "failed";
+    default:
+      return "failed";
+  }
+}
+
+function countGsm7Units(message: string): number | undefined {
+  let units = 0;
+  for (const character of message) {
+    if (gsm7BasicCharacters.includes(character)) {
+      units += 1;
+    } else if (gsm7ExtensionCharacters.includes(character)) {
+      units += 2;
+    } else {
+      return undefined;
+    }
+  }
+  return units;
+}
+
+function buildSmsSegmentEstimate(input: {
+  encoding: SmsEncoding;
+  characterCount: number;
+  encodedLength: number;
+  singleSegmentLimit: number;
+  multipartSegmentLimit: number;
+}): SmsSegmentEstimate {
+  const segments =
+    input.encodedLength === 0
+      ? 0
+      : input.encodedLength <= input.singleSegmentLimit
+        ? 1
+        : Math.ceil(input.encodedLength / input.multipartSegmentLimit);
+
+  return {
+    ...input,
+    segments,
+    credits: segments,
+    isMultipart: segments > 1,
+  };
 }
 
 export function assertUploadMetadata(input: {

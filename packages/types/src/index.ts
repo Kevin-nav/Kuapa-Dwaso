@@ -339,6 +339,31 @@ export const notificationStatuses = [
 ] as const;
 export type NotificationStatus = (typeof notificationStatuses)[number];
 
+export const smsProviders = ["mock", "arkesel"] as const;
+export type SmsProvider = (typeof smsProviders)[number];
+
+export const smsMessageKinds = [
+  "invite",
+  "notification",
+  "otp",
+  "transactional",
+  "promotional",
+] as const;
+export type SmsMessageKind = (typeof smsMessageKinds)[number];
+
+export const smsDeliveryStatuses = [
+  "pending",
+  "sent",
+  "delivered",
+  "failed",
+  "expired",
+  "rejected",
+] as const;
+export type SmsDeliveryStatus = (typeof smsDeliveryStatuses)[number];
+
+export const smsProviderErrorClasses = ["retryable", "nonretryable"] as const;
+export type SmsProviderErrorClass = (typeof smsProviderErrorClasses)[number];
+
 export const disputeStatuses = [
   "open",
   "under_review",

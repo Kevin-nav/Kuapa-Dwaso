@@ -15,6 +15,10 @@ import {
   inventoryReservationStatuses,
   marketplaceRoles,
   notificationStatuses,
+  smsDeliveryStatuses,
+  smsMessageKinds,
+  smsProviderErrorClasses,
+  smsProviders,
   mfaRequirements,
   mfaStatuses,
   onboardingStates,
@@ -52,6 +56,10 @@ import {
   type InventoryReservationStatus,
   type MarketplaceRole,
   type NotificationStatus,
+  type SmsDeliveryStatus,
+  type SmsMessageKind,
+  type SmsProvider,
+  type SmsProviderErrorClass,
   type MfaRequirement,
   type MfaStatus,
   type OnboardingState,
@@ -202,6 +210,32 @@ export function isNotificationStatus(
   value: unknown,
 ): value is NotificationStatus {
   return isOneOf(notificationStatuses, value);
+}
+
+export function isSmsProvider(value: unknown): value is SmsProvider {
+  return isOneOf(smsProviders, value);
+}
+
+export function isSmsMessageKind(value: unknown): value is SmsMessageKind {
+  return isOneOf(smsMessageKinds, value);
+}
+
+export function isSmsDeliveryStatus(value: unknown): value is SmsDeliveryStatus {
+  return isOneOf(smsDeliveryStatuses, value);
+}
+
+export function isSmsProviderErrorClass(
+  value: unknown,
+): value is SmsProviderErrorClass {
+  return isOneOf(smsProviderErrorClasses, value);
+}
+
+export function isE164PhoneNumber(value: unknown): value is string {
+  return typeof value === "string" && /^\+[1-9]\d{7,14}$/.test(value.trim());
+}
+
+export function isGhanaE164PhoneNumber(value: unknown): value is string {
+  return typeof value === "string" && /^\+233\d{9}$/.test(value.trim());
 }
 
 export function isDisputeStatus(value: unknown): value is DisputeStatus {
