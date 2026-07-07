@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { SiteHeader, Logo } from "./site-header";
 
 const proofPoints = [
   ["Warehouse-verified", "Produce is received, weighed, graded, and recorded"],
@@ -40,11 +41,6 @@ const audiences = [
   },
 ] as const;
 
-const navLinks = [
-  ["How it works", "#how"],
-  ["Warehouse model", "#warehouse"],
-  ["Buyers", "#buyers"],
-] as const;
 
 export default function LandingPage() {
   return (
@@ -63,36 +59,7 @@ export default function LandingPage() {
   );
 }
 
-function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-brand-line bg-brand-surface">
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5" aria-label="Kuapa Dwaso home">
-          <Logo className="h-8 w-8" />
-          <span className="font-display text-lg font-bold text-brand-ink">Kuapa Dwaso</span>
-        </a>
 
-        <div className="hidden items-center gap-8 md:flex">
-          {navLinks.map(([label, href]) => (
-            <a key={href} href={href} className="nav-link">
-              {label}
-            </a>
-          ))}
-          <a
-            href="/join"
-            className="rounded-full bg-brand-field px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-field-light"
-          >
-            Join the pilot
-          </a>
-        </div>
-
-        <a href="/join" className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden">
-          Join
-        </a>
-      </nav>
-    </header>
-  );
-}
 
 function HeroSection() {
   return (
@@ -339,18 +306,7 @@ function FooterLinks({
   );
 }
 
-function Logo({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
-      <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
-      <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
-      <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
-      <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
-      <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
-      <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
-    </svg>
-  );
-}
+
 
 function ArrowIcon() {
   return (
