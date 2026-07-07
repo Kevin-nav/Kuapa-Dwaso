@@ -12,12 +12,14 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 import {
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   dispatchScopeTarget,
   getActor,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   type Actor,
@@ -69,18 +71,14 @@ function cleanText(value: string, label: string): string {
   return cleaned;
 }
 
-function assertPositiveNumber(value: number, label: string): void {
-  assertAllowed(Number.isFinite(value) && value > 0, `${label} must be a positive number.`);
-}
-
 function assertNonNegativeNumber(value: number | undefined, label: string): void {
   if (value !== undefined) {
     assertAllowed(Number.isFinite(value) && value >= 0, `${label} must be a non-negative number.`);
   }
 }
 
-function uniqueIds<TableName extends string>(ids: Id<TableName>[]): Id<TableName>[] {
-  return [...new Set(ids)] as Id<TableName>[];
+function uniqueIds<T extends string>(ids: T[]): T[] {
+  return [...new Set(ids)];
 }
 
 async function assertCanOperateWarehouse(
@@ -350,7 +348,7 @@ export const create = mutation({
     // Financial settlement extension point: dispatch records transport cost and
     // payer now, but later slices should decide whether/how to post buyer
     // charges or farmer deductions without rewriting existing sale records here.
-    const dispatchId = await ctx.db.insert("dispatches", {
+    const dispatchId = await ctx.db.insert("dispatches", omitUndefinedValues({
       warehouseId,
       destination,
       transporterId: args.transporterId,
@@ -372,7 +370,7 @@ export const create = mutation({
       status: "planned",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
     const after = await ctx.db.get(dispatchId);
     await insertAuditLog(ctx, {
       actor,
@@ -820,11 +818,11 @@ export const listForFarmer = query({
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot list farmer dispatches.");
       if (actor.role === "admin") {
-        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", {
+        await requireAdminPermission(ctx, args.actorUserId, "dispatches:read", adminScopeTarget({
           warehouseId: farmer.preferredWarehouseId,
           region: farmer.region,
           district: farmer.community,
-        });
+        }));
       }
     }
     const sales = await ctx.db

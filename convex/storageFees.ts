@@ -127,7 +127,7 @@ export const listByBatch = query({
     } else if (actor.role === "warehouse_agent") {
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, batch.warehouseId);
     } else {
-      assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot view these fees.");
+      assertAllowed(actor.role === "admin", "Actor cannot view these fees.");
       await requireAdminPermission(ctx, args.actorUserId, "fees:read", await inventoryScopeTarget(ctx, batch));
     }
 

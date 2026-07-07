@@ -1,15 +1,17 @@
 import { canManageTransporters } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
   adminAccessHasPermissionForScope,
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
   getActor,
   getEffectiveAdminAccess,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
 } from "./workflowHelpers";
 
@@ -59,9 +61,9 @@ async function assertCanManageProfile(
     return;
   }
   assertAllowed(canManageTransporters(actor.role), "Only admins can manage transporter profiles.");
-  await requireAdminPermission(ctx, actor._id, "transporters:manage", {
+  await requireAdminPermission(ctx, actor._id, "transporters:manage", adminScopeTarget({
     destinationMarket: profile.destinationsServed[0],
-  });
+  }));
 }
 
 export const create = mutation({
@@ -109,7 +111,7 @@ export const create = mutation({
     assertOptionalPositiveNumber(args.vehicleCapacity, "Vehicle capacity");
     assertOptionalRating(args.rating);
     const now = Date.now();
-    const transporterId = await ctx.db.insert("transporterProfiles", {
+    const transporterId = await ctx.db.insert("transporterProfiles", omitUndefinedValues({
       userId,
       fullName: cleanText(args.fullName, "Full name"),
       phoneNumber: cleanText(args.phoneNumber, "Phone number"),
@@ -124,7 +126,7 @@ export const create = mutation({
       rating: args.rating,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
     const after = await ctx.db.get(transporterId);
     await insertAuditLog(ctx, {
       actor,
@@ -162,12 +164,12 @@ export const update = mutation({
     assertOptionalRating(args.rating);
     if (args.rating !== undefined) {
       assertAllowed(canManageTransporters(actor.role), "Only admins can update transporter ratings.");
-      await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+      await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", adminScopeTarget({
         destinationMarket: profile.destinationsServed[0],
-      });
+      }));
     }
 
-    await ctx.db.patch(args.transporterId, {
+    await ctx.db.patch(args.transporterId, omitUndefinedValues({
       fullName: args.fullName === undefined ? undefined : cleanText(args.fullName, "Full name"),
       phoneNumber: args.phoneNumber === undefined ? undefined : cleanText(args.phoneNumber, "Phone number"),
       vehicleType: args.vehicleType === undefined ? undefined : cleanText(args.vehicleType, "Vehicle type"),
@@ -181,7 +183,7 @@ export const update = mutation({
           : cleanTextArray(args.destinationsServed, "Destinations served"),
       rating: args.rating,
       updatedAt: Date.now(),
-    });
+    }));
     const after = await ctx.db.get(args.transporterId);
     await insertAuditLog(ctx, {
       actor,
@@ -209,9 +211,9 @@ export const updateVerificationStatus = mutation({
     assertAllowed(canManageTransporters(actor.role), "Only admins can verify transporter profiles.");
     const profile = await ctx.db.get(args.transporterId);
     assertAllowed(profile !== null, "Transporter profile was not found.");
-    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", adminScopeTarget({
       destinationMarket: profile.destinationsServed[0],
-    });
+    }));
 
     await ctx.db.patch(args.transporterId, {
       verificationStatus: args.verificationStatus,
@@ -245,9 +247,9 @@ export const updateStatus = mutation({
     assertAllowed(canManageTransporters(actor.role), "Only admins can update transporter status.");
     const profile = await ctx.db.get(args.transporterId);
     assertAllowed(profile !== null, "Transporter profile was not found.");
-    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", {
+    await requireAdminPermission(ctx, args.actorUserId, "transporters:manage", adminScopeTarget({
       destinationMarket: profile.destinationsServed[0],
-    });
+    }));
 
     await ctx.db.patch(args.transporterId, {
       status: args.status,
@@ -299,9 +301,9 @@ export const getById = query({
         "Actor cannot view transporter profile details.",
       );
       if (actor.role === "admin") {
-        await requireAdminPermission(ctx, args.actorUserId, "transporters:read", {
+        await requireAdminPermission(ctx, args.actorUserId, "transporters:read", adminScopeTarget({
           destinationMarket: profile.destinationsServed[0],
-        });
+        }));
       }
     }
 
@@ -381,7 +383,7 @@ export const list = query({
     return filtered
       .filter((profile) =>
         profile.destinationsServed.some((destinationMarket) =>
-          adminAccessHasPermissionForScope(access, "transporters:read", { destinationMarket }),
+          adminAccessHasPermissionForScope(access, "transporters:read", adminScopeTarget({ destinationMarket })),
         ),
       )
       .slice(0, limit);

@@ -24,6 +24,7 @@ import {
   buyerOrderScopeTarget,
   getActor,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   type Actor,
@@ -54,18 +55,13 @@ const buyerOrderStatus = v.union(
   v.literal("disputed"),
 );
 
-const inventoryReservationStatus = v.union(
-  v.literal("active"),
-  v.literal("partially_released"),
-  v.literal("fulfilled"),
-  v.literal("released"),
-  v.literal("expired"),
-  v.literal("cancelled"),
-);
-
 type BuyerOrderStatus = Doc<"buyerOrders">["status"];
 type InventoryBatchStatus = Doc<"inventoryBatches">["status"];
 type InventoryReservationStatus = Doc<"inventoryReservations">["status"];
+type BuyerVisibleInventoryBatchStatus = Extract<
+  InventoryBatchStatus,
+  "available" | "partially_reserved" | "partially_sold"
+>;
 
 type ReservableBatch = Doc<"inventoryBatches"> & {
   warehouse: Doc<"warehouses">;
@@ -219,7 +215,7 @@ async function findReservableBatches(
 
     const reservations = await getBatchReservations(ctx, batch._id);
     const fulfilledSaleQuantity = await getFulfilledSaleQuantity(ctx, batch._id);
-    const reservableQuantity = calculateReservableBatchQuantity({
+    const reservableQuantity = calculateReservableBatchQuantity(omitUndefinedValues({
       inventoryBatchId: batch._id,
       quantityReceived: batch.quantityReceived,
       quantityAvailable: batch.quantityAvailable,
@@ -228,7 +224,7 @@ async function findReservableBatches(
       unit: batch.unit,
       receivedAt: batch.receivedAt,
       sellByDate: batch.sellByDate,
-    });
+    }));
 
     if (reservableQuantity <= 0) {
       continue;
@@ -259,7 +255,7 @@ async function recomputeBatchStatus(
   if (batch === null) {
     return;
   }
-  if (!inventoryBatchStatusesVisibleToBuyers.includes(batch.status)) {
+  if (!(inventoryBatchStatusesVisibleToBuyers as readonly InventoryBatchStatus[]).includes(batch.status)) {
     return;
   }
 
@@ -294,7 +290,7 @@ async function recomputeBatchStatus(
     return;
   }
   assertAllowed(
-    canTransitionInventoryBatchStatus(batch.status, nextStatus),
+    canTransitionInventoryBatchStatus(batch.status as BuyerVisibleInventoryBatchStatus, nextStatus),
     "Inventory batch status transition is not allowed.",
   );
 
@@ -349,7 +345,7 @@ export const listAvailableInventory = query({
   handler: async (ctx, args) => {
     const cropType = args.cropType?.trim();
     const unit = args.unit?.trim();
-    const batches = await findReservableBatches(ctx, {
+    const batches = await findReservableBatches(ctx, omitUndefinedValues({
       cropType,
       unit,
       warehouseId: args.warehouseId,
@@ -360,7 +356,7 @@ export const listAvailableInventory = query({
       sellByDateOnOrAfter: args.sellByDateOnOrAfter,
       sellByDateOnOrBefore: args.sellByDateOnOrBefore,
       limit: args.limit,
-    });
+    }));
 
     return batches.map(buyerInventoryProjection);
   },
@@ -518,7 +514,7 @@ export const create = mutation({
     }
 
     const now = Date.now();
-    const orderId = await ctx.db.insert("buyerOrders", {
+    const orderId = await ctx.db.insert("buyerOrders", omitUndefinedValues({
       buyerId: args.buyerId,
       destinationMarket,
       cropType,
@@ -532,7 +528,7 @@ export const create = mutation({
       status: "submitted",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
     await insertBuyerOrderNotification(
       ctx,
       buyer,
@@ -541,19 +537,19 @@ export const create = mutation({
       `Your order for ${args.requestedQuantity} ${unit} of ${cropType} has been submitted.`,
     );
 
-    const candidates = await findReservableBatches(ctx, {
+    const candidates = await findReservableBatches(ctx, omitUndefinedValues({
       cropType,
       unit,
       destinationMarket,
       preferredGrade: args.preferredGrade,
       maxPricePerUnit: args.maxPricePerUnit,
       limit: 200,
-    });
+    }));
 
     let allocations;
     try {
       allocations = allocateInventoryReservations(
-        candidates.map((batch) => ({
+        candidates.map((batch) => omitUndefinedValues({
           inventoryBatchId: batch._id,
           quantityReceived: batch.quantityReceived,
           quantityAvailable: batch.reservableQuantity,
@@ -605,7 +601,7 @@ export const create = mutation({
         subtotalAmount += batch.askingPricePerUnit * allocation.quantityReserved;
       }
 
-      const reservationId = await ctx.db.insert("inventoryReservations", {
+      const reservationId = await ctx.db.insert("inventoryReservations", omitUndefinedValues({
         buyerOrderId: orderId,
         inventoryBatchId: batch._id,
         warehouseId: batch.warehouseId,
@@ -618,7 +614,7 @@ export const create = mutation({
         status: "active",
         createdAt: now,
         updatedAt: now,
-      });
+      }));
       const reservation = await ctx.db.get(reservationId);
       await insertAuditLog(ctx, {
         actor,
@@ -643,7 +639,8 @@ export const create = mutation({
     }
 
     const pricedSubtotal = hasCompletePricing ? subtotalAmount : undefined;
-    const firstBatch = candidateById.get(matchedInventoryBatchIds[0]);
+    const firstBatchId = matchedInventoryBatchIds[0];
+    const firstBatch = firstBatchId === undefined ? undefined : candidateById.get(firstBatchId);
     const feeRules =
       firstBatch === undefined
         ? []
@@ -651,7 +648,7 @@ export const create = mutation({
             warehouseId: firstBatch.warehouseId,
             cropType,
             unit,
-            grade: args.preferredGrade,
+            ...omitUndefinedValues({ grade: args.preferredGrade }),
             destinationMarket,
             asOf: now,
           });
@@ -668,7 +665,7 @@ export const create = mutation({
         }
         return true;
       })
-      .map((rule) => ({
+      .map((rule) => omitUndefinedValues({
         snapshot: snapshotFeeRule(rule, now),
         quantity: args.requestedQuantity,
         grossSaleAmount: pricedSubtotal,
@@ -696,14 +693,14 @@ export const create = mutation({
     const serviceFee = charges.reduce((total, charge) => total + charge.amount, 0);
     const totalAmount = pricedSubtotal === undefined ? undefined : pricedSubtotal + serviceFee;
     const beforeOrder = await ctx.db.get(orderId);
-    await ctx.db.patch(orderId, {
+    await ctx.db.patch(orderId, omitUndefinedValues({
       matchedInventoryBatchIds,
       subtotalAmount: pricedSubtotal,
       serviceFee: serviceFee > 0 ? serviceFee : undefined,
       totalAmount,
       status: "reserved",
       updatedAt: Date.now(),
-    });
+    }));
     const afterOrder = await ctx.db.get(orderId);
     await insertBuyerOrderNotification(
       ctx,
@@ -1062,9 +1059,9 @@ export const listForBuyer = query({
       assertAllowed(buyer.userId === actor._id, "Buyers can only list their own orders.");
     } else {
       assertAllowed(actor.role === "admin", "Only buyers and admins can list buyer orders.");
-      await requireAdminPermission(ctx, args.actorUserId, "orders:read", {
+      await requireAdminPermission(ctx, args.actorUserId, "orders:read", omitUndefinedValues({
         destinationMarket: buyer.destinationMarket,
-      });
+      }));
     }
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =

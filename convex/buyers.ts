@@ -5,9 +5,11 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { resolveActor } from "./auth";
 import {
   adminAccessHasPermissionForScope,
+  adminScopeTarget,
   auditSnapshot,
   getEffectiveAdminAccess,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   type Actor,
 } from "./workflowHelpers";
@@ -69,9 +71,9 @@ export const createOrUpdateProfile = mutation({
       throw new Error("Buyers can only manage their own buyer profile.");
     }
     if (actor.role === "admin") {
-      await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", adminScopeTarget({
         destinationMarket: args.destinationMarket,
-      });
+      }));
     }
 
     const userId = args.userId ?? (actor.role === "buyer" ? actor._id : undefined);
@@ -98,7 +100,7 @@ export const createOrUpdateProfile = mutation({
             .unique();
 
     if (existing !== null) {
-      await ctx.db.patch(existing._id, {
+      await ctx.db.patch(existing._id, omitUndefinedValues({
         userId,
         fullName: args.fullName.trim(),
         displayName: args.displayName?.trim(),
@@ -109,7 +111,7 @@ export const createOrUpdateProfile = mutation({
         verificationStatus: args.verificationStatus ?? existing.verificationStatus,
         status: args.status ?? existing.status,
         updatedAt: now,
-      });
+      }));
 
       const after = await ctx.db.get(existing._id);
       if (after === null) {
@@ -120,7 +122,7 @@ export const createOrUpdateProfile = mutation({
       return existing._id;
     }
 
-    const buyerId = await ctx.db.insert("buyers", {
+    const buyerId = await ctx.db.insert("buyers", omitUndefinedValues({
       userId,
       fullName: args.fullName.trim(),
       displayName: args.displayName?.trim(),
@@ -132,7 +134,7 @@ export const createOrUpdateProfile = mutation({
       status: args.status ?? "active",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(buyerId);
     if (after === null) {
@@ -162,9 +164,9 @@ export const updateVerificationStatus = mutation({
     if (buyer === null) {
       throw new Error("Buyer profile was not found.");
     }
-    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", adminScopeTarget({
       destinationMarket: buyer.destinationMarket,
-    });
+    }));
 
     await ctx.db.patch(args.buyerId, {
       verificationStatus: args.verificationStatus,
@@ -208,9 +210,9 @@ export const updateStatus = mutation({
     if (buyer === null) {
       throw new Error("Buyer profile was not found.");
     }
-    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", {
+    await requireAdminPermission(ctx, args.actorUserId, "buyers:manage", adminScopeTarget({
       destinationMarket: buyer.destinationMarket,
-    });
+    }));
 
     await ctx.db.patch(args.buyerId, {
       status: args.status,
@@ -258,9 +260,9 @@ export const getById = query({
   handler: async (ctx, args) => {
     const buyer = await ctx.db.get(args.buyerId);
     if (buyer !== null && args.actorUserId !== undefined) {
-      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", adminScopeTarget({
         destinationMarket: buyer.destinationMarket,
-      });
+      }));
     }
     return buyer;
   },
@@ -278,9 +280,9 @@ export const getByPhoneNumber = query({
       .withIndex("by_phone_number", (q) => q.eq("phoneNumber", args.phoneNumber.trim()))
       .unique();
     if (buyer !== null && args.actorUserId !== undefined) {
-      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", {
+      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", adminScopeTarget({
         destinationMarket: buyer.destinationMarket,
-      });
+      }));
     }
     return buyer;
   },
@@ -343,9 +345,9 @@ export const list = query({
     const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
     return filtered
       .filter((buyer) =>
-        adminAccessHasPermissionForScope(access, "buyers:read", {
+        adminAccessHasPermissionForScope(access, "buyers:read", adminScopeTarget({
           destinationMarket: buyer.destinationMarket,
-        }),
+        })),
       )
       .slice(0, limit);
   },

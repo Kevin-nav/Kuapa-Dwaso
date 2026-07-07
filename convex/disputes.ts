@@ -9,6 +9,7 @@ import {
   adminAccessHasPermissionForScope,
   disputeScopeTarget,
   getEffectiveAdminAccess,
+  omitUndefinedValues,
   requireAdminPermission,
   warehouseScopeTarget,
 } from "./workflowHelpers";
@@ -102,7 +103,7 @@ export const create = mutation({
     requireNonBlank(args.summary, "Dispute summary");
 
     const now = Date.now();
-    const disputeId = await ctx.db.insert("disputes", {
+    const disputeId = await ctx.db.insert("disputes", omitUndefinedValues({
       entityType: args.entityType,
       entityId: args.entityId,
       status: "open",
@@ -112,9 +113,9 @@ export const create = mutation({
       summary: args.summary,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
-    await ctx.db.insert("auditLogs", {
+    await ctx.db.insert("auditLogs", omitUndefinedValues({
       actorId: args.actorId,
       actorRole: args.actorRole,
       action: "dispute.created",
@@ -128,7 +129,7 @@ export const create = mutation({
       },
       metadata: args.metadata,
       createdAt: now,
-    });
+    }));
 
     return disputeId;
   },
@@ -179,7 +180,7 @@ export const updateStatus = mutation({
           : { status: args.status, resolution, updatedAt: now };
 
     await ctx.db.patch(args.disputeId, patch);
-    await ctx.db.insert("auditLogs", {
+    await ctx.db.insert("auditLogs", omitUndefinedValues({
       actorId: args.actorId,
       actorRole: args.actorRole,
       action: "dispute.status_updated",
@@ -193,7 +194,7 @@ export const updateStatus = mutation({
       after: patch,
       metadata: args.metadata,
       createdAt: now,
-    });
+    }));
 
     return args.disputeId;
   },

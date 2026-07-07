@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { assertAllowed, getActor, requireAdminPermission } from "./workflowHelpers";
+import { assertAllowed, getActor, omitUndefinedValues, requireAdminPermission } from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -29,21 +29,21 @@ const notificationStatus = v.union(
 export async function insertNotificationRecord(
   ctx: MutationCtx,
   args: {
-    recipientId?: string;
-    recipientUserId?: Id<"users">;
+    recipientId?: string | undefined;
+    recipientUserId?: Id<"users"> | undefined;
     recipientRole: "farmer" | "warehouse_agent" | "buyer" | "transporter" | "admin";
     channel: "sms" | "in_app" | "email";
     title: string;
     message: string;
-    relatedEntityType?: string;
-    relatedEntityId?: string;
+    relatedEntityType?: string | undefined;
+    relatedEntityId?: string | undefined;
   },
 ): Promise<Id<"notifications">> {
-  return await ctx.db.insert("notifications", {
+  return await ctx.db.insert("notifications", omitUndefinedValues({
     ...args,
     status: "pending",
     createdAt: Date.now(),
-  });
+  }));
 }
 
 export const createRecord = mutation({
@@ -70,12 +70,12 @@ export const updateStatus = mutation({
   },
   returns: v.id("notifications"),
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.notificationId, {
+    await ctx.db.patch(args.notificationId, omitUndefinedValues({
       status: args.status,
       updatedAt: Date.now(),
       sentAt: args.status === "sent" ? Date.now() : undefined,
       readAt: args.status === "read" ? Date.now() : undefined,
-    });
+    }));
 
     return args.notificationId;
   },

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
   adminAccessHasPermissionForScope,
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
@@ -11,6 +12,7 @@ import {
   getEffectiveAdminAccess,
   insertAuditLog,
   normalizeCodeSegment,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
@@ -73,15 +75,15 @@ export const createProfile = mutation({
       await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.preferredWarehouseId);
     } else {
       assertAllowed(actor.role === "admin", "Only admins and warehouse agents can create farmer profiles.");
-      await requireAdminPermission(ctx, actor._id, "farmers:manage", {
+      await requireAdminPermission(ctx, actor._id, "farmers:manage", adminScopeTarget({
         warehouseId: args.preferredWarehouseId,
         region: args.region,
         district: args.community,
-      });
+      }));
     }
 
     const now = Date.now();
-    const farmerId = await ctx.db.insert("farmers", {
+    const farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
       userId: args.userId,
       farmerCode: await makeUniqueFarmerCode(ctx, args.community, args.phoneNumber, now),
       fullName: args.fullName,
@@ -95,7 +97,7 @@ export const createProfile = mutation({
       status: "active",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(farmerId);
     await insertAuditLog(ctx, {
@@ -287,10 +289,11 @@ export const listByWarehouse = query({
 
     const limit = Math.min(args.limit ?? 50, 100);
     if (args.verificationStatus !== undefined) {
+      const status = args.verificationStatus;
       return await ctx.db
         .query("farmers")
         .withIndex("by_preferred_warehouse_verification_status", (q) =>
-          q.eq("preferredWarehouseId", args.warehouseId).eq("verificationStatus", args.verificationStatus),
+          q.eq("preferredWarehouseId", args.warehouseId).eq("verificationStatus", status),
         )
         .take(limit);
     }
@@ -319,9 +322,11 @@ export const list = query({
         ? await ctx.db.query("farmers").take(limit * 3)
         : await ctx.db
             .query("farmers")
-            .withIndex("by_verification_status", (q) =>
-              q.eq("verificationStatus", args.verificationStatus!),
-            )
+            .withIndex("by_verification_status", (q) => {
+              const status = args.verificationStatus;
+              assertAllowed(status !== undefined, "Verification status is required.");
+              return q.eq("verificationStatus", status);
+            })
             .take(limit * 3);
 
     const results = [];

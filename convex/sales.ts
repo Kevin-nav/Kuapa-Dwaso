@@ -24,6 +24,7 @@ import {
   auditSnapshot,
   getActor,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   saleScopeTarget,
@@ -191,7 +192,7 @@ async function settleStorageFeesForSale(
     .sort((left, right) => left.feeDate - right.feeDate);
 
   const settlements = allocateStorageFeeDeductions(
-    ledgerEntries.map((entry) => ({
+    ledgerEntries.map((entry) => omitUndefinedValues({
       ledgerId: entry._id,
       amount: entry.amount,
       amountAlreadyDeducted: entry.amountDeducted,
@@ -309,7 +310,7 @@ export const createFromBuyerOrder = mutation({
       }
 
       const grossAmount = roundMoneyAmount(quantitySold * pricePerUnit);
-      const saleRecordId = await ctx.db.insert("saleRecords", {
+      const saleRecordId = await ctx.db.insert("saleRecords", omitUndefinedValues({
         buyerOrderId: order._id,
         inventoryBatchId: batch._id,
         farmerId: batch.farmerId,
@@ -325,7 +326,7 @@ export const createFromBuyerOrder = mutation({
         paymentStatus: "pending",
         createdAt: now,
         updatedAt: now,
-      });
+      }));
 
       const storageFeeDeducted = await settleStorageFeesForSale(ctx, actor, {
         saleRecordId,
@@ -343,7 +344,7 @@ export const createFromBuyerOrder = mutation({
         asOf: now,
       });
       const farmerDeductions = calculateFarmerSaleDeductions(
-        feeRules.map((rule) => ({
+        feeRules.map((rule) => omitUndefinedValues({
           snapshot: snapshotFeeRule(rule, now),
           quantity: quantitySold,
           grossSaleAmount: grossAmount,
@@ -383,23 +384,23 @@ export const createFromBuyerOrder = mutation({
         });
       }
 
-      const netAmountDueToFarmer = calculateNetAmountDueToFarmer({
+      const netAmountDueToFarmer = calculateNetAmountDueToFarmer(omitUndefinedValues({
         grossAmount,
         storageFeeDeducted,
         handlingFeeDeducted,
         commissionDeducted,
         transportFeeDeducted,
         adjustmentAmount: line?.adjustmentAmount,
-      });
+      }));
       const beforeSale = await ctx.db.get(saleRecordId);
-      await ctx.db.patch(saleRecordId, {
+      await ctx.db.patch(saleRecordId, omitUndefinedValues({
         storageFeeDeducted,
         handlingFeeDeducted: handlingFeeDeducted > 0 ? handlingFeeDeducted : undefined,
         commissionDeducted: commissionDeducted > 0 ? commissionDeducted : undefined,
         transportFeeDeducted: transportFeeDeducted > 0 ? transportFeeDeducted : undefined,
         netAmountDueToFarmer,
         updatedAt: Date.now(),
-      });
+      }));
       const afterSale = await ctx.db.get(saleRecordId);
       await insertAuditLog(ctx, {
         actor,
@@ -615,11 +616,11 @@ export const listForFarmer = query({
     } else {
       assertAllowed(actor.role === "admin" || actor.role === "warehouse_agent", "Actor cannot list farmer sales.");
       if (actor.role === "admin") {
-        await requireAdminPermission(ctx, args.actorUserId, "sales:read", {
+        await requireAdminPermission(ctx, args.actorUserId, "sales:read", omitUndefinedValues({
           warehouseId: farmer.preferredWarehouseId,
           region: farmer.region,
           district: farmer.community,
-        });
+        }));
       }
     }
 

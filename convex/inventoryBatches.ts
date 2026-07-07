@@ -14,12 +14,14 @@ import {
 import { insertNotificationRecord } from "./notifications";
 import {
   assertAllowed,
+  adminScopeTarget,
   auditSnapshot,
   cleanOptionalText,
   getActor,
   insertAuditLog,
   inventoryScopeTarget,
   normalizeCodeSegment,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
@@ -205,7 +207,7 @@ export const createIntake = mutation({
       }));
     const storageRateSnapshot =
       selectedRule === null
-        ? manualStorageRateSnapshot({
+        ? manualStorageRateSnapshot(omitUndefinedValues({
             ratePerUnitPerDay: args.manualStorageRatePerUnitPerDay ?? 0,
             unit: args.unit,
             currency: args.storageRateCurrency,
@@ -213,11 +215,11 @@ export const createIntake = mutation({
             cropType: args.cropType,
             grade: args.grade,
             snapshottedAt: now,
-          })
+          }))
         : snapshotStorageRateRule(selectedRule, now);
 
     const receiptCode = await makeUniqueReceiptCode(ctx, warehouse.code, now);
-    const inventoryBatchId = await ctx.db.insert("inventoryBatches", {
+    const inventoryBatchId = await ctx.db.insert("inventoryBatches", omitUndefinedValues({
       receiptCode,
       farmerId: args.farmerId,
       warehouseId: args.warehouseId,
@@ -241,7 +243,7 @@ export const createIntake = mutation({
       status: args.status ?? "received",
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     await insertNotificationRecord(ctx, {
       recipientId: args.farmerId,
@@ -360,7 +362,7 @@ export const updateDetails = mutation({
       assertAllowed(args.minimumPricePerUnit >= 0, "Minimum price must be non-negative.");
     }
 
-    await ctx.db.patch(args.inventoryBatchId, {
+    await ctx.db.patch(args.inventoryBatchId, omitUndefinedValues({
       quantityAvailable: args.quantityAvailable,
       grade: args.grade,
       askingPricePerUnit: args.askingPricePerUnit,
@@ -368,7 +370,7 @@ export const updateDetails = mutation({
       conditionNotes: cleanOptionalText(args.conditionNotes),
       photos: args.photos,
       updatedAt: Date.now(),
-    });
+    }));
 
     const after = await ctx.db.get(args.inventoryBatchId);
     await insertAuditLog(ctx, {
@@ -439,11 +441,11 @@ export const listFarmerReceipts = query({
       "Actor cannot list this farmer's receipts.",
     );
     if (actor.role === "admin") {
-      await requireAdminPermission(ctx, args.actorUserId, "inventory:read", {
+      await requireAdminPermission(ctx, args.actorUserId, "inventory:read", adminScopeTarget({
         warehouseId: farmer.preferredWarehouseId,
         region: farmer.region,
         district: farmer.community,
-      });
+      }));
     }
     const limit = Math.min(args.limit ?? 50, 100);
     const batches = await ctx.db

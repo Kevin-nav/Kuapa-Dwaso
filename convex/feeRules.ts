@@ -9,6 +9,7 @@ import {
   getActor,
   getEffectiveAdminAccess,
   insertAuditLog,
+  omitUndefinedValues,
   requireAdminPermission,
   warehouseScopeTarget,
   type Actor,
@@ -199,7 +200,7 @@ export async function listApplicableFeeRules(
 }
 
 export function snapshotFeeRule(rule: Doc<"feeRules">, snapshottedAt: number) {
-  return {
+  return omitUndefinedValues({
     feeRuleId: rule._id,
     feeRuleVersion: rule.version,
     label: rule.label,
@@ -212,7 +213,7 @@ export function snapshotFeeRule(rule: Doc<"feeRules">, snapshottedAt: number) {
     currency: rule.currency,
     scope: rule.scope,
     snapshottedAt,
-  };
+  });
 }
 
 export async function selectApplicableStorageRateRule(
@@ -230,29 +231,29 @@ export async function selectApplicableStorageRateRule(
       .filter((rule) => isEffective(rule, asOf))
       .filter((rule) =>
         scopeMatches(
-          {
+          omitUndefinedValues({
             warehouseId: rule.warehouseId,
             cropType: rule.cropType,
             unit: rule.unit,
             grade: rule.grade,
-          },
+          }),
           input,
         ),
       )
       .sort((left, right) => {
         const scopeDifference =
-          scoreScope({
+          scoreScope(omitUndefinedValues({
             warehouseId: right.warehouseId,
             cropType: right.cropType,
             unit: right.unit,
             grade: right.grade,
-          }) -
-          scoreScope({
+          })) -
+          scoreScope(omitUndefinedValues({
             warehouseId: left.warehouseId,
             cropType: left.cropType,
             unit: left.unit,
             grade: left.grade,
-          });
+          }));
         return scopeDifference !== 0 ? scopeDifference : right.version - left.version;
       })[0] ?? null
   );
@@ -270,12 +271,12 @@ export function snapshotStorageRateRule(
     payer: "farmer" as const,
     ratePerUnitPerDay: rule.ratePerUnitPerDay,
     currency: rule.currency,
-    scope: {
+    scope: omitUndefinedValues({
       warehouseId: rule.warehouseId,
       cropType: rule.cropType,
       unit: rule.unit,
       grade: rule.grade,
-    },
+    }),
     snapshottedAt,
   };
 }
@@ -305,7 +306,7 @@ export const create = mutation({
 
     const now = Date.now();
     const code = args.code.trim().toUpperCase();
-    const feeRuleId = await ctx.db.insert("feeRules", {
+    const feeRuleId = await ctx.db.insert("feeRules", omitUndefinedValues({
       code,
       label: args.label.trim(),
       scope: args.scope,
@@ -322,7 +323,7 @@ export const create = mutation({
       version: await nextVersionForFeeCode(ctx, code),
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(feeRuleId);
     await insertAuditLog(ctx, {
@@ -363,13 +364,13 @@ export const replace = mutation({
     }
 
     const calculationType = args.calculationType ?? previous.calculationType;
-    assertValidFeeRuleAmount({
+    assertValidFeeRuleAmount(omitUndefinedValues({
       calculationType,
       amount: args.amount ?? previous.amount,
       percentage: args.percentage ?? previous.percentage,
       ratePerUnit: args.ratePerUnit ?? previous.ratePerUnit,
       ratePerUnitPerDay: args.ratePerUnitPerDay ?? previous.ratePerUnitPerDay,
-    });
+    }));
 
     const now = Date.now();
     await ctx.db.patch(args.replacesFeeRuleId, {
@@ -378,7 +379,7 @@ export const replace = mutation({
       updatedAt: now,
     });
 
-    const feeRuleId = await ctx.db.insert("feeRules", {
+    const feeRuleId = await ctx.db.insert("feeRules", omitUndefinedValues({
       code: previous.code,
       label: args.label?.trim() ?? previous.label,
       scope: args.scope ?? previous.scope,
@@ -394,7 +395,7 @@ export const replace = mutation({
       version: previous.version + 1,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(feeRuleId);
     await insertAuditLog(ctx, {
@@ -479,7 +480,7 @@ export const createStorageRateRule = mutation({
       )
       .collect();
     const version = existing.reduce((current, rule) => Math.max(current, rule.version), 0) + 1;
-    const storageRateRuleId = await ctx.db.insert("storageRateRules", {
+    const storageRateRuleId = await ctx.db.insert("storageRateRules", omitUndefinedValues({
       warehouseId: args.warehouseId,
       cropType: args.cropType,
       unit: args.unit,
@@ -492,7 +493,7 @@ export const createStorageRateRule = mutation({
       version,
       createdAt: now,
       updatedAt: now,
-    });
+    }));
 
     const after = await ctx.db.get(storageRateRuleId);
     await insertAuditLog(ctx, {
