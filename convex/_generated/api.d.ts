@@ -26,6 +26,7 @@ import type * as notifications from "../notifications.js";
 import type * as observabilityAccess from "../observabilityAccess.js";
 import type * as sales from "../sales.js";
 import type * as smokeCleanup from "../smokeCleanup.js";
+import type * as smsDeliveries from "../smsDeliveries.js";
 import type * as storageFees from "../storageFees.js";
 import type * as transporters from "../transporters.js";
 import type * as uploads from "../uploads.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   observabilityAccess: typeof observabilityAccess;
   sales: typeof sales;
   smokeCleanup: typeof smokeCleanup;
+  smsDeliveries: typeof smsDeliveries;
   storageFees: typeof storageFees;
   transporters: typeof transporters;
   uploads: typeof uploads;

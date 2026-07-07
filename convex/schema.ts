@@ -227,6 +227,23 @@ const notificationStatus = v.union(
   v.literal("archived")
 );
 
+const smsProvider = v.union(v.literal("mock"), v.literal("arkesel"));
+const smsMessageKind = v.union(
+  v.literal("invite"),
+  v.literal("notification"),
+  v.literal("otp"),
+  v.literal("transactional"),
+  v.literal("promotional")
+);
+const smsDeliveryStatus = v.union(
+  v.literal("pending"),
+  v.literal("sent"),
+  v.literal("delivered"),
+  v.literal("failed"),
+  v.literal("expired"),
+  v.literal("rejected")
+);
+
 const disputeStatus = v.union(
   v.literal("open"),
   v.literal("under_review"),
@@ -818,6 +835,30 @@ export default defineSchema({
     .index("by_recipient_status", ["recipientUserId", "status"])
     .index("by_role_status", ["recipientRole", "status"])
     .index("by_status", ["status"])
+    .index("by_related_entity", ["relatedEntityType", "relatedEntityId"]),
+
+  smsDeliveries: defineTable({
+    provider: smsProvider,
+    providerMessageId: v.string(),
+    recipient: v.string(),
+    status: smsDeliveryStatus,
+    messageKind: v.optional(smsMessageKind),
+    relatedEntityType: v.optional(v.string()),
+    relatedEntityId: v.optional(v.string()),
+    notificationId: v.optional(v.id("notifications")),
+    network: v.optional(v.string()),
+    providerTimestamp: v.optional(v.number()),
+    creditsUsed: v.optional(v.number()),
+    creditsCharged: v.optional(v.number()),
+    rawCode: v.optional(v.string()),
+    rawMessage: v.optional(v.string()),
+    rawPayload: v.optional(genericRecord),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_provider_message", ["provider", "providerMessageId"])
+    .index("by_provider_message_recipient", ["provider", "providerMessageId", "recipient"])
+    .index("by_recipient_status", ["recipient", "status"])
     .index("by_related_entity", ["relatedEntityType", "relatedEntityId"]),
 
   auditLogs: defineTable({
