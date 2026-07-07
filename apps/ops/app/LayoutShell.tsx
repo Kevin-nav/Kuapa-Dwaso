@@ -6,6 +6,7 @@ import type React from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOpsAuth } from "./auth/OpsAuthProvider";
 import { useWarehouse } from "./context/WarehouseContext";
 import { 
   Home, 
@@ -25,6 +26,7 @@ import {
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isOffline, setIsOffline, syncQueue, activeWarehouse, activeAgent } = useWarehouse();
+  const { signOut } = useOpsAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -138,7 +140,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
                     className="btn-logout"
                     onClick={() => {
                       setShowProfileMenu(false);
-                      alert("Logging out from Agent Session...");
+                      void signOut();
                     }}
                   >
                     <LogOut size={16} />

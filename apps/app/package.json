@@ -14,7 +14,10 @@
     "@kuapa-dwaso/design-tokens": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
     "@kuapa-dwaso/ui": "workspace:*",
+    "@next/env": "^16.2.9",
     "convex": "1.41.0",
+    "firebase": "^12.15.0",
+    "lucide-react": "^0.475.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
+import { useOpsAuth } from "../auth/OpsAuthProvider";
 import type {
   Farmer,
   FeeRuleSnapshot,
@@ -148,6 +149,9 @@ const fallbackAgent: WarehouseAgent = {
 const WarehouseContext = createContext<WarehouseContextType | undefined>(undefined);
 
 function getConfiguredActorUserId(): string | undefined {
+  if (process.env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK !== "true") {
+    return undefined;
+  }
   const envActorUserId = process.env.NEXT_PUBLIC_OPS_ACTOR_USER_ID;
   if (envActorUserId !== undefined && envActorUserId.trim().length > 0) {
     return envActorUserId.trim();
@@ -249,7 +253,9 @@ function createLocalTimeline(batch: InventoryBatch): TimelineEvent[] {
 }
 
 export function WarehouseProvider({ children }: { children: React.ReactNode }) {
-  const [actorUserId, setActorUserId] = useState<string | undefined>(() => getConfiguredActorUserId());
+  const { principal, isLoading: isAuthLoading } = useOpsAuth();
+  const [devActorUserId, setDevActorUserId] = useState<string | undefined>(() => getConfiguredActorUserId());
+  const actorUserId = principal?.role === "warehouse_agent" ? principal.userId : devActorUserId;
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | undefined>();
   const [isOffline, setIsOffline] = useState(false);
   const [syncQueue] = useState<SyncAction[]>([]);
@@ -261,7 +267,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   const [actionError, setActionError] = useState<string | undefined>();
 
   useEffect(() => {
-    setActorUserId(getConfiguredActorUserId());
+    setDevActorUserId(getConfiguredActorUserId());
     if (typeof window === "undefined") {
       return;
     }
@@ -639,15 +645,18 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   );
 
   const isLoading =
-    actorUserId !== undefined &&
+    isAuthLoading ||
+    (actorUserId !== undefined &&
     (agent === undefined ||
       warehouseDocs === undefined ||
-      (typedActiveWarehouseId !== undefined && (farmerDocs === undefined || inventoryDocs === undefined)));
+      (typedActiveWarehouseId !== undefined && (farmerDocs === undefined || inventoryDocs === undefined))));
 
   const errorMessage =
     actionError ??
     (actorUserId === undefined
-      ? "Missing warehouse-agent actor id. Set NEXT_PUBLIC_OPS_ACTOR_USER_ID or localStorage kuapa_ops_actor_user_id."
+      ? "Sign in with a warehouse-agent Firebase account. Dev actor fallback requires NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK=true."
+      : principal !== null && principal !== undefined && principal.role !== "warehouse_agent"
+        ? "The signed-in platform principal is not a warehouse agent."
       : agent === null
         ? "No warehouse-agent profile was found for this actor user."
         : agent !== undefined && assignedWarehouses.length === 0

@@ -72,9 +72,28 @@ function toVerifiedAuthToken(decodedToken: DecodedIdToken): VerifiedAuthToken {
   if (decodedToken.email !== undefined) {
     verifiedToken.email = decodedToken.email;
   }
+  if (decodedToken.email_verified !== undefined) {
+    verifiedToken.emailVerified = decodedToken.email_verified;
+  }
 
   if (decodedToken.phone_number !== undefined) {
     verifiedToken.phoneNumber = decodedToken.phone_number;
+    verifiedToken.phoneVerified = true;
+  }
+
+  const firebaseClaims = decodedToken.firebase as
+    | {
+        sign_in_provider?: string;
+        sign_in_second_factor?: string;
+        identities?: Record<string, unknown>;
+      }
+    | undefined;
+  if (firebaseClaims?.sign_in_provider !== undefined) {
+    verifiedToken.signInProvider = firebaseClaims.sign_in_provider;
+  }
+  if (firebaseClaims?.sign_in_second_factor !== undefined) {
+    verifiedToken.mfaSatisfied = true;
+    verifiedToken.mfaMethods = [firebaseClaims.sign_in_second_factor];
   }
 
   return verifiedToken;

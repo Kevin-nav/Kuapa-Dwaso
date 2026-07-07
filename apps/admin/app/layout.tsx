@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { ConvexClientProvider } from "./ConvexClientProvider";
-import { WarehouseFilterProvider, AdminShell } from "@kuapa-dwaso/dashboard-ui";
+import { AdminAuthProvider } from "./auth/AdminAuthProvider";
+import { WarehouseFilterProvider } from "@kuapa-dwaso/dashboard-ui";
+import { AdminShellClient } from "./AdminShellClient";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,9 +20,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <ConvexClientProvider>
-          <WarehouseFilterProvider>
-            <AdminShell>{children}</AdminShell>
-          </WarehouseFilterProvider>
+          <AdminAuthProvider>
+            <WarehouseFilterProvider>
+              <AdminShellClient>{children}</AdminShellClient>
+            </WarehouseFilterProvider>
+          </AdminAuthProvider>
         </ConvexClientProvider>
       </body>
     </html>

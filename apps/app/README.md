@@ -3,3 +3,12 @@
 This app is for the main authenticated product served from a subdomain such as `app.domain.com`.
 
 It owns farmer, buyer, and transporter self-service workflows. Warehouse-agent operations belong in `apps/ops`. It should prioritize low-bandwidth pages, route-level loading, simple farmer-facing UI, and shared packages for UI, validation, permissions, and domain types.
+
+Auth routes:
+
+- `/auth/phone` verifies farmer, buyer, and transporter phone identities with Firebase OTP and links profiles through Convex.
+- `/invites/accept?token=...` accepts admin, warehouse-manager, and warehouse-agent invites. Email invites require a verified Firebase email and configured Firebase MFA; warehouse-agent invites use phone OTP.
+
+For local development, put `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_CONVEX_URL`, and
+`NEXT_PUBLIC_API_URL` in the repo root `.env.local`. This app loads the root env
+files from `next.config.ts`; app-local env files are optional overrides only.

@@ -41,6 +41,15 @@ export class FirebaseAuthGuard implements CanActivate {
       roles: [userProfile.role],
       status: userProfile.status
     };
+    if (userProfile.mfaRequirement !== undefined) {
+      principal.mfaRequirement = userProfile.mfaRequirement;
+    }
+    if (userProfile.mfaStatus !== undefined) {
+      principal.mfaStatus = userProfile.mfaStatus;
+    }
+    if (userProfile.onboardingState !== undefined) {
+      principal.onboardingState = userProfile.onboardingState;
+    }
 
     const email = userProfile.email ?? verifiedToken.email;
     if (email !== undefined) {
