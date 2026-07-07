@@ -18,11 +18,13 @@ import {
   Sprout,
   Building,
   UserCheck,
+  ShieldCheck,
   Warehouse as WarehouseIcon,
   Scale,
   AlertTriangle,
   History,
   BarChart3,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -59,14 +61,24 @@ export type AdminShellProps = {
   children: ReactNode;
   pathname?: string;
   LinkComponent?: ComponentType<LinkComponentProps>;
+  warehouseOptions?: { id: string; name: string }[];
+  principalName?: string;
+  principalRoleLabel?: string;
 };
 
-export function AdminShell({ children, pathname = "/", LinkComponent = AnchorLink }: AdminShellProps) {
+export function AdminShell({
+  children,
+  pathname = "/",
+  LinkComponent = AnchorLink,
+  warehouseOptions,
+  principalName = "Dev Admin",
+  principalRoleLabel = "Administrator",
+}: AdminShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { selectedWarehouseId, setSelectedWarehouseId } = useWarehouseFilter();
   const [searchQuery, setSearchQuery] = useState("");
   
-  const warehouses = MockDatabase.getWarehouses();
+  const warehouses = warehouseOptions ?? MockDatabase.getWarehouses();
 
   const navGroups: NavGroup[] = [
     {
@@ -85,6 +97,7 @@ export function AdminShell({ children, pathname = "/", LinkComponent = AnchorLin
         { label: "Farmers", href: "/farmers", icon: Sprout },
         { label: "Buyers", href: "/buyers", icon: Building },
         { label: "Agents", href: "/agents", icon: UserCheck },
+        { label: "Access", href: "/access", icon: ShieldCheck },
       ],
     },
     {
@@ -98,6 +111,7 @@ export function AdminShell({ children, pathname = "/", LinkComponent = AnchorLin
       title: "Governance",
       items: [
         { label: "Disputes", href: "/disputes", icon: AlertTriangle },
+        { label: "Notifications", href: "/notifications", icon: Bell },
         { label: "Audit Logs", href: "/audit-logs", icon: History },
         { label: "Reports", href: "/reports", icon: BarChart3 },
       ],
@@ -378,10 +392,10 @@ export function AdminShell({ children, pathname = "/", LinkComponent = AnchorLin
               </div>
               <div style={{ display: "flex", flexDirection: "column", justifySelf: "center" }}>
                 <span style={{ fontSize: "0.875rem", fontWeight: 700, color: gray[900], lineHeight: 1.2 }}>
-                  Dev Admin
+                  {principalName}
                 </span>
                 <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 500 }}>
-                  Administrator
+                  {principalRoleLabel}
                 </span>
               </div>
             </div>
