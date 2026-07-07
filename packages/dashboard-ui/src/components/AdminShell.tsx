@@ -1,12 +1,14 @@
 // packages/dashboard-ui/src/components/AdminShell.tsx
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+/* eslint-disable react/prop-types */
+
+import { useState } from "react";
+import type { ComponentType, CSSProperties, MouseEvent, ReactNode } from "react";
 import { palette, gray } from "@kuapa-dwaso/design-tokens";
 import { useWarehouseFilter } from "./WarehouseFilterContext.js";
 import { MockDatabase } from "../mockDb.js";
+import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   Boxes,
@@ -30,7 +32,7 @@ import {
 type NavItem = {
   label: string;
   href: string;
-  icon: React.ComponentType<any>;
+  icon: LucideIcon;
 };
 
 type NavGroup = {
@@ -38,8 +40,28 @@ type NavGroup = {
   items: NavItem[];
 };
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname() || "/";
+type LinkComponentProps = {
+  href: string;
+  title?: string | undefined;
+  style?: CSSProperties;
+  children: ReactNode;
+  onMouseEnter?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
+};
+
+const AnchorLink: ComponentType<LinkComponentProps> = ({ href, children, ...props }) => (
+  <a href={href} {...props}>
+    {children}
+  </a>
+);
+
+export type AdminShellProps = {
+  children: ReactNode;
+  pathname?: string;
+  LinkComponent?: ComponentType<LinkComponentProps>;
+};
+
+export function AdminShell({ children, pathname = "/", LinkComponent = AnchorLink }: AdminShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { selectedWarehouseId, setSelectedWarehouseId } = useWarehouseFilter();
   const [searchQuery, setSearchQuery] = useState("");
@@ -180,7 +202,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 const IconComponent = item.icon;
 
                 return (
-                  <Link
+                  <LinkComponent
                     key={itemIdx}
                     href={item.href}
                     title={isCollapsed ? item.label : undefined}
@@ -198,13 +220,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                       transition: "all 0.15s ease",
                       justifyContent: isCollapsed ? "center" : "flex-start",
                     }}
-                    onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                    onMouseEnter={(e: MouseEvent<HTMLAnchorElement>) => {
                       if (!isActive) {
                         e.currentTarget.style.color = "white";
                         e.currentTarget.style.backgroundColor = "rgba(45, 138, 78, 0.15)";
                       }
                     }}
-                    onMouseLeave={(e: React.MouseEvent<HTMLAnchorElement>) => {
+                    onMouseLeave={(e: MouseEvent<HTMLAnchorElement>) => {
                       if (!isActive) {
                         e.currentTarget.style.color = "#94a3b8";
                         e.currentTarget.style.backgroundColor = "transparent";
@@ -213,7 +235,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   >
                     <IconComponent size={18} style={{ flexShrink: 0 }} />
                     {!isCollapsed && <span>{item.label}</span>}
-                  </Link>
+                  </LinkComponent>
                 );
               })}
             </div>

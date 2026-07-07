@@ -1,7 +1,8 @@
 // packages/dashboard-ui/src/components/DataTable.tsx
 "use client";
 
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { gray, palette, status } from "@kuapa-dwaso/design-tokens";
 
 export type Column<T> = {
@@ -9,7 +10,7 @@ export type Column<T> = {
   header: string;
   align?: "left" | "right";
   type?: "text" | "numeric";
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T) => ReactNode;
 };
 
 export type FilterOption = {
@@ -37,11 +38,11 @@ export type DataTableProps<T> = {
   filters?: TableFilter[];
   bulkActions?: BulkAction<T>[];
   drawerTitle?: string | ((row: T) => string);
-  drawerContent?: (row: T, onClose: () => void) => React.ReactNode;
+  drawerContent?: (row: T, onClose: () => void) => ReactNode;
   rowIdKey: keyof T;
 };
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   searchKey,
@@ -60,7 +61,7 @@ export function DataTable<T extends Record<string, any>>({
   const [rowsPerPage] = useState(10);
 
   // Reset page when search or filters change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
     setCurrentPage(1);
   };
@@ -128,7 +129,7 @@ export function DataTable<T extends Record<string, any>>({
   const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
 
   // Selection handlers
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSelectAll = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       const ids = paginatedData.map((row) => String(row[rowIdKey]));
       setSelectedRowIds(new Set(ids));
@@ -137,7 +138,7 @@ export function DataTable<T extends Record<string, any>>({
     }
   };
 
-  const handleSelectRow = (e: React.ChangeEvent<HTMLInputElement>, rowId: string) => {
+  const handleSelectRow = (e: ChangeEvent<HTMLInputElement>, rowId: string) => {
     e.stopPropagation();
     setSelectedRowIds((prev) => {
       const next = new Set(prev);
@@ -237,7 +238,7 @@ export function DataTable<T extends Record<string, any>>({
                 color: gray[700],
               }}
             >
-              Search: "{searchQuery}"
+              Search: &quot;{searchQuery}&quot;
               <button
                 onClick={() => setSearchQuery("")}
                 style={{ background: "none", border: 0, color: gray[500], cursor: "pointer", fontWeight: 700 }}
@@ -401,7 +402,7 @@ export function DataTable<T extends Record<string, any>>({
                             fontWeight: 500,
                           }}
                         >
-                          {col.render ? col.render(row) : row[col.key]}
+                          {col.render ? col.render(row) : String(row[col.key] ?? "")}
                         </td>
                       );
                     })}

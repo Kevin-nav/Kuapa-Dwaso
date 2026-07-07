@@ -1,7 +1,8 @@
 // packages/dashboard-ui/src/components/WarehouseFilterContext.tsx
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState } from "react";
+import type { ReactNode } from "react";
 
 type WarehouseFilterContextType = {
   selectedWarehouseId: string; // "all" or specific warehouse ID

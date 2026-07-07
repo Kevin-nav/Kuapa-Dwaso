@@ -2,13 +2,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  MockDatabase,
-  Warehouse,
-  WarehouseAgent,
-  Farmer,
-  FeeRule
-} from "../mockDb.js";
+import { MockDatabase } from "../mockDb.js";
+import type { Warehouse, WarehouseAgent, Farmer, FeeRule } from "../mockDb.js";
 
 // Callbacks list to sync state across different components/hooks
 const listeners = new Set<() => void>();

@@ -1,7 +1,8 @@
 // packages/dashboard-ui/src/components/ConfirmModal.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { gray, status } from "@kuapa-dwaso/design-tokens";
 
 export type ConfirmModalProps = {
@@ -32,7 +33,7 @@ export function ConfirmModal({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (requireReason && !reason.trim()) {
       setError("Reason is required.");
