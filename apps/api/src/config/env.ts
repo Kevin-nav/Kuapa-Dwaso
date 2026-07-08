@@ -94,8 +94,8 @@ export function getApiEnvironment(): ApiEnvironment {
     auth.firebaseProjectId = process.env.FIREBASE_PROJECT_ID;
   }
 
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON !== undefined) {
-    auth.firebaseServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 !== undefined) {
+    auth.firebaseServiceAccountJson = decodeBase64Text(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64);
   }
 
   if (process.env.CONVEX_URL !== undefined) {
@@ -199,4 +199,8 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
 
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function decodeBase64Text(value: string): string {
+  return Buffer.from(value, "base64").toString("utf8");
 }

@@ -16,6 +16,10 @@ API-only secrets must stay server-side: Firebase Admin credentials, Resend,
 Arkesel, notification delivery, Paystack secret/webhook keys, and Cloudflare R2
 credentials. Frontend apps must receive only `NEXT_PUBLIC_*` values.
 
+Store Firebase Admin credentials as `FIREBASE_SERVICE_ACCOUNT_JSON_BASE64`, not
+as raw JSON. Base64 is packaging for an env var; Infisical provides encryption
+at rest and access control for the secret.
+
 `NEXT_PUBLIC_*` values are public client values. They are safe to expose to the
 browser but still need correct staging or production values at build/runtime.
 
@@ -55,3 +59,27 @@ configuration.
 
 Keep Cloudflare R2 private. `CLOUDFLARE_R2_PUBLIC_BASE_URL` is intentionally
 unsupported and should not be present in any Infisical environment.
+
+## Firebase Admin Base64
+
+Download the Firebase Admin service-account JSON from the Firebase console, then
+base64-encode the file and store the result in Infisical as
+`FIREBASE_SERVICE_ACCOUNT_JSON_BASE64`.
+
+PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\firebase-service-account.json")) | Set-Clipboard
+```
+
+macOS/Linux:
+
+```bash
+base64 -w 0 /path/to/firebase-service-account.json
+```
+
+If `base64 -w 0` is unavailable on macOS, use:
+
+```bash
+base64 /path/to/firebase-service-account.json | tr -d '\n'
+```

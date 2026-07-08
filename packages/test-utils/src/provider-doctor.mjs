@@ -49,19 +49,20 @@ function checkConvex() {
 
 function checkFirebase() {
   requireText("FIREBASE_PROJECT_ID", "Firebase Admin project ID");
-  const serviceAccountJson = env("FIREBASE_SERVICE_ACCOUNT_JSON");
-  if (serviceAccountJson === undefined) {
-    add(requiredLevel(), "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON is required for API token verification.");
+  const serviceAccountJsonBase64 = env("FIREBASE_SERVICE_ACCOUNT_JSON_BASE64");
+  if (serviceAccountJsonBase64 === undefined) {
+    add(requiredLevel(), "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 is required for API token verification.");
   } else {
     try {
+      const serviceAccountJson = Buffer.from(serviceAccountJsonBase64, "base64").toString("utf8");
       const parsed = JSON.parse(serviceAccountJson);
       if (typeof parsed.project_id === "string" && parsed.project_id.length > 0) {
-        add("ok", "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON parses and includes project_id.");
+        add("ok", "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 decodes and includes project_id.");
       } else {
-        add("error", "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON must include project_id.");
+        add("error", "Firebase Admin credentials", "Decoded FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 must include project_id.");
       }
     } catch {
-      add("error", "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON must be valid JSON.");
+      add("error", "Firebase Admin credentials", "FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 must be base64-encoded valid JSON.");
     }
   }
 
