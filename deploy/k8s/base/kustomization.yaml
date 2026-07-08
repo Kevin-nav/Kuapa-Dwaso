@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - workloads.yaml
+  - cloudflared.yaml
+  - infisical.yaml
+  - notification-delivery-cronjob.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kuapa-dwaso
+      app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: ghcr.io/kuapa-dwaso/www
+    newTag: latest
+  - name: ghcr.io/kuapa-dwaso/app
+    newTag: latest
+  - name: ghcr.io/kuapa-dwaso/admin
+    newTag: latest
+  - name: ghcr.io/kuapa-dwaso/ops
+    newTag: latest
+  - name: ghcr.io/kuapa-dwaso/api
+    newTag: latest

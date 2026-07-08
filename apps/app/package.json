@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node ../../packages/test-utils/src/next-with-root-env.mjs dev --port 3001",
     "build": "node ../../packages/test-utils/src/next-with-root-env.mjs build",
+    "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "echo \"No main app tests configured yet.\"",

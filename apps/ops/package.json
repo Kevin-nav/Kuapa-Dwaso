@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "node ../../packages/test-utils/src/next-with-root-env.mjs dev --port 3003",
     "build": "node ../../packages/test-utils/src/next-with-root-env.mjs build",
+    "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "echo \"No ops tests configured yet.\"",

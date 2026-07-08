@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: infisical-auth
+  labels:
+    app.kubernetes.io/name: infisical-auth
+---
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalConnection
+metadata:
+  name: kuapa-dwaso-infisical
+spec:
+  address: https://app.infisical.com
+---
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalAuth
+metadata:
+  name: kuapa-dwaso-infisical
+spec:
+  infisicalConnectionRef:
+    name: kuapa-dwaso-infisical
+    namespace: default
+  method: kubernetes
+  kubernetes:
+    identityIdRef:
+      name: infisical-machine-identity
+      namespace: default
+      key: identityId
+    serviceAccountRef:
+      name: infisical-auth
+      namespace: default
+---
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalStaticSecret
+metadata:
+  name: kuapa-dwaso-runtime
+spec:
+  infisicalAuthRef:
+    name: kuapa-dwaso-infisical
+    namespace: default
+  syncOptions:
+    refreshInterval: 60s
+    instantUpdates: false
+  sources:
+    - projectSlug: <infisical-project-slug>
+      environmentSlug: staging
+      secretPath: /
+      recursive: false
+  targets:
+    - name: kuapa-dwaso-runtime
+      namespace: default
+      kind: Secret
+      creationPolicy: Owner
+      template:
+        engineVersion: v1
+        data:
+          NODE_ENV: "{{ .NODE_ENV.Value }}"
+          CONVEX_URL: "{{ .CONVEX_URL.Value }}"
+          NEXT_PUBLIC_CONVEX_URL: "{{ .NEXT_PUBLIC_CONVEX_URL.Value }}"
+          FIREBASE_PROJECT_ID: "{{ .FIREBASE_PROJECT_ID.Value }}"
+          FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: "{{ .FIREBASE_SERVICE_ACCOUNT_JSON_BASE64.Value }}"
+          NEXT_PUBLIC_FIREBASE_API_KEY: "{{ .NEXT_PUBLIC_FIREBASE_API_KEY.Value }}"
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "{{ .NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN.Value }}"
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: "{{ .NEXT_PUBLIC_FIREBASE_PROJECT_ID.Value }}"
+          NEXT_PUBLIC_FIREBASE_APP_ID: "{{ .NEXT_PUBLIC_FIREBASE_APP_ID.Value }}"
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "{{ .NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID.Value }}"
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "{{ .NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET.Value }}"
+          PUBLIC_APP_URL: "{{ .PUBLIC_APP_URL.Value }}"
+          NEXT_PUBLIC_API_URL: "{{ .NEXT_PUBLIC_API_URL.Value }}"
+          PUBLIC_API_URL: "{{ .PUBLIC_API_URL.Value }}"
+          RESEND_API_KEY: "{{ .RESEND_API_KEY.Value }}"
+          RESEND_FROM_EMAIL: "{{ .RESEND_FROM_EMAIL.Value }}"
+          SMS_PROVIDER: "{{ .SMS_PROVIDER.Value }}"
+          SMS_FROM_NAME: "{{ .SMS_FROM_NAME.Value }}"
+          ARKESEL_SMS_API_KEY: "{{ .ARKESEL_SMS_API_KEY.Value }}"
+          ARKESEL_WEBHOOK_SIGNATURE_HEADER: "{{ .ARKESEL_WEBHOOK_SIGNATURE_HEADER.Value }}"
+          ARKESEL_WEBHOOK_SIGNATURE_SECRET: "{{ .ARKESEL_WEBHOOK_SIGNATURE_SECRET.Value }}"
+          NOTIFICATION_DELIVERY_SECRET: "{{ .NOTIFICATION_DELIVERY_SECRET.Value }}"
+          PAYMENT_PROVIDER: "{{ .PAYMENT_PROVIDER.Value }}"
+          PAYSTACK_PUBLIC_KEY: "{{ .PAYSTACK_PUBLIC_KEY.Value }}"
+          PAYSTACK_SECRET_KEY: "{{ .PAYSTACK_SECRET_KEY.Value }}"
+          PAYSTACK_WEBHOOK_SECRET: "{{ .PAYSTACK_WEBHOOK_SECRET.Value }}"
+          CLOUDFLARE_R2_ACCOUNT_ID: "{{ .CLOUDFLARE_R2_ACCOUNT_ID.Value }}"
+          CLOUDFLARE_R2_ACCESS_KEY_ID: "{{ .CLOUDFLARE_R2_ACCESS_KEY_ID.Value }}"
+          CLOUDFLARE_R2_SECRET_ACCESS_KEY: "{{ .CLOUDFLARE_R2_SECRET_ACCESS_KEY.Value }}"
+          CLOUDFLARE_R2_BUCKET: "{{ .CLOUDFLARE_R2_BUCKET.Value }}"
+          R2_PRESIGN_TTL_SECONDS: "{{ .R2_PRESIGN_TTL_SECONDS.Value }}"
+          R2_READ_PRESIGN_TTL_SECONDS: "{{ .R2_READ_PRESIGN_TTL_SECONDS.Value }}"
+          UPLOAD_MAX_SIZE_BYTES: "{{ .UPLOAD_MAX_SIZE_BYTES.Value }}"
+          API_RATE_LIMIT_WINDOW_MS: "{{ .API_RATE_LIMIT_WINDOW_MS.Value }}"
+          API_RATE_LIMIT_INVITE_SEND_MAX: "{{ .API_RATE_LIMIT_INVITE_SEND_MAX.Value }}"
+          API_RATE_LIMIT_UPLOAD_PRESIGN_MAX: "{{ .API_RATE_LIMIT_UPLOAD_PRESIGN_MAX.Value }}"
+          API_AUTH_DISABLED: "{{ .API_AUTH_DISABLED.Value }}"
+          NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK: "{{ .NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK.Value }}"
+          NEXT_PUBLIC_OPS_ACTOR_USER_ID: "{{ .NEXT_PUBLIC_OPS_ACTOR_USER_ID.Value }}"

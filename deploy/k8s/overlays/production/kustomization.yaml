@@ -1,0 +1,62 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kuapa-dwaso-production
+
+resources:
+  - ../../base
+  - namespace.yaml
+  - infisical-cluster-role-binding.yaml
+
+patches:
+  - path: cloudflared-config.yaml
+  - target:
+      group: secrets.infisical.com
+      version: v1beta1
+      kind: InfisicalAuth
+      name: kuapa-dwaso-infisical
+    patch: |-
+      - op: replace
+        path: /spec/infisicalConnectionRef/namespace
+        value: kuapa-dwaso-production
+      - op: replace
+        path: /spec/kubernetes/identityIdRef/namespace
+        value: kuapa-dwaso-production
+      - op: replace
+        path: /spec/kubernetes/serviceAccountRef/namespace
+        value: kuapa-dwaso-production
+  - target:
+      group: secrets.infisical.com
+      version: v1beta1
+      kind: InfisicalStaticSecret
+      name: kuapa-dwaso-runtime
+    patch: |-
+      - op: replace
+        path: /spec/infisicalAuthRef/namespace
+        value: kuapa-dwaso-production
+      - op: replace
+        path: /spec/sources/0/projectSlug
+        value: <infisical-project-slug>
+      - op: replace
+        path: /spec/sources/0/environmentSlug
+        value: prod
+      - op: replace
+        path: /spec/targets/0/namespace
+        value: kuapa-dwaso-production
+
+images:
+  - name: ghcr.io/kuapa-dwaso/www
+    newName: ghcr.io/kuapa-dwaso/www
+    newTag: production
+  - name: ghcr.io/kuapa-dwaso/app
+    newName: ghcr.io/kuapa-dwaso/app
+    newTag: production
+  - name: ghcr.io/kuapa-dwaso/admin
+    newName: ghcr.io/kuapa-dwaso/admin
+    newTag: production
+  - name: ghcr.io/kuapa-dwaso/ops
+    newName: ghcr.io/kuapa-dwaso/ops
+    newTag: production
+  - name: ghcr.io/kuapa-dwaso/api
+    newName: ghcr.io/kuapa-dwaso/api
+    newTag: production
