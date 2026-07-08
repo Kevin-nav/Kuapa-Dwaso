@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "node ./node_modules/next/dist/bin/next dev --port 3000",
-    "build": "node ./node_modules/next/dist/bin/next build",
+    "dev": "node ../../packages/test-utils/src/next-with-root-env.mjs dev --port 3000",
+    "build": "node ../../packages/test-utils/src/next-with-root-env.mjs build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "echo \"No public site tests configured yet.\"",

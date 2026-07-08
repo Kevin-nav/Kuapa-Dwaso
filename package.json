@@ -12,6 +12,7 @@
     "convex:dev": "convex dev",
     "convex:dev:once": "convex dev --once",
     "convex:deploy": "convex deploy",
+    "env:check-next-public": "pnpm --filter @kuapa-dwaso/test-utils env:check-next-public",
     "provider:doctor": "pnpm --filter @kuapa-dwaso/test-utils provider:doctor",
     "smoke:backend": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend",
     "smoke:backend:cleanup": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend:cleanup",

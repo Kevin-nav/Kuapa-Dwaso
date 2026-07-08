@@ -10,5 +10,5 @@ Auth routes:
 - `/invites/accept?token=...` accepts admin, warehouse-manager, and warehouse-agent invites. Email invites require a verified Firebase email and configured Firebase MFA; warehouse-agent invites use phone OTP.
 
 For local development, put `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_CONVEX_URL`, and
-`NEXT_PUBLIC_API_URL` in the repo root `.env.local`. This app loads the root env
-files from `next.config.ts`; app-local env files are optional overrides only.
+`NEXT_PUBLIC_API_URL` in the repo root `.env.local`. The app scripts load root
+`.env.local`, then root `.env`, then app-local env files as optional overrides.

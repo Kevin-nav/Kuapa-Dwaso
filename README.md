@@ -8,4 +8,16 @@ Start with the docs in `docs/intent-and-initial-plans/` and `docs/plans/`.
 
 Convex is configured from the top-level `convex/` folder. To connect this checkout to the existing `KuapaDwaso` Convex project, run `corepack pnpm convex:dev` and select the existing project when prompted.
 
-For the Next.js apps, copy the generated root `CONVEX_URL` value into `NEXT_PUBLIC_CONVEX_URL` in `apps/app/.env.local` and `apps/admin/.env.local`.
+Copy `.env.example` to the repo root as `.env.local` for local development.
+The Next.js apps and API read the root `.env.local` first, then root `.env`.
+App-local env files are optional overrides only; normal local dev should not
+duplicate `NEXT_PUBLIC_*` values under individual apps.
+
+After `corepack pnpm convex:dev` writes `CONVEX_URL` to the root `.env.local`,
+set the root `NEXT_PUBLIC_CONVEX_URL` value to the same URL so browser code can
+connect to Convex. To verify the Next apps can see required browser env values
+without printing secrets, run:
+
+```text
+corepack pnpm env:check-next-public
+```

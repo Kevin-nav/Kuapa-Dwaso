@@ -2,6 +2,18 @@
 
 Owns shared test fixtures, factories, and helpers once the test suite needs them.
 
+## Next Public Env Check
+
+Run the presence-only check for browser-exposed env required by the Next apps:
+
+```text
+corepack pnpm env:check-next-public
+```
+
+The check loads root `.env.local`, root `.env`, and optional app-local override
+files using the same local precedence as the Next app scripts. It prints only
+`set` or `missing`, never env values.
+
 ## Backend Smoke Flow
 
 Run the Convex-backed backend smoke flow with:

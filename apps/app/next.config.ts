@@ -4,7 +4,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appDir = dirname(fileURLToPath(import.meta.url));
-loadEnvConfig(resolve(appDir, "../.."));
+if (process.env.KUAPA_DWASO_NEXT_ENV_LOADED !== "true") {
+  loadEnvConfig(resolve(appDir, "../.."));
+}
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@kuapa-dwaso/design-tokens", "@kuapa-dwaso/types", "@kuapa-dwaso/ui"]
