@@ -37,8 +37,8 @@ export type ApiEnvironment = {
     r2AccessKeyId?: string;
     r2SecretAccessKey?: string;
     r2Bucket?: string;
-    r2PublicBaseUrl?: string;
     presignTtlSeconds: number;
+    readPresignTtlSeconds: number;
     maxSizeBytes: number;
   };
   rateLimit: {
@@ -149,6 +149,7 @@ export function getApiEnvironment(): ApiEnvironment {
 
   const uploads: ApiEnvironment["uploads"] = {
     presignTtlSeconds: parsePositiveInteger(process.env.R2_PRESIGN_TTL_SECONDS, 900),
+    readPresignTtlSeconds: parsePositiveInteger(process.env.R2_READ_PRESIGN_TTL_SECONDS, 300),
     maxSizeBytes: parsePositiveInteger(process.env.UPLOAD_MAX_SIZE_BYTES, 8 * 1024 * 1024)
   };
   if (process.env.CLOUDFLARE_R2_ACCOUNT_ID !== undefined) {
@@ -162,9 +163,6 @@ export function getApiEnvironment(): ApiEnvironment {
   }
   if (process.env.CLOUDFLARE_R2_BUCKET !== undefined) {
     uploads.r2Bucket = process.env.CLOUDFLARE_R2_BUCKET;
-  }
-  if (process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL !== undefined) {
-    uploads.r2PublicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL;
   }
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;

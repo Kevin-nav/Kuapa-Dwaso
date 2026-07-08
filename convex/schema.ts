@@ -345,7 +345,7 @@ const uploadAssetStatus = v.union(
   v.literal("expired"),
   v.literal("deleted")
 );
-const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
+const uploadAccessLevel = v.literal("private");
 const uploadRelatedEntityType = v.union(
   v.literal("farmer"),
   v.literal("buyer"),
@@ -497,7 +497,6 @@ export default defineSchema({
     rejectionReason: v.optional(v.string()),
     deletedAt: v.optional(v.number()),
     expiredAt: v.optional(v.number()),
-    publicUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number()
   })

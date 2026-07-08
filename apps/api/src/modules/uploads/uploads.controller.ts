@@ -1,4 +1,4 @@
-import { Body, Controller, HttpException, HttpStatus, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, HttpException, HttpStatus, NotFoundException, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
 import type { ProfileType, UploadAccessLevel, UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
@@ -19,13 +19,17 @@ type PresignBody = {
   ownerProfileId?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
-  accessLevel?: UploadAccessLevel;
+  accessLevel?: UploadAccessLevel | "public_read";
 };
 
 type CompleteBody = {
   uploadAssetId: string;
   sizeBytes: number;
   checksumSha256?: string;
+};
+
+type ReadBody = {
+  uploadAssetId: string;
 };
 
 @Controller("uploads")
@@ -71,6 +75,10 @@ export class UploadsController {
       sizeBytes: body.sizeBytes
     });
 
+    if (body.accessLevel === "public_read") {
+      throw new BadRequestException("Public R2 upload access is disabled. Use signed read URLs.");
+    }
+
     const createUploadArgs: Parameters<ConvexPlatformProvider["createPendingUpload"]>[0] = {
       actorUserId: principal.userId,
       purpose: body.purpose,
@@ -98,10 +106,6 @@ export class UploadsController {
     }
     if (body.relatedEntityId !== undefined) {
       createUploadArgs.relatedEntityId = body.relatedEntityId;
-    }
-    const publicBaseUrl = this.r2.getPublicBaseUrl();
-    if (body.accessLevel === "public_read" && publicBaseUrl !== undefined) {
-      createUploadArgs.publicBaseUrl = publicBaseUrl;
     }
     const pending = await this.convex.createPendingUpload(createUploadArgs);
     const presigned = this.r2.presignPutObject({
@@ -137,5 +141,41 @@ export class UploadsController {
       completeArgs.checksumSha256 = body.checksumSha256;
     }
     return await this.convex.completeUpload(completeArgs);
+  }
+
+  @Post("presign-read")
+  async presignRead(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: ReadBody
+  ): Promise<{
+    method: "GET";
+    readUrl: string;
+    uploadAssetId: string;
+    objectKey: string;
+    contentType: string;
+    expiresAt: number;
+  }> {
+    if (principal.userId === undefined) {
+      throw new UnauthorizedException("Convex user profile is required.");
+    }
+    const asset = await this.convex.getReadableUploadObject({
+      actorUserId: principal.userId,
+      uploadAssetId: body.uploadAssetId
+    });
+    if (asset === null) {
+      throw new NotFoundException("Upload asset was not found.");
+    }
+    const presigned = this.r2.presignGetObject({
+      objectKey: asset.objectKey
+    });
+
+    return {
+      method: "GET",
+      readUrl: presigned.readUrl,
+      uploadAssetId: asset.uploadAssetId,
+      objectKey: asset.objectKey,
+      contentType: asset.contentType,
+      expiresAt: presigned.expiresAt
+    };
   }
 }

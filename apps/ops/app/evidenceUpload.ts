@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import type { UploadAccessLevel, UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
+import type { UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 
 type PresignResponse = {
   uploadAssetId: string;
@@ -19,7 +19,6 @@ export async function uploadEvidenceFile(input: {
   relatedEntityType: UploadRelatedEntityType;
   relatedEntityId: string;
   ownerUserId?: string;
-  accessLevel?: UploadAccessLevel;
 }): Promise<string> {
   if (input.firebaseUser === null) {
     throw new Error("Sign in is required before uploading evidence.");
@@ -43,7 +42,7 @@ export async function uploadEvidenceFile(input: {
       relatedEntityType: input.relatedEntityType,
       relatedEntityId: input.relatedEntityId,
       ownerUserId: input.ownerUserId,
-      accessLevel: input.accessLevel ?? "public_read",
+      accessLevel: "private",
     }),
   });
   if (!presignResponse.ok) {

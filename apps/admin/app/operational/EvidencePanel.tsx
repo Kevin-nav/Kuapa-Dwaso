@@ -7,6 +7,8 @@ import { StatusBadge, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import type { UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
+import { useAdminAuth } from "../auth/AdminAuthProvider";
+import { getEvidenceReadUrl } from "./evidenceReadUrls";
 
 type EvidencePanelProps = {
   actorUserId: string | undefined;
@@ -24,7 +26,6 @@ type EvidenceAsset = {
   contentType: string;
   sizeBytes: number;
   objectKey: string;
-  publicUrl?: string;
   createdAt: number;
 };
 
@@ -36,7 +37,9 @@ export function EvidencePanel({
   purpose,
   canManage = false,
 }: EvidencePanelProps) {
+  const { firebaseUser } = useAdminAuth();
   const [actionError, setActionError] = useState("");
+  const [openingAssetId, setOpeningAssetId] = useState<string | null>(null);
   const verifyEvidence = useMutation(api.uploads.verify);
   const rejectEvidence = useMutation(api.uploads.reject);
   const evidence = useQuery(
@@ -74,6 +77,28 @@ export function EvidencePanel({
     });
   };
 
+  const openEvidence = (uploadAssetId: string) => {
+    const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
+    setOpeningAssetId(uploadAssetId);
+    setActionError("");
+    void getEvidenceReadUrl({
+      firebaseUser,
+      uploadAssetId,
+    })
+      .then((result) => {
+        if (tab === null) {
+          window.location.assign(result.readUrl);
+          return;
+        }
+        tab.location.href = result.readUrl;
+      })
+      .catch((error: unknown) => {
+        tab?.close();
+        setActionError(error instanceof Error ? error.message : "Could not open evidence.");
+      })
+      .finally(() => setOpeningAssetId(null));
+  };
+
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       <span style={{ color: gray[500], fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
@@ -105,11 +130,10 @@ export function EvidencePanel({
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <StatusBadge status={asset.status} />
-                {asset.publicUrl !== undefined && (
-                  <a href={asset.publicUrl} target="_blank" rel="noreferrer" aria-label="Open evidence" style={{ display: "inline-flex", color: palette.field }}>
-                    <ExternalLink size={16} />
-                  </a>
-                )}
+                <button type="button" onClick={() => openEvidence(asset._id)} aria-label="Open evidence" style={iconButtonStyle}>
+                  <ExternalLink size={16} />
+                  {openingAssetId === asset._id ? <span style={srOnlyStyle}>Opening</span> : null}
+                </button>
                 {canManage && asset.status !== "verified" && asset.status !== "rejected" && (
                   <>
                     <button type="button" onClick={() => updateEvidence(asset._id, "verified")} aria-label="Verify evidence" style={iconButtonStyle}>
@@ -141,3 +165,15 @@ const iconButtonStyle = {
   justifyContent: "center",
   cursor: "pointer",
 };
+
+const srOnlyStyle = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;

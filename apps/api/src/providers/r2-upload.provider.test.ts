@@ -79,4 +79,25 @@ describe("R2UploadProvider", () => {
     expect(result.uploadUrl).toContain("X-Amz-Signature=");
     expect(result.uploadUrl).not.toContain("secret123");
   });
+
+  it("creates short-lived S3-compatible presigned GET URLs without public bucket URLs", () => {
+    process.env.CLOUDFLARE_R2_ACCOUNT_ID = "account123";
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = "access123";
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "secret123";
+    process.env.CLOUDFLARE_R2_BUCKET = "uploads";
+    process.env.R2_READ_PRESIGN_TTL_SECONDS = "300";
+    process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL = "https://public.example.com";
+    const provider = new R2UploadProvider();
+
+    const result = provider.presignGetObject({
+      objectKey: "uploads/condition-evidence/user-1/asset-1.webp"
+    });
+
+    expect(result.bucket).toBe("uploads");
+    expect(result.readUrl).toContain("https://account123.r2.cloudflarestorage.com/uploads/");
+    expect(result.readUrl).toContain("X-Amz-Expires=300");
+    expect(result.readUrl).toContain("X-Amz-Signature=");
+    expect(result.readUrl).not.toContain("public.example.com");
+    expect(result.readUrl).not.toContain("secret123");
+  });
 });

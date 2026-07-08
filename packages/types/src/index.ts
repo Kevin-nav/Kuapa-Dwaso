@@ -1101,7 +1101,7 @@ export const uploadAssetStatuses = [
 ] as const;
 export type UploadAssetStatus = (typeof uploadAssetStatuses)[number];
 
-export const uploadAccessLevels = ["private", "public_read"] as const;
+export const uploadAccessLevels = ["private"] as const;
 export type UploadAccessLevel = (typeof uploadAccessLevels)[number];
 
 export const uploadRelatedEntityTypes = [
@@ -1139,7 +1139,6 @@ export type UploadAsset = TimestampFields & {
   rejectionReason?: string;
   deletedAt?: number;
   expiredAt?: number;
-  publicUrl?: string;
 };
 
 export type PresignedUploadRequest = {

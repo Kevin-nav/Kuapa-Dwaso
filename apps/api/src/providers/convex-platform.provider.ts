@@ -77,7 +77,6 @@ type CreatePendingUploadArgs = {
   fileName?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
-  publicBaseUrl?: string;
 };
 
 type CompleteUploadArgs = {
@@ -85,6 +84,14 @@ type CompleteUploadArgs = {
   uploadAssetId: string;
   sizeBytes: number;
   checksumSha256?: string;
+};
+
+type ReadableUploadObject = {
+  uploadAssetId: string;
+  bucket: string;
+  objectKey: string;
+  contentType: string;
+  status: string;
 };
 
 type RecordSmsSendArgs = {
@@ -218,6 +225,12 @@ const completeUpload = makeFunctionReference<
   { uploadAssetId: string; status: "uploaded" | "attached" }
 >("uploads:complete");
 
+const getReadableUploadObject = makeFunctionReference<
+  "query",
+  { actorUserId: string; uploadAssetId: string },
+  ReadableUploadObject | null
+>("uploads:getReadableObject");
+
 const recordSmsSend = makeFunctionReference<
   "mutation",
   RecordSmsSendArgs,
@@ -281,6 +294,10 @@ export class ConvexPlatformProvider {
 
   async completeUpload(args: CompleteUploadArgs): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
     return await this.getClient().mutation(completeUpload, args);
+  }
+
+  async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }): Promise<ReadableUploadObject | null> {
+    return await this.getClient().query(getReadableUploadObject, args);
   }
 
   async recordSmsSend(args: RecordSmsSendArgs): Promise<string> {

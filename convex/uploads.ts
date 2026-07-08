@@ -48,7 +48,7 @@ const uploadStatus = v.union(
   v.literal("expired"),
   v.literal("deleted"),
 );
-const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
+const uploadAccessLevel = v.literal("private");
 const relatedEntityType = v.union(
   v.literal("farmer"),
   v.literal("buyer"),
@@ -90,14 +90,6 @@ function actorCanCreateUploadForOwner(
   ownerUserId: Id<"users">,
 ): boolean {
   return actor._id === ownerUserId || actor.role === "admin" || actor.role === "warehouse_agent";
-}
-
-function publicUrlFromBase(publicBaseUrl: string | undefined, objectKey: string): string | undefined {
-  const cleaned = publicBaseUrl?.trim().replace(/\/+$/, "");
-  if (cleaned === undefined || cleaned.length === 0) {
-    return undefined;
-  }
-  return `${cleaned}/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 function purposeAllowedForEntity(
@@ -268,7 +260,6 @@ export const createPending = mutation({
     fileName: v.optional(v.string()),
     relatedEntityType: v.optional(relatedEntityType),
     relatedEntityId: v.optional(v.string()),
-    publicBaseUrl: v.optional(v.string()),
   },
   returns: v.object({
     uploadAssetId: v.string(),
@@ -324,9 +315,6 @@ export const createPending = mutation({
       relatedEntityType: args.relatedEntityType,
       relatedEntityId: cleanOptionalText(args.relatedEntityId),
       createdByUserId: args.actorUserId,
-      publicUrl: args.objectKey !== undefined && args.accessLevel === "public_read"
-        ? publicUrlFromBase(args.publicBaseUrl, placeholderObjectKey)
-        : undefined,
       createdAt: now,
       updatedAt: now,
     }));
@@ -343,7 +331,6 @@ export const createPending = mutation({
     if (objectKey !== placeholderObjectKey) {
       await ctx.db.patch(uploadAssetId, omitUndefinedValues({
         objectKey,
-        publicUrl: args.accessLevel === "public_read" ? publicUrlFromBase(args.publicBaseUrl, objectKey) : undefined,
         updatedAt: now,
       }));
     }
@@ -559,6 +546,42 @@ export const getById = query({
       await requireActorCanUseRelatedEntity(ctx, actor, "read", asset.relatedEntityType, asset.relatedEntityId);
     }
     return asset;
+  },
+});
+
+export const getReadableObject = query({
+  args: {
+    actorUserId: v.id("users"),
+    uploadAssetId: v.id("uploadAssets"),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      uploadAssetId: v.id("uploadAssets"),
+      bucket: v.string(),
+      objectKey: v.string(),
+      contentType: v.string(),
+      status: uploadStatus,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const asset = await ctx.db.get(args.uploadAssetId);
+    if (asset === null) {
+      return null;
+    }
+    assertAllowed(asset.status !== "pending_upload", "Upload is not ready for read access.");
+    assertAllowed(asset.status !== "deleted", "Upload is not available for read access.");
+    if (actor._id !== asset.ownerUserId && actor._id !== asset.createdByUserId) {
+      await requireActorCanUseRelatedEntity(ctx, actor, "read", asset.relatedEntityType, asset.relatedEntityId);
+    }
+    return {
+      uploadAssetId: asset._id,
+      bucket: asset.bucket,
+      objectKey: asset.objectKey,
+      contentType: asset.contentType,
+      status: asset.status,
+    };
   },
 });
 

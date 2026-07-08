@@ -3,11 +3,12 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useQuery } from "convex/react";
-import { Camera, CheckCircle, FileImage, Upload } from "lucide-react";
+import { Camera, CheckCircle, ExternalLink, FileImage, Upload } from "lucide-react";
 import type { UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
+import { getEvidenceReadUrl } from "./evidenceReadUrls";
 import { uploadEvidenceFile } from "./evidenceUpload";
 
 type EvidencePanelProps = {
@@ -22,7 +23,6 @@ type EvidencePanelProps = {
 type EvidenceAsset = {
   _id: string;
   status: string;
-  publicUrl?: string;
 };
 
 export function EvidencePanel({
@@ -36,6 +36,7 @@ export function EvidencePanel({
   const { firebaseUser } = useOpsAuth();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [openingAssetId, setOpeningAssetId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const evidence = useQuery(
     api.uploads.listByRelatedEntity,
@@ -71,6 +72,28 @@ export function EvidencePanel({
       .finally(() => setIsUploading(false));
   };
 
+  const openEvidence = (uploadAssetId: string) => {
+    const tab = window.open("about:blank", "_blank", "noopener,noreferrer");
+    setOpeningAssetId(uploadAssetId);
+    setError("");
+    void getEvidenceReadUrl({
+      firebaseUser,
+      uploadAssetId,
+    })
+      .then((result) => {
+        if (tab === null) {
+          window.location.assign(result.readUrl);
+          return;
+        }
+        tab.location.href = result.readUrl;
+      })
+      .catch((openError: unknown) => {
+        tab?.close();
+        setError(openError instanceof Error ? openError.message : "Could not open evidence.");
+      })
+      .finally(() => setOpeningAssetId(null));
+  };
+
   return (
     <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
@@ -102,11 +125,10 @@ export function EvidencePanel({
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))", gap: "8px" }}>
           {evidence.map((asset) => (
-            <a
+            <button
               key={asset._id}
-              href={asset.publicUrl ?? undefined}
-              target="_blank"
-              rel="noreferrer"
+              type="button"
+              onClick={() => openEvidence(asset._id)}
               style={{
                 minHeight: "82px",
                 border: "1px solid var(--color-line)",
@@ -119,14 +141,16 @@ export function EvidencePanel({
                 flexDirection: "column",
                 justifyContent: "space-between",
                 gap: "8px",
+                cursor: "pointer",
+                textAlign: "left",
               }}
             >
-              <FileImage size={18} />
+              {openingAssetId === asset._id ? <ExternalLink size={18} /> : <FileImage size={18} />}
               <span style={{ fontSize: "11px", color: "var(--gray-600)", overflowWrap: "anywhere" }}>
                 {asset.status.replace(/_/g, " ")}
               </span>
               {asset.status === "verified" && <CheckCircle size={14} style={{ color: "var(--color-success)" }} />}
-            </a>
+            </button>
           ))}
         </div>
       )}

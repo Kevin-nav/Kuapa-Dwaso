@@ -31,11 +31,18 @@ and mock-only until a real provider is selected.
 ## Uploads
 
 Frontend apps never receive Cloudflare credentials. The API creates R2
-presigned PUT URLs and Convex stores upload metadata including owner, purpose,
-content type, size, object key, status, and related entity. Initial upload
-purposes are image-only and size-limited for transporter truck photos, produce
-intake photos, condition evidence, dispute evidence, dispatch proof photos, and
+presigned PUT URLs for writes and presigned GET URLs for reads, previews, and
+downloads. Convex stores upload metadata including owner, purpose, content
+type, size, object key, status, and related entity. Initial upload purposes are
+image-only and size-limited for transporter truck photos, produce intake
+photos, condition evidence, dispute evidence, dispatch proof photos, and
 profile evidence.
+
+Cloudflare R2 buckets must stay private. Do not use public buckets, public R2
+domains, custom public object domains, or client-side URL construction for
+evidence links. Admin and ops evidence UI must request a short-lived signed GET
+URL from the API/provider seam after the authenticated user has passed Convex
+upload access checks.
 
 Upload evidence follows the product lifecycle `pending_upload` -> `uploaded`
 or `attached`, then optional admin review to `verified` or `rejected`.
@@ -143,20 +150,24 @@ CLOUDFLARE_R2_ACCOUNT_ID=
 CLOUDFLARE_R2_ACCESS_KEY_ID=
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=
 CLOUDFLARE_R2_BUCKET=
-CLOUDFLARE_R2_PUBLIC_BASE_URL=
 R2_PRESIGN_TTL_SECONDS=900
+R2_READ_PRESIGN_TTL_SECONDS=300
 UPLOAD_MAX_SIZE_BYTES=8388608
 ```
 
-Presigned upload URLs use the R2 S3-compatible endpoint,
+Presigned upload and read URLs use the R2 S3-compatible endpoint,
 `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`, matching Cloudflare's R2 S3 API
 and presigned URL docs:
 https://developers.cloudflare.com/r2/api/s3/api/
 https://developers.cloudflare.com/r2/api/s3/presigned-urls/
 
 Buckets used from browsers must have CORS that allows the deployed app origins,
-`PUT`, and the `Content-Type` header. Cloudflare's CORS setup is documented at:
+`PUT` and `GET`, and the `Content-Type` header for signed uploads. Cloudflare's
+CORS setup is documented at:
 https://developers.cloudflare.com/r2/buckets/cors/
+
+`CLOUDFLARE_R2_PUBLIC_BASE_URL` is intentionally unsupported. If it appears in
+an environment, remove it before running production/provider mode.
 
 ## Payment Provider Setup
 
@@ -181,6 +192,12 @@ through `NEXT_PUBLIC_*` variables. Product workflows store provider-neutral
 payment transactions, webhook events, and farmer payout ledger rows; actual
 farmer bank or mobile-money transfer automation remains manual/ledger-only until
 a separate payout automation boundary is designed.
+
+Paystack webhooks should post to:
+
+```text
+POST /payments/webhooks/paystack
+```
 
 Invite links use `PUBLIC_APP_URL` and currently resolve to:
 
@@ -241,3 +258,46 @@ Cleanup deletes only records whose identifiers are derived from that smoke run
 id. It intentionally does not delete the fixed `smoke-backend-admin` bootstrap
 user, because that user may hold the first platform-owner assignment in a local
 or smoke environment.
+
+## Provider Readiness Doctor
+
+Run the dry provider/config doctor before staging or production cutover:
+
+```text
+corepack pnpm provider:doctor
+corepack pnpm provider:doctor -- --mode=production
+```
+
+The default dev mode allows mock SMS/payment providers and reports missing
+provider variables as warnings where local development can still run. Production
+or provider mode fails when Firebase, Convex, Arkesel, notification delivery,
+Paystack, R2 private signed access, or app URL configuration is incomplete. The
+doctor does not call paid provider APIs.
+
+Production console and provider checklist:
+
+- Firebase Auth: enable email/password for admins and warehouse managers,
+  phone auth for farmer/buyer/transporter entry, MFA for privileged users,
+  reCAPTCHA on deployed origins, email verification templates, and allowed
+  domains for all deployed frontend origins.
+- Arkesel: configure delivery reports to `POST /sms/webhooks/arkesel/delivery`,
+  approve the production sender ID, confirm webhook signing/header details,
+  outbound IP ranges, retry policy, and rate limits with support.
+- Paystack: configure `POST /payments/webhooks/paystack`, use test mode for
+  MVP/demo, and keep secret/webhook keys API-only.
+- Notification delivery: schedule or trigger a worker to call
+  `POST /sms/webhooks/deliveries/process` with
+  `x-notification-delivery-secret: <NOTIFICATION_DELIVERY_SECRET>`.
+- R2: keep the bucket private, disable public access/custom public domains,
+  use the S3 endpoint and signed PUT/GET URLs only, and configure CORS for the
+  deployed browser origins and signed `PUT`/`GET` access.
+
+Outstanding provider blockers to confirm before production:
+
+- Arkesel webhook signature algorithm/header format and retry behavior.
+- Arkesel production sender ID approval timeline, especially MTN Ghana.
+- Paystack production account status and exact webhook event coverage needed
+  for payment reconciliation.
+- Firebase project allowed domains, MFA rollout policy, and reCAPTCHA behavior
+  on every deployed app origin.
+- R2 CORS rules for all deployed origins and maximum signed URL lifetimes.

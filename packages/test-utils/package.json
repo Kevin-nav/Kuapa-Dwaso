@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "provider:doctor": "node src/provider-doctor.mjs",
     "smoke:backend": "node src/backend-smoke-flow.mjs",
     "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs"
   },

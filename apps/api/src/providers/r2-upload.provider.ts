@@ -32,11 +32,59 @@ export class R2UploadProvider {
     return bucket;
   }
 
-  getPublicBaseUrl(): string | undefined {
-    return getApiEnvironment().uploads.r2PublicBaseUrl;
+  presignPutObject(input: PresignPutObjectInput): PresignPutObjectResult {
+    const presigned = this.presignObject({
+      method: "PUT",
+      objectKey: input.objectKey,
+      ttlSeconds: getApiEnvironment().uploads.presignTtlSeconds
+    });
+
+    return {
+      uploadUrl: presigned.url,
+      headers: {
+        "Content-Type": input.contentType
+      },
+      expiresAt: presigned.expiresAt,
+      bucket: presigned.bucket
+    };
   }
 
-  presignPutObject(input: PresignPutObjectInput): PresignPutObjectResult {
+  presignGetObject(input: { objectKey: string }): { readUrl: string; expiresAt: number; bucket: string } {
+    const presigned = this.presignObject({
+      method: "GET",
+      objectKey: input.objectKey,
+      ttlSeconds: getApiEnvironment().uploads.readPresignTtlSeconds
+    });
+
+    return {
+      readUrl: presigned.url,
+      expiresAt: presigned.expiresAt,
+      bucket: presigned.bucket
+    };
+  }
+
+  assertPresignPolicy(input: UploadPolicyInput): void {
+    const env = getApiEnvironment();
+    if (!uploadAssetPurposes.includes(input.purpose)) {
+      throw new BadRequestException("Upload purpose is not allowed.");
+    }
+
+    try {
+      assertUploadMetadata({
+        contentType: input.contentType,
+        sizeBytes: input.sizeBytes,
+        maxSizeBytes: env.uploads.maxSizeBytes
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Upload metadata is invalid.");
+    }
+  }
+
+  private presignObject(input: {
+    method: "GET" | "PUT";
+    objectKey: string;
+    ttlSeconds: number;
+  }): { url: string; expiresAt: number; bucket: string } {
     const env = getApiEnvironment();
     const accountId = env.uploads.r2AccountId;
     const accessKeyId = env.uploads.r2AccessKeyId;
@@ -57,7 +105,7 @@ export class R2UploadProvider {
     const now = new Date();
     const amzDate = toAmzDate(now);
     const dateStamp = amzDate.slice(0, 8);
-    const expires = Math.max(60, Math.min(env.uploads.presignTtlSeconds, 3600));
+    const expires = Math.max(60, Math.min(input.ttlSeconds, 3600));
     const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
     const encodedKey = input.objectKey.split("/").map(encodeURIComponent).join("/");
     const canonicalUri = `/${bucket}/${encodedKey}`;
@@ -74,7 +122,7 @@ export class R2UploadProvider {
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join("&");
     const canonicalRequest = [
-      "PUT",
+      input.method,
       canonicalUri,
       canonicalQueryString,
       `host:${host}\n`,
@@ -92,30 +140,10 @@ export class R2UploadProvider {
     queryParams.set("X-Amz-Signature", signature);
 
     return {
-      uploadUrl: `https://${host}${canonicalUri}?${queryParams.toString()}`,
-      headers: {
-        "Content-Type": input.contentType
-      },
+      url: `https://${host}${canonicalUri}?${queryParams.toString()}`,
       expiresAt: now.getTime() + expires * 1000,
       bucket
     };
-  }
-
-  assertPresignPolicy(input: UploadPolicyInput): void {
-    const env = getApiEnvironment();
-    if (!uploadAssetPurposes.includes(input.purpose)) {
-      throw new BadRequestException("Upload purpose is not allowed.");
-    }
-
-    try {
-      assertUploadMetadata({
-        contentType: input.contentType,
-        sizeBytes: input.sizeBytes,
-        maxSizeBytes: env.uploads.maxSizeBytes
-      });
-    } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : "Upload metadata is invalid.");
-    }
   }
 }
 
