@@ -30,13 +30,13 @@ type InventorySummary = {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEMO_NOW = Date.UTC(2026, 0, 1);
 
 export default function BuyerDashboard() {
   const { principal } = useAuth();
   const [selectedCrop, setSelectedCrop] = useState<string>("All");
   const [selectedGrade, setSelectedGrade] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [renderedAt] = useState(() => Date.now());
 
   const buyerProfile = principal?.profiles?.find((p) => p.profileType === "buyer");
   const buyerId = buyerProfile?.profileId as Id<"buyers"> | undefined;
@@ -90,52 +90,8 @@ export default function BuyerDashboard() {
     return `GHS ${minVal.toLocaleString()} - GHS ${maxVal.toLocaleString()} per ${unit}`;
   };
 
-  const hasRealSummaries = summaries && summaries.length > 0;
-
-  // Fallback demo data if DB is empty to make it look stunning
-  const demoSummaries: InventorySummary[] = [
-    {
-      warehouseId: "w1",
-      warehouseName: "Akwatia Community Warehouse",
-      warehouseCommunity: "Akwatia",
-      cropType: "Maize",
-      grade: "A",
-      unit: "bags",
-      destinationMarket: defaultMarket,
-      availableQuantity: 150,
-      askingPriceRange: { min: 120, max: 140 },
-      earliestSellByDate: DEMO_NOW + 45 * MS_PER_DAY,
-      dispatchDays: ["Monday", "Wednesday", "Friday"],
-    },
-    {
-      warehouseId: "w1",
-      warehouseName: "Akwatia Community Warehouse",
-      warehouseCommunity: "Akwatia",
-      cropType: "Cassava",
-      grade: "B",
-      unit: "bags",
-      destinationMarket: defaultMarket,
-      availableQuantity: 80,
-      askingPriceRange: { min: 80, max: 95 },
-      earliestSellByDate: DEMO_NOW + 15 * MS_PER_DAY,
-      dispatchDays: ["Tuesday", "Thursday"],
-    },
-    {
-      warehouseId: "w2",
-      warehouseName: "Kade Aggregation Center",
-      warehouseCommunity: "Kade",
-      cropType: "Rice",
-      grade: "mixed",
-      unit: "bags",
-      destinationMarket: defaultMarket,
-      availableQuantity: 220,
-      askingPriceRange: { min: 160, max: 160 },
-      earliestSellByDate: DEMO_NOW + 60 * MS_PER_DAY,
-      dispatchDays: ["Wednesday", "Saturday"],
-    },
-  ];
-
-  const listToRender: InventorySummary[] = hasRealSummaries ? summaries : demoSummaries;
+  const isInventoryLoading = summaries === undefined;
+  const listToRender: InventorySummary[] = summaries ?? [];
 
   // Filter list locally based on searchQuery (filters warehouse name or crop type)
   const filteredSummaries = listToRender.filter((item) => {
@@ -245,7 +201,7 @@ export default function BuyerDashboard() {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {filteredSummaries.map((item, idx) => {
             const daysLeft = item.earliestSellByDate
-              ? Math.max(0, Math.floor((item.earliestSellByDate - DEMO_NOW) / MS_PER_DAY))
+              ? Math.max(0, Math.floor((item.earliestSellByDate - renderedAt) / MS_PER_DAY))
               : null;
 
             return (
@@ -263,11 +219,6 @@ export default function BuyerDashboard() {
                     <div>
                       <span className="card-title" style={{ fontSize: "1.1rem" }}>
                         {item.cropType}
-                        {!hasRealSummaries && (
-                          <span style={{ fontSize: "0.75rem", color: "var(--color-neutral)", fontWeight: "normal" }}>
-                            {" "}(Demo)
-                          </span>
-                        )}
                       </span>
                       <span style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
                         {item.warehouseName}
@@ -312,12 +263,19 @@ export default function BuyerDashboard() {
             );
           })}
 
-          {filteredSummaries.length === 0 && (
+          {isInventoryLoading && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div className="skeleton" style={{ width: "100%", height: "124px", borderRadius: "16px" }} />
+              <div className="skeleton" style={{ width: "100%", height: "124px", borderRadius: "16px" }} />
+            </div>
+          )}
+
+          {!isInventoryLoading && filteredSummaries.length === 0 && (
             <div style={{ textAlign: "center", padding: "60px 20px" }}>
               <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🌾</div>
               <h3 style={{ color: "var(--color-ink)", marginBottom: "8px" }}>No Produce Available</h3>
               <p style={{ maxWidth: "320px", margin: "0 auto", color: "var(--color-text-muted)" }}>
-                There are no crop listings matching your search at this warehouse for your destination market.
+                There are no buyer-visible warehouse listings matching your filters for {defaultMarket}.
               </p>
             </div>
           )}

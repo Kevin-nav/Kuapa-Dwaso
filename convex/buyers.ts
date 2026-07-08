@@ -260,9 +260,18 @@ export const getById = query({
   handler: async (ctx, args) => {
     const buyer = await ctx.db.get(args.buyerId);
     if (buyer !== null && args.actorUserId !== undefined) {
-      await requireAdminPermission(ctx, args.actorUserId, "buyers:read", adminScopeTarget({
-        destinationMarket: buyer.destinationMarket,
-      }));
+      const actor = await resolveActor(ctx, args.actorUserId);
+      if (actor.role === "buyer") {
+        if (buyer.userId !== actor._id) {
+          throw new Error("Buyers can only read their own buyer profile.");
+        }
+      } else if (actor.role === "admin") {
+        await requireAdminPermission(ctx, args.actorUserId, "buyers:read", adminScopeTarget({
+          destinationMarket: buyer.destinationMarket,
+        }));
+      } else {
+        throw new Error("Actor cannot read buyer profiles.");
+      }
     }
     return buyer;
   },

@@ -29,12 +29,12 @@ type InventoryBatchSummary = {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEMO_NOW = Date.UTC(2026, 0, 1);
 
 export default function InventorySummaryPage() {
   const { principal } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [renderedAt] = useState(() => Date.now());
 
   const warehouseId = searchParams.get("warehouseId") || "";
   const cropType = searchParams.get("cropType") || "";
@@ -83,57 +83,33 @@ export default function InventorySummaryPage() {
     }
   }, []);
 
-  const hasRealBatches = batches && batches.length > 0;
-
-  // Fallback demo data
-  const demoBatches: InventoryBatchSummary[] = [
-    {
-      inventoryBatchId: "batch1",
-      warehouseName: warehouse?.name || "Akwatia Community Warehouse",
-      warehouseCommunity: warehouse?.community || "Akwatia",
-      cropType: cropType || "Maize",
-      grade: grade || "A",
-      unit: unit || "bags",
-      availableQuantity: 90,
-      askingPricePerUnit: 120,
-      sellByDate: DEMO_NOW + 45 * MS_PER_DAY,
-    },
-    {
-      inventoryBatchId: "batch2",
-      warehouseName: warehouse?.name || "Akwatia Community Warehouse",
-      warehouseCommunity: warehouse?.community || "Akwatia",
-      cropType: cropType || "Maize",
-      grade: grade || "A",
-      unit: unit || "bags",
-      availableQuantity: 60,
-      askingPricePerUnit: 135,
-      sellByDate: DEMO_NOW + 50 * MS_PER_DAY,
-    },
-  ];
-
-  const listToRender: InventoryBatchSummary[] = hasRealBatches ? batches : demoBatches;
+  const isInventoryLoading = batches === undefined;
+  const hasAvailableBatches = batches !== undefined && batches.length > 0;
+  const listToRender: InventoryBatchSummary[] = batches ?? [];
 
   const totalQuantity = listToRender.reduce((sum, item) => sum + item.availableQuantity, 0);
   const prices = listToRender
     .map((b) => b.askingPricePerUnit)
     .filter((price): price is number => price !== undefined);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
+  const minPrice = prices.length > 0 ? Math.min(...prices) : undefined;
+  const maxPrice = prices.length > 0 ? Math.max(...prices) : undefined;
 
-  const priceRangeString = minPrice === maxPrice
-    ? `GHS ${minPrice.toLocaleString()}`
-    : `GHS ${minPrice.toLocaleString()} - GHS ${maxPrice.toLocaleString()}`;
+  const priceRangeString = minPrice === undefined || maxPrice === undefined
+    ? "Price not set"
+    : minPrice === maxPrice
+      ? `GHS ${minPrice.toLocaleString()}`
+      : `GHS ${minPrice.toLocaleString()} - GHS ${maxPrice.toLocaleString()}`;
 
   const earliestSellBy = listToRender.reduce(
     (earliest, b) => (b.sellByDate && b.sellByDate < earliest ? b.sellByDate : earliest),
     Number.MAX_SAFE_INTEGER
   );
   const daysLeft = earliestSellBy !== Number.MAX_SAFE_INTEGER
-    ? Math.max(0, Math.floor((earliestSellBy - DEMO_NOW) / MS_PER_DAY))
+    ? Math.max(0, Math.floor((earliestSellBy - renderedAt) / MS_PER_DAY))
     : null;
 
-  const warehouseName = warehouse?.name || "Akwatia Community Warehouse";
-  const dispatchDays = warehouse?.dispatchDays || ["Monday", "Wednesday", "Friday"];
+  const warehouseName = warehouse?.name || listToRender[0]?.warehouseName || "Selected warehouse";
+  const dispatchDays = warehouse?.dispatchDays || [];
 
   return (
     <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "20px" }}>
@@ -175,7 +151,6 @@ export default function InventorySummaryPage() {
           <h2 style={{ fontSize: "1.6rem", color: "var(--color-ink)", marginTop: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
             <span>{cropType === "Maize" ? "🌽" : cropType === "Cassava" ? "🍠" : "🌾"}</span>
             <span>{cropType} Produce</span>
-            {!hasRealBatches && <span style={{ fontSize: "0.75rem", color: "var(--color-neutral)", fontWeight: "normal" }}>(Demo)</span>}
           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9375rem", color: "var(--color-text-muted)", marginTop: "4px" }}>
             <MapPin size={16} />
@@ -207,7 +182,7 @@ export default function InventorySummaryPage() {
           <div className="slip-row">
             <span className="slip-label">Dispatch Schedule</span>
             <span className="slip-value" style={{ fontWeight: "600" }}>
-              {dispatchDays.join(", ")}
+              {dispatchDays.length > 0 ? dispatchDays.join(", ") : "Warehouse will confirm after payment"}
             </span>
           </div>
         </div>
@@ -219,6 +194,19 @@ export default function InventorySummaryPage() {
           Itemized Stock Batches
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {isInventoryLoading && (
+            <>
+              <div className="skeleton" style={{ width: "100%", height: "76px", borderRadius: "12px" }} />
+              <div className="skeleton" style={{ width: "100%", height: "76px", borderRadius: "12px" }} />
+            </>
+          )}
+
+          {!isInventoryLoading && !hasAvailableBatches && (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-text-muted)" }}>
+              This stock is no longer available for reservation. Try another warehouse listing or adjust your filters.
+            </div>
+          )}
+
           {listToRender.map((batch, idx) => (
             <div
               key={batch.inventoryBatchId || idx}
@@ -319,6 +307,7 @@ export default function InventorySummaryPage() {
         <button
           type="button"
           className="btn btn-primary btn-full"
+          disabled={!hasAvailableBatches || minPrice === undefined || maxPrice === undefined}
           onClick={() =>
             router.push(
               `/buyer/orders/create?warehouseId=${warehouseId}&cropType=${cropType}&grade=${grade}&unit=${unit}&minPrice=${minPrice}&maxPrice=${maxPrice}`

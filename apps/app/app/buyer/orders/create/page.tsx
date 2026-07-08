@@ -19,6 +19,10 @@ type WarehouseSummary = {
   name: string;
 };
 
+type InventoryBatchSummary = {
+  availableQuantity: number;
+};
+
 export default function CreateOrderPage() {
   const { principal } = useAuth();
   const searchParams = useSearchParams();
@@ -48,19 +52,34 @@ export default function CreateOrderPage() {
 
   // Form states
   const [quantity, setQuantity] = useState<string>("");
-  const [destinationMarket, setDestinationMarket] = useState<string>(
-    buyer?.destinationMarket || "Makola Market"
-  );
+  const [destinationMarket, setDestinationMarket] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>(defaultMaxPrice);
   const [deliveryDate, setDeliveryDate] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const formattedMarketString = destinationMarket || buyer?.destinationMarket || "Makola Market";
+  const inventory = useQuery(
+    api.buyerOrders.listAvailableInventory,
+    principal !== null && principal !== undefined && warehouseId && cropType
+      ? {
+          warehouseId: warehouseId as Id<"warehouses">,
+          cropType,
+          unit,
+          destinationMarket: destinationMarket.trim() || buyer?.destinationMarket || "Makola Market",
+          grade: preferredGrade,
+          ...(maxPrice ? { maximumPricePerUnit: Number(maxPrice) } : {}),
+        }
+      : "skip"
+  ) as InventoryBatchSummary[] | undefined;
+
+  const formattedMarketString = destinationMarket.trim() || buyer?.destinationMarket || "Makola Market";
 
   const numQuantity = Number(quantity);
   const numPrice = Number(maxPrice);
   const estimatedCost = numQuantity && numPrice ? numQuantity * numPrice : 0;
+  const availableQuantity = inventory?.reduce((sum, item) => sum + item.availableQuantity, 0) ?? 0;
+  const hasInventoryResult = inventory !== undefined;
+  const hasSufficientInventory = !hasInventoryResult || availableQuantity >= numQuantity;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -84,6 +103,7 @@ export default function CreateOrderPage() {
         cropType,
         requestedQuantity: numQuantity,
         unit,
+        ...(warehouseId ? { warehouseId: warehouseId as Id<"warehouses"> } : {}),
         preferredGrade,
         ...(deliveryDate ? { requestedDeliveryDate: new Date(deliveryDate).getTime() } : {}),
         ...(numPrice ? { maxPricePerUnit: numPrice } : {}),
@@ -158,10 +178,25 @@ export default function CreateOrderPage() {
               {cropType} · Grade {preferredGrade}
             </div>
             <div style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-              Warehouse: {warehouse?.name || "Akwatia Community Warehouse"}
+              Warehouse: {warehouse?.name || "Selected warehouse"}
             </div>
           </div>
         </div>
+
+        {hasInventoryResult && (
+          <div className="attention-card" style={{ backgroundColor: hasSufficientInventory ? "var(--color-info-bg)" : "var(--color-danger-bg)", borderColor: hasSufficientInventory ? "var(--color-info-border)" : "var(--color-danger-border)" }}>
+            <div className="attention-body">
+              <span className="attention-title">
+                {availableQuantity.toLocaleString()} {unit} currently reservable
+              </span>
+              <span className="attention-text">
+                {hasSufficientInventory
+                  ? "Your order can be filled from currently buyer-visible inventory."
+                  : "Requested quantity is higher than current reservable stock. Reduce the quantity or choose another listing."}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="field-stack">
           <label htmlFor="quantity">Requested Quantity ({unit})</label>
@@ -191,7 +226,7 @@ export default function CreateOrderPage() {
             disabled={isSubmitting}
           />
           <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
-            Defaults to current warehouse asking price: GHS {defaultMaxPrice}
+            {defaultMaxPrice ? `Defaults to current warehouse asking price: GHS ${defaultMaxPrice}` : "Leave blank to use the current warehouse asking prices."}
           </span>
         </div>
 
@@ -201,7 +236,7 @@ export default function CreateOrderPage() {
             type="text"
             id="destinationMarket"
             className="form-input"
-            value={destinationMarket}
+            value={formattedMarketString}
             onChange={(e) => setDestinationMarket(e.target.value)}
             placeholder="e.g. Makola Market, Accra"
             disabled={isSubmitting}
@@ -270,7 +305,7 @@ export default function CreateOrderPage() {
         <button
           type="submit"
           className="btn btn-primary btn-full"
-          disabled={isSubmitting}
+          disabled={isSubmitting || (numQuantity > 0 && !hasSufficientInventory)}
           style={{ marginTop: "10px" }}
         >
           <ShoppingCart size={18} />

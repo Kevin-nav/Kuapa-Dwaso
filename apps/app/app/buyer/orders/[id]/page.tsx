@@ -4,9 +4,10 @@ import { use, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
-import { ArrowLeft, Phone, AlertTriangle, CheckCircle, Clipboard } from "lucide-react";
+import { ArrowLeft, Phone, AlertTriangle, CheckCircle, Clipboard, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Id } from "@convex/_generated/dataModel";
+import { initializeBuyerOrderPayment } from "../../paymentApi";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -22,6 +23,19 @@ type OrderReservation = {
   quantityReserved: number;
   unit: string;
   status: string;
+};
+
+type PaymentTransaction = {
+  _id: string;
+  provider: string;
+  providerReference: string;
+  authorizationUrl?: string;
+  amount: number;
+  currency: string;
+  status: string;
+  providerMessage?: string;
+  createdAt: number;
+  updatedAt: number;
 };
 
 type BuyerOrderDetail = {
@@ -40,58 +54,49 @@ type BuyerOrderDetail = {
   createdAt: number;
   reservations?: OrderReservation[];
   charges?: OrderCharge[];
+  payments?: PaymentTransaction[];
 };
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEMO_NOW = Date.UTC(2026, 0, 1);
 
 export default function OrderDetailPage({ params }: Props) {
   const { id } = use(params);
   const router = useRouter();
-  const { principal } = useAuth();
+  const { firebaseUser, principal } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isInitializingPayment, setIsInitializingPayment] = useState(false);
 
   // Retrieve order details
   const orderDetails = useQuery(
     api.buyerOrders.getById,
-    principal !== null && principal !== undefined && !id.startsWith("demo")
+    principal !== null && principal !== undefined
       ? { actorUserId: principal.userId as Id<"users">, buyerOrderId: id as Id<"buyerOrders"> }
       : "skip"
   ) as BuyerOrderDetail | null | undefined;
 
-  // Fallback demo order
-  const demoOrder: BuyerOrderDetail = {
-    _id: "demo1",
-    cropType: "Maize",
-    preferredGrade: "A",
-    requestedQuantity: 50,
-    unit: "bags",
-    destinationMarket: "Makola Market",
-    subtotalAmount: 6000,
-    transportFee: 300,
-    serviceFee: 150,
-    totalAmount: 6450,
-    paymentStatus: "deposit_paid",
-    status: "reserved",
-    createdAt: DEMO_NOW - 2 * MS_PER_DAY,
-    reservations: [
-      { _id: "res1", quantityReserved: 30, unit: "bags", status: "active" },
-      { _id: "res2", quantityReserved: 20, unit: "bags", status: "active" },
-    ],
-    charges: [
-      { label: "Produce Subtotal", amount: 6000 },
-      { label: "Transportation Logistics Charge", amount: 300 },
-      { label: "Service Platform Fee", amount: 150 },
-    ],
-  };
-
-  const isDemo = id.startsWith("demo") || orderDetails === null;
-  const currentOrder = isDemo ? demoOrder : orderDetails;
+  const currentOrder = orderDetails;
 
   if (currentOrder === undefined) {
     return (
       <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "20px", padding: "20px" }}>
         <p>Loading order details...</p>
+      </div>
+    );
+  }
+
+  if (currentOrder === null) {
+    return (
+      <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "20px" }}>
+        <button type="button" className="btn btn-secondary" onClick={() => router.push("/buyer/orders")}>
+          <ArrowLeft size={18} />
+          <span>Back to Orders</span>
+        </button>
+        <div className="attention-card" style={{ backgroundColor: "var(--color-danger-bg)", borderColor: "var(--color-danger-border)", color: "var(--color-danger)" }}>
+          <AlertTriangle className="attention-icon" size={24} />
+          <div className="attention-body">
+            <span className="attention-title">Order not found</span>
+            <span className="attention-text">This order could not be loaded for your buyer account.</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -142,6 +147,38 @@ export default function OrderDetailPage({ params }: Props) {
     month: "long",
     year: "numeric",
   });
+  const latestPayment = currentOrder.payments?.[0];
+  const canPay =
+    currentOrder.totalAmount !== undefined &&
+    currentOrder.totalAmount > 0 &&
+    ["awaiting_payment", "failed", "deposit_paid"].includes(currentOrder.paymentStatus) &&
+    !["cancelled", "unfulfilled", "disputed", "completed"].includes(currentOrder.status);
+
+  const handlePay = async () => {
+    if (firebaseUser === null) {
+      setPaymentError("Please sign in again before starting payment.");
+      return;
+    }
+    setIsInitializingPayment(true);
+    setPaymentError(null);
+    try {
+      const callbackUrl = `${window.location.origin}/buyer/payments/return?buyerOrderId=${encodeURIComponent(id)}`;
+      const initialized = await initializeBuyerOrderPayment({
+        firebaseUser,
+        buyerOrderId: id,
+        callbackUrl,
+      });
+      if (initialized.authorizationUrl !== undefined) {
+        window.location.assign(initialized.authorizationUrl);
+        return;
+      }
+      router.refresh();
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "Payment could not be initialized.");
+    } finally {
+      setIsInitializingPayment(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "20px" }}>
@@ -339,12 +376,56 @@ export default function OrderDetailPage({ params }: Props) {
             <div className="slip-math-result" style={{ marginTop: "4px" }}>
               <span style={{ fontWeight: "700", color: "var(--color-ink)" }}>Total Cost</span>
               <span className="slip-math-total" style={{ fontVariantNumeric: "tabular-nums" }}>
-                GHS {currentOrder.totalAmount?.toLocaleString() || currentOrder.subtotalAmount?.toLocaleString()}
+                {currentOrder.totalAmount !== undefined || currentOrder.subtotalAmount !== undefined
+                  ? `GHS ${(currentOrder.totalAmount ?? currentOrder.subtotalAmount)?.toLocaleString()}`
+                  : "Pending pricing"}
               </span>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Payment action */}
+      <div className="attention-card" style={{ backgroundColor: "var(--color-info-bg)", borderColor: "var(--color-info-border)" }}>
+        <CreditCard className="attention-icon" size={24} style={{ color: "var(--color-primary)" }} />
+        <div className="attention-body">
+          <span className="attention-title">Payment</span>
+          <span className="attention-text">
+            {latestPayment !== undefined
+              ? `Latest transaction ${latestPayment.providerReference} is ${latestPayment.status.replace(/_/g, " ")}.`
+              : currentOrder.totalAmount === undefined
+                ? "Payment will be available after warehouse pricing is complete."
+                : "Pay securely through the platform payment provider."}
+          </span>
+          {latestPayment?.providerMessage !== undefined && (
+            <span className="attention-text">{latestPayment.providerMessage}</span>
+          )}
+        </div>
+      </div>
+
+      {paymentError && (
+        <div className="attention-card" style={{ backgroundColor: "var(--color-danger-bg)", borderColor: "var(--color-danger-border)", color: "var(--color-danger)" }}>
+          <AlertTriangle className="attention-icon" size={24} />
+          <div className="attention-body">
+            <span className="attention-title">Payment could not start</span>
+            <span className="attention-text">{paymentError}</span>
+          </div>
+        </div>
+      )}
+
+      {canPay && (
+        <button
+          type="button"
+          className="btn btn-primary btn-full"
+          disabled={isInitializingPayment}
+          onClick={() => {
+            void handlePay();
+          }}
+        >
+          <CreditCard size={18} />
+          <span>{isInitializingPayment ? "Starting payment..." : "Pay Order"}</span>
+        </button>
+      )}
 
       {/* Reservation & Fulfillment status info */}
       {currentOrder.reservations && currentOrder.reservations.length > 0 && (

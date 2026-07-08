@@ -477,6 +477,7 @@ export const create = mutation({
     cropType: v.string(),
     requestedQuantity: v.number(),
     unit: v.string(),
+    warehouseId: v.optional(v.id("warehouses")),
     preferredGrade: v.optional(produceGrade),
     requestedDeliveryDate: v.optional(v.number()),
     maxPricePerUnit: v.optional(v.number()),
@@ -540,6 +541,7 @@ export const create = mutation({
     const candidates = await findReservableBatches(ctx, omitUndefinedValues({
       cropType,
       unit,
+      warehouseId: args.warehouseId,
       destinationMarket,
       preferredGrade: args.preferredGrade,
       maxPricePerUnit: args.maxPricePerUnit,
@@ -1038,8 +1040,18 @@ export const getById = query({
       .query("buyerOrderCharges")
       .withIndex("by_order", (q) => q.eq("buyerOrderId", args.buyerOrderId))
       .collect();
+    const payments = await ctx.db
+      .query("paymentTransactions")
+      .withIndex("by_order", (q) => q.eq("buyerOrderId", args.buyerOrderId))
+      .collect();
 
-    return { ...order, buyer, reservations, charges };
+    return {
+      ...order,
+      buyer,
+      reservations,
+      charges,
+      payments: payments.sort((left, right) => right.createdAt - left.createdAt),
+    };
   },
 });
 

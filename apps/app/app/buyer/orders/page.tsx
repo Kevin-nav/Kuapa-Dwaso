@@ -22,9 +22,6 @@ type BuyerOrderListItem = {
   createdAt: number;
 };
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEMO_NOW = Date.UTC(2026, 0, 1);
-
 export default function OrdersListPage() {
   const { principal } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,36 +37,8 @@ export default function OrdersListPage() {
       : "skip"
   ) as BuyerOrderListItem[] | undefined;
 
-  // Fallback demo data if DB is empty
-  const demoOrders: BuyerOrderListItem[] = [
-    {
-      _id: "demo1",
-      cropType: "Maize",
-      preferredGrade: "A",
-      requestedQuantity: 50,
-      unit: "bags",
-      destinationMarket: "Makola Market",
-      totalAmount: 6450,
-      paymentStatus: "deposit_paid",
-      status: "reserved",
-      createdAt: DEMO_NOW - 2 * MS_PER_DAY,
-    },
-    {
-      _id: "demo2",
-      cropType: "Cassava",
-      preferredGrade: "B",
-      requestedQuantity: 30,
-      unit: "bags",
-      destinationMarket: "Makola Market",
-      totalAmount: 2850,
-      paymentStatus: "fully_paid",
-      status: "completed",
-      createdAt: DEMO_NOW - 10 * MS_PER_DAY,
-    },
-  ];
-
-  const hasRealOrders = orders && orders.length > 0;
-  const listToRender: BuyerOrderListItem[] = hasRealOrders ? orders : demoOrders;
+  const isOrdersLoading = orders === undefined;
+  const listToRender: BuyerOrderListItem[] = orders ?? [];
 
   const filteredOrders = listToRender.filter((o) => {
     const query = searchQuery.trim().toLowerCase();
@@ -140,9 +109,6 @@ export default function OrdersListPage() {
               <div className="card-header">
                 <span style={{ fontFamily: "var(--font-mono)", fontWeight: "700", fontSize: "1.05rem", color: "var(--color-ink)" }}>
                   ORDER #{o._id.substring(0, 8).toUpperCase()}
-                  {!hasRealOrders && (
-                    <span style={{ fontSize: "0.75rem", color: "var(--color-neutral)", marginLeft: "4px" }}>(Demo)</span>
-                  )}
                 </span>
                 <span className={`status-chip ${getStatusClass(o.status)}`}>
                   {o.status.replace(/_/g, " ")}
@@ -156,6 +122,7 @@ export default function OrdersListPage() {
                 <div style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
                   <span>Market: {o.destinationMarket}</span>
                   <span>Submitted: {formattedDate}</span>
+                  <span>Payment: {o.paymentStatus.replace(/_/g, " ")}</span>
                 </div>
               </div>
 
@@ -163,7 +130,9 @@ export default function OrdersListPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <CircleDollarSign size={16} style={{ color: "var(--color-primary)" }} />
                   <span className="card-math" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    GHS {o.totalAmount?.toLocaleString() || o.subtotalAmount?.toLocaleString()}
+                    {o.totalAmount !== undefined || o.subtotalAmount !== undefined
+                      ? `GHS ${(o.totalAmount ?? o.subtotalAmount)?.toLocaleString()}`
+                      : "Payment pending"}
                   </span>
                 </div>
 
@@ -176,7 +145,14 @@ export default function OrdersListPage() {
           );
         })}
 
-        {filteredOrders.length === 0 && (
+        {isOrdersLoading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div className="skeleton" style={{ width: "100%", height: "116px", borderRadius: "16px" }} />
+            <div className="skeleton" style={{ width: "100%", height: "116px", borderRadius: "16px" }} />
+          </div>
+        )}
+
+        {!isOrdersLoading && filteredOrders.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: "3rem", marginBottom: "16px" }}>📋</div>
             <h3 style={{ color: "var(--color-ink)", marginBottom: "8px" }}>No Orders Found</h3>
