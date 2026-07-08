@@ -7,9 +7,9 @@ This repo uses GitHub-hosted runners only.
 - Pushes to `production` build images and then deploy `production`.
 - Manual dispatch can rebuild or redeploy either environment.
 
-Runtime application secrets stay in Infisical. GitHub stores only deployment
-bootstrap credentials, build-time public client values, and environment routing
-metadata.
+Runtime application secrets and build-time public client values stay in
+Infisical. GitHub stores only deployment/bootstrap credentials, the Infisical
+machine identity, and environment routing metadata.
 
 Reference docs:
 
@@ -62,6 +62,13 @@ ghcr.io/<owner>/<repo>/app:sha-<12-char-sha>
 The workflow uses `GITHUB_TOKEN` with `packages: write` for GHCR publishing.
 If a different registry is selected, add explicit registry login steps before
 enabling it.
+
+Before each image build, the workflow authenticates to Infisical with the
+environment-scoped machine identity, exports the selected Infisical environment,
+validates the required `NEXT_PUBLIC_*` values, and passes those values as Docker
+build arguments. These values are public in browser bundles, but Infisical is
+still the source of truth so staging and production builds cannot drift from the
+runtime environment inventory.
 
 `.github/workflows/deploy.yml`
 
@@ -141,6 +148,8 @@ environment secrets.
 
 ## Required GitHub Environment Secrets
 
+Use `.env.example.github` as the copy checklist for the values below.
+
 Configure these in both `staging` and `production` environments:
 
 ```text
@@ -167,6 +176,7 @@ for this deployment path. Do not use a personal admin SSH key.
 
 Do not store app runtime secrets in GitHub. These belong in Infisical:
 
+- Build-time public browser values, including all `NEXT_PUBLIC_*` values below
 - Firebase Admin service account
 - Resend API key
 - Arkesel API key and webhook signing material
@@ -180,6 +190,15 @@ Do not store app runtime secrets in GitHub. These belong in Infisical:
 Configure these in both `staging` and `production` environments:
 
 ```text
+INFISICAL_PROJECT_ID
+```
+
+`NEXT_PUBLIC_*` values are public browser build-time values, not runtime
+secrets, but they must point at the correct staging or production providers.
+Keep them in Infisical with the rest of the environment inventory. The image
+workflow pulls these from Infisical before building:
+
+```text
 NEXT_PUBLIC_CONVEX_URL
 NEXT_PUBLIC_API_URL
 NEXT_PUBLIC_FIREBASE_API_KEY
@@ -188,12 +207,7 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-INFISICAL_PROJECT_ID
 ```
-
-These `NEXT_PUBLIC_*` values are public browser build-time values. They are not
-runtime secrets, but they must point at the correct staging or production
-providers.
 
 Optional environment variables:
 

@@ -73,6 +73,56 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Install Infisical CLI
+        shell: bash
+        run: |
+          curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | sudo -E bash
+          sudo apt-get update
+          sudo apt-get install -y infisical
+
+      - name: Export build-time public values from Infisical
+        shell: bash
+        run: |
+          INFISICAL_ENVIRONMENT_SLUG="${INFISICAL_ENVIRONMENT_SLUG:-$BUILD_ENVIRONMENT}"
+          INFISICAL_SECRET_PATH="${INFISICAL_SECRET_PATH:-/}"
+
+          INFISICAL_TOKEN="$(infisical login --method=universal-auth --client-id="$INFISICAL_CLIENT_ID" --client-secret="$INFISICAL_CLIENT_SECRET" --plain --silent)"
+          export INFISICAL_TOKEN
+          infisical export --projectId="$INFISICAL_PROJECT_ID" --env="$INFISICAL_ENVIRONMENT_SLUG" --path="$INFISICAL_SECRET_PATH" --format=dotenv > infisical-build.env
+
+          set -a
+          # shellcheck disable=SC1091
+          source infisical-build.env
+          set +a
+
+          required_keys=(
+            NEXT_PUBLIC_CONVEX_URL
+            NEXT_PUBLIC_API_URL
+            NEXT_PUBLIC_FIREBASE_API_KEY
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID
+            NEXT_PUBLIC_FIREBASE_APP_ID
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+          )
+
+          for key in "${required_keys[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "$key must be present in Infisical for $INFISICAL_ENVIRONMENT_SLUG." >&2
+              exit 1
+            fi
+            printf '%s=%s\n' "$key" "${!key}" >> "$GITHUB_ENV"
+          done
+
+          rm -f infisical-build.env
+        env:
+          BUILD_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'production' && 'production' || 'staging') }}
+          INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
+          INFISICAL_ENVIRONMENT_SLUG: ${{ vars.INFISICAL_ENVIRONMENT_SLUG }}
+          INFISICAL_SECRET_PATH: ${{ vars.INFISICAL_SECRET_PATH || '/' }}
+
       - name: Log in to GHCR
         if: ${{ (vars.IMAGE_REGISTRY == '' || vars.IMAGE_REGISTRY == 'ghcr.io') }}
         uses: docker/login-action@v3
@@ -89,14 +139,14 @@ jobs:
           push: true
           build-args: |
             PACKAGE_NAME=${{ matrix.surface.package }}
-            NEXT_PUBLIC_CONVEX_URL=${{ vars.NEXT_PUBLIC_CONVEX_URL }}
-            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
-            NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
-            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-            NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
-            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+            NEXT_PUBLIC_CONVEX_URL=${{ env.NEXT_PUBLIC_CONVEX_URL }}
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ env.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ env.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ env.NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
             START_COMMAND=${{ matrix.surface.start_command }}
           tags: |
             ${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}
