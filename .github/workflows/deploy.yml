@@ -1,0 +1,175 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - Build and Publish Images
+    branches:
+      - main
+      - production
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy.
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: Image tag to deploy. Defaults to sha-<current commit short SHA>.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'production' && 'production' || 'staging') }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'production' && 'production' || 'staging') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'production' && 'production' || 'staging') }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+
+      - name: Prepare deployment context
+        id: deploy
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            deploy_sha="${GITHUB_SHA}"
+            deploy_environment="${{ inputs.environment }}"
+          else
+            deploy_sha="${{ github.event.workflow_run.head_sha }}"
+            if [[ "${{ github.event.workflow_run.head_branch }}" == "production" ]]; then
+              deploy_environment="production"
+            else
+              deploy_environment="staging"
+            fi
+          fi
+
+          short_sha="${deploy_sha::12}"
+          image_tag="${{ inputs.image_tag }}"
+          if [[ -z "$image_tag" ]]; then
+            image_tag="sha-$short_sha"
+          fi
+
+          registry="${IMAGE_REGISTRY:-ghcr.io}"
+          repo="${IMAGE_REPOSITORY_PREFIX:-$registry/${GITHUB_REPOSITORY,,}}"
+          overlay="${KUSTOMIZE_OVERLAY_PATH:-deploy/k8s/overlays/$deploy_environment}"
+          namespace="${KUBE_NAMESPACE:-kuapa-dwaso-$deploy_environment}"
+          infisical_env="${INFISICAL_ENVIRONMENT_SLUG:-$deploy_environment}"
+
+          echo "deploy_sha=$deploy_sha" >> "$GITHUB_OUTPUT"
+          echo "deploy_environment=$deploy_environment" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
+          echo "image_registry=$registry" >> "$GITHUB_OUTPUT"
+          echo "image_repository_prefix=$repo" >> "$GITHUB_OUTPUT"
+          echo "kustomize_overlay_path=$overlay" >> "$GITHUB_OUTPUT"
+          echo "kube_namespace=$namespace" >> "$GITHUB_OUTPUT"
+          echo "infisical_environment_slug=$infisical_env" >> "$GITHUB_OUTPUT"
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          IMAGE_REPOSITORY_PREFIX: ${{ vars.IMAGE_REPOSITORY_PREFIX }}
+          KUSTOMIZE_OVERLAY_PATH: ${{ vars.KUSTOMIZE_OVERLAY_PATH }}
+          KUBE_NAMESPACE: ${{ vars.KUBE_NAMESPACE }}
+          INFISICAL_ENVIRONMENT_SLUG: ${{ vars.INFISICAL_ENVIRONMENT_SLUG }}
+
+      - name: Install SSH key
+        shell: bash
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_DEPLOY_SSH_KEY" > ~/.ssh/kuapa_deploy
+          chmod 600 ~/.ssh/kuapa_deploy
+          if [[ -n "$VPS_DEPLOY_KNOWN_HOSTS" ]]; then
+            printf '%s\n' "$VPS_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+        env:
+          VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
+          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          VPS_DEPLOY_KNOWN_HOSTS: ${{ secrets.VPS_DEPLOY_KNOWN_HOSTS }}
+
+      - name: Copy deploy script and environment
+        shell: bash
+        run: |
+          remote_id="kuapa-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          script_path="/tmp/$remote_id.sh"
+          env_path="/tmp/$remote_id.env"
+
+          write_env() {
+            printf '%s=%q\n' "$1" "$2" >> deploy.env
+          }
+
+          : > deploy.env
+          write_env DEPLOY_ENVIRONMENT "${{ steps.deploy.outputs.deploy_environment }}"
+          write_env GITHUB_REPOSITORY "$GITHUB_REPOSITORY"
+          write_env GITHUB_SERVER_URL "$GITHUB_SERVER_URL"
+          write_env GITHUB_SHA "${{ steps.deploy.outputs.deploy_sha }}"
+          write_env IMAGE_REGISTRY "${{ steps.deploy.outputs.image_registry }}"
+          write_env IMAGE_REPOSITORY_PREFIX "${{ steps.deploy.outputs.image_repository_prefix }}"
+          write_env IMAGE_TAG "${{ steps.deploy.outputs.image_tag }}"
+          write_env KUBE_NAMESPACE "${{ steps.deploy.outputs.kube_namespace }}"
+          write_env KUSTOMIZE_OVERLAY_PATH "${{ steps.deploy.outputs.kustomize_overlay_path }}"
+          write_env VPS_DEPLOY_WORKDIR "$VPS_DEPLOY_WORKDIR"
+          write_env ALLOW_MISSING_KUSTOMIZE_OVERLAY "$ALLOW_MISSING_KUSTOMIZE_OVERLAY"
+          write_env INFISICAL_CLIENT_ID "$INFISICAL_CLIENT_ID"
+          write_env INFISICAL_CLIENT_SECRET "$INFISICAL_CLIENT_SECRET"
+          write_env INFISICAL_PROJECT_ID "$INFISICAL_PROJECT_ID"
+          write_env INFISICAL_ENVIRONMENT_SLUG "${{ steps.deploy.outputs.infisical_environment_slug }}"
+          write_env INFISICAL_SECRET_PATH "$INFISICAL_SECRET_PATH"
+          write_env INFISICAL_SYNC_REQUIRED "$INFISICAL_SYNC_REQUIRED"
+          write_env K8S_RUNTIME_SECRET_NAME "$K8S_RUNTIME_SECRET_NAME"
+          write_env K8S_IMAGE_NAME_WWW "$K8S_IMAGE_NAME_WWW"
+          write_env K8S_IMAGE_NAME_APP "$K8S_IMAGE_NAME_APP"
+          write_env K8S_IMAGE_NAME_ADMIN "$K8S_IMAGE_NAME_ADMIN"
+          write_env K8S_IMAGE_NAME_OPS "$K8S_IMAGE_NAME_OPS"
+          write_env K8S_IMAGE_NAME_API "$K8S_IMAGE_NAME_API"
+
+          scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" .github/scripts/deploy-k8s-over-ssh.sh "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:$script_path"
+          scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" deploy.env "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:$env_path"
+          echo "script_path=$script_path" >> "$GITHUB_ENV"
+          echo "env_path=$env_path" >> "$GITHUB_ENV"
+        env:
+          VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
+          VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
+          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
+          VPS_DEPLOY_WORKDIR: ${{ vars.VPS_DEPLOY_WORKDIR }}
+          ALLOW_MISSING_KUSTOMIZE_OVERLAY: ${{ vars.ALLOW_MISSING_KUSTOMIZE_OVERLAY || 'true' }}
+          INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
+          INFISICAL_SECRET_PATH: ${{ vars.INFISICAL_SECRET_PATH || '/' }}
+          INFISICAL_SYNC_REQUIRED: ${{ vars.INFISICAL_SYNC_REQUIRED || 'false' }}
+          K8S_RUNTIME_SECRET_NAME: ${{ vars.K8S_RUNTIME_SECRET_NAME || 'kuapa-dwaso-runtime-env' }}
+          K8S_IMAGE_NAME_WWW: ${{ vars.K8S_IMAGE_NAME_WWW || 'kuapa-dwaso/www' }}
+          K8S_IMAGE_NAME_APP: ${{ vars.K8S_IMAGE_NAME_APP || 'kuapa-dwaso/app' }}
+          K8S_IMAGE_NAME_ADMIN: ${{ vars.K8S_IMAGE_NAME_ADMIN || 'kuapa-dwaso/admin' }}
+          K8S_IMAGE_NAME_OPS: ${{ vars.K8S_IMAGE_NAME_OPS || 'kuapa-dwaso/ops' }}
+          K8S_IMAGE_NAME_API: ${{ vars.K8S_IMAGE_NAME_API || 'kuapa-dwaso/api' }}
+
+      - name: Run remote Kubernetes deployment
+        shell: bash
+        run: |
+          ssh -i ~/.ssh/kuapa_deploy -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST" "chmod 700 '$script_path' && '$script_path' '$env_path'"
+        env:
+          VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
+          VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
+          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
