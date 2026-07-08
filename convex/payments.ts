@@ -5,13 +5,16 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 import {
+  adminAccessHasPermissionForScope,
   assertAllowed,
   auditSnapshot,
   buyerOrderScopeTarget,
   getActor,
+  getEffectiveAdminAccess,
   insertAuditLog,
   omitUndefinedValues,
   requireAdminPermission,
+  saleScopeTarget,
 } from "./workflowHelpers";
 
 const paymentProvider = v.union(v.literal("mock"), v.literal("paystack"));
@@ -41,6 +44,7 @@ const genericRecord = v.record(v.string(), v.any());
 
 type PaymentStatus = Doc<"paymentTransactions">["status"];
 type PaymentProvider = Doc<"paymentTransactions">["provider"];
+type PayoutStatus = Doc<"payoutLedger">["status"];
 
 function cleanText(value: string, label: string): string {
   const cleaned = value.trim();
@@ -282,11 +286,15 @@ export const listPaymentsForFinance = query({
     actorUserId: v.id("users"),
     status: v.optional(paymentTransactionStatus),
     buyerOrderId: v.optional(v.id("buyerOrders")),
+    provider: v.optional(paymentProvider),
+    providerReference: v.optional(v.string()),
+    createdAtFrom: v.optional(v.number()),
+    createdAtTo: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    await requireAdminPermission(ctx, args.actorUserId, "payments:read", {});
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
       args.buyerOrderId !== undefined
@@ -300,9 +308,48 @@ export const listPaymentsForFinance = query({
               .withIndex("by_status_created_at", (q) => q.eq("status", args.status!))
               .take(limit * 3)
           : await ctx.db.query("paymentTransactions").take(limit * 3);
-    return candidates
-      .filter((payment) => args.status === undefined || payment.status === args.status)
-      .slice(0, limit);
+    const results = [];
+    for (const payment of candidates) {
+      if (args.status !== undefined && payment.status !== args.status) {
+        continue;
+      }
+      if (args.provider !== undefined && payment.provider !== args.provider) {
+        continue;
+      }
+      if (
+        args.providerReference !== undefined &&
+        !payment.providerReference.toLowerCase().includes(args.providerReference.trim().toLowerCase())
+      ) {
+        continue;
+      }
+      if (args.createdAtFrom !== undefined && payment.createdAt < args.createdAtFrom) {
+        continue;
+      }
+      if (args.createdAtTo !== undefined && payment.createdAt > args.createdAtTo) {
+        continue;
+      }
+      const order = await ctx.db.get(payment.buyerOrderId);
+      if (order === null || !adminAccessHasPermissionForScope(access, "payments:read", await buyerOrderScopeTarget(ctx, order))) {
+        continue;
+      }
+      const buyer = await ctx.db.get(payment.buyerId);
+      const webhookEvents = await ctx.db
+        .query("paymentWebhookEvents")
+        .withIndex("by_reference", (q) => q.eq("provider", payment.provider).eq("providerReference", payment.providerReference))
+        .collect();
+      results.push({
+        ...payment,
+        id: payment._id,
+        order,
+        buyer,
+        webhookEventCount: webhookEvents.length,
+        lastWebhookStatus: webhookEvents.sort((left, right) => right.createdAt - left.createdAt)[0]?.status,
+      });
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
   },
 });
 
@@ -312,11 +359,13 @@ export const listPayoutLedgerForFinance = query({
     status: v.optional(payoutLedgerStatus),
     farmerId: v.optional(v.id("farmers")),
     buyerOrderId: v.optional(v.id("buyerOrders")),
+    createdAtFrom: v.optional(v.number()),
+    createdAtTo: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    await requireAdminPermission(ctx, args.actorUserId, "payouts:read", {});
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
       args.farmerId !== undefined && args.status !== undefined
@@ -335,10 +384,290 @@ export const listPayoutLedgerForFinance = query({
                 .withIndex("by_status_created_at", (q) => q.eq("status", args.status!))
                 .take(limit * 3)
             : await ctx.db.query("payoutLedger").take(limit * 3);
-    return candidates
-      .filter((entry) => args.status === undefined || entry.status === args.status)
-      .filter((entry) => args.farmerId === undefined || entry.farmerId === args.farmerId)
-      .slice(0, limit);
+    const results = [];
+    for (const entry of candidates) {
+      if (args.status !== undefined && entry.status !== args.status) {
+        continue;
+      }
+      if (args.farmerId !== undefined && entry.farmerId !== args.farmerId) {
+        continue;
+      }
+      if (args.createdAtFrom !== undefined && entry.createdAt < args.createdAtFrom) {
+        continue;
+      }
+      if (args.createdAtTo !== undefined && entry.createdAt > args.createdAtTo) {
+        continue;
+      }
+      const sale = await ctx.db.get(entry.saleRecordId);
+      if (sale === null || !adminAccessHasPermissionForScope(access, "payouts:read", await saleScopeTarget(ctx, sale))) {
+        continue;
+      }
+      const [farmer, order, sourcePayment] = await Promise.all([
+        ctx.db.get(entry.farmerId),
+        ctx.db.get(entry.buyerOrderId),
+        entry.sourcePaymentTransactionId === undefined ? Promise.resolve(null) : ctx.db.get(entry.sourcePaymentTransactionId),
+      ]);
+      results.push({
+        ...entry,
+        id: entry._id,
+        sale,
+        farmer,
+        order,
+        sourcePayment,
+      });
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
+  },
+});
+
+export const listWebhookEventsForFinance = query({
+  args: {
+    actorUserId: v.id("users"),
+    status: v.optional(v.union(v.literal("received"), v.literal("processed"), v.literal("ignored"), v.literal("failed"))),
+    provider: v.optional(paymentProvider),
+    providerReference: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.provider !== undefined && args.providerReference !== undefined
+        ? await ctx.db
+            .query("paymentWebhookEvents")
+            .withIndex("by_reference", (q) => q.eq("provider", args.provider!).eq("providerReference", args.providerReference!))
+            .take(limit * 3)
+        : args.status !== undefined
+          ? await ctx.db
+              .query("paymentWebhookEvents")
+              .withIndex("by_status_created_at", (q) => q.eq("status", args.status!))
+              .take(limit * 3)
+          : await ctx.db.query("paymentWebhookEvents").take(limit * 3);
+
+    const results = [];
+    for (const event of candidates.sort((left, right) => right.createdAt - left.createdAt)) {
+      if (args.status !== undefined && event.status !== args.status) {
+        continue;
+      }
+      if (args.provider !== undefined && event.provider !== args.provider) {
+        continue;
+      }
+      if (args.providerReference !== undefined && event.providerReference !== args.providerReference) {
+        continue;
+      }
+      if (event.providerReference === undefined) {
+        if (!adminAccessHasPermissionForScope(access, "payments:read", {})) {
+          continue;
+        }
+      } else {
+        const payment = await findTransaction(ctx, event.provider, event.providerReference);
+        if (payment === null) {
+          if (!adminAccessHasPermissionForScope(access, "payments:read", {})) {
+            continue;
+          }
+        } else {
+          const order = await ctx.db.get(payment.buyerOrderId);
+          if (order === null || !adminAccessHasPermissionForScope(access, "payments:read", await buyerOrderScopeTarget(ctx, order))) {
+            continue;
+          }
+        }
+      }
+      results.push({ ...event, id: event._id });
+      if (results.length >= limit) {
+        break;
+      }
+    }
+    return results;
+  },
+});
+
+export const getPaymentFinanceDetail = query({
+  args: {
+    actorUserId: v.id("users"),
+    paymentTransactionId: v.id("paymentTransactions"),
+  },
+  returns: v.union(v.null(), v.any()),
+  handler: async (ctx, args) => {
+    const payment = await ctx.db.get(args.paymentTransactionId);
+    if (payment === null) {
+      return null;
+    }
+    const order = await ctx.db.get(payment.buyerOrderId);
+    assertAllowed(order !== null, "Buyer order was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "payments:read", await buyerOrderScopeTarget(ctx, order));
+    const [buyer, sales, webhookEvents, notifications, auditLogs] = await Promise.all([
+      ctx.db.get(payment.buyerId),
+      ctx.db.query("saleRecords").withIndex("by_order", (q) => q.eq("buyerOrderId", payment.buyerOrderId)).collect(),
+      ctx.db
+        .query("paymentWebhookEvents")
+        .withIndex("by_reference", (q) => q.eq("provider", payment.provider).eq("providerReference", payment.providerReference))
+        .collect(),
+      ctx.db
+        .query("notifications")
+        .withIndex("by_related_entity", (q) => q.eq("relatedEntityType", "buyer_order").eq("relatedEntityId", payment.buyerOrderId))
+        .take(50),
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_entity", (q) => q.eq("entityType", "payment_transaction").eq("entityId", payment._id))
+        .take(50),
+    ]);
+    return {
+      ...payment,
+      id: payment._id,
+      order,
+      buyer,
+      sales,
+      webhookEvents: webhookEvents.sort((left, right) => right.createdAt - left.createdAt),
+      notifications: notifications.sort((left, right) => right.createdAt - left.createdAt),
+      auditLogs: auditLogs.sort((left, right) => right.createdAt - left.createdAt),
+    };
+  },
+});
+
+export const adminReconcilePayment = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    paymentTransactionId: v.id("paymentTransactions"),
+    status: paymentTransactionStatus,
+    providerStatus: v.optional(v.string()),
+    providerMessage: v.optional(v.string()),
+    reason: v.string(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const payment = await ctx.db.get(args.paymentTransactionId);
+    assertAllowed(payment !== null, "Payment transaction was not found.");
+    const order = await ctx.db.get(payment.buyerOrderId);
+    assertAllowed(order !== null, "Buyer order was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "payments:manage", await buyerOrderScopeTarget(ctx, order));
+    const reason = cleanText(args.reason, "Reason");
+    const before = await ctx.db.get(payment._id);
+    const result = await applyPaymentReconciliation(ctx, payment, omitUndefinedValues({
+      provider: payment.provider,
+      providerReference: payment.providerReference,
+      status: args.status,
+      amount: payment.amount,
+      currency: payment.currency,
+      providerStatus: args.providerStatus,
+      providerMessage: args.providerMessage,
+      rawProviderData: {
+        source: "admin_manual_reconciliation",
+        reason,
+        actorUserId: args.actorUserId,
+      },
+    }));
+    const after = await ctx.db.get(payment._id);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "payment_transaction.admin_reconciled",
+      entityType: "payment_transaction",
+      entityId: payment._id,
+      before: before === null ? undefined : auditSnapshot(before),
+      after: after === null ? undefined : auditSnapshot(after),
+      metadata: { reason, status: args.status },
+    });
+    return result;
+  },
+});
+
+export const adminMarkPaymentManualReview = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    paymentTransactionId: v.id("paymentTransactions"),
+    reason: v.string(),
+  },
+  returns: v.id("paymentTransactions"),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const payment = await ctx.db.get(args.paymentTransactionId);
+    assertAllowed(payment !== null, "Payment transaction was not found.");
+    const order = await ctx.db.get(payment.buyerOrderId);
+    assertAllowed(order !== null, "Buyer order was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "payments:manage", await buyerOrderScopeTarget(ctx, order));
+    const reason = cleanText(args.reason, "Reason");
+    await ctx.db.patch(payment._id, {
+      status: "manual_review",
+      providerMessage: reason,
+      updatedAt: Date.now(),
+    });
+    const after = await ctx.db.get(payment._id);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "payment_transaction.manual_review",
+      entityType: "payment_transaction",
+      entityId: payment._id,
+      before: auditSnapshot(payment),
+      after: after === null ? undefined : auditSnapshot(after),
+      metadata: { reason },
+    });
+    return payment._id;
+  },
+});
+
+export const adminUpdatePayoutStatus = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    payoutLedgerId: v.id("payoutLedger"),
+    status: payoutLedgerStatus,
+    reason: v.string(),
+    provider: v.optional(paymentProvider),
+    providerReference: v.optional(v.string()),
+  },
+  returns: v.id("payoutLedger"),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const payout = await ctx.db.get(args.payoutLedgerId);
+    assertAllowed(payout !== null, "Payout ledger entry was not found.");
+    const sale = await ctx.db.get(payout.saleRecordId);
+    assertAllowed(sale !== null, "Sale record was not found.");
+    await requireAdminPermission(ctx, args.actorUserId, "payouts:manage", await saleScopeTarget(ctx, sale));
+    assertAllowed(canTransitionPayoutStatus(payout.status, args.status), "Payout status transition is not allowed.");
+    const reason = cleanText(args.reason, "Reason");
+    const now = Date.now();
+    await ctx.db.patch(args.payoutLedgerId, omitUndefinedValues({
+      status: args.status,
+      approvedByUserId: args.status === "approved" ? args.actorUserId : payout.approvedByUserId,
+      processedAt: args.status === "processing" ? now : payout.processedAt,
+      paidAt: args.status === "paid" ? now : payout.paidAt,
+      failedAt: args.status === "failed" ? now : payout.failedAt,
+      provider: args.provider,
+      providerReference: args.providerReference,
+      failureReason: ["failed", "cancelled", "manual_review"].includes(args.status) ? reason : payout.failureReason,
+      updatedAt: now,
+    }));
+    const after = await ctx.db.get(args.payoutLedgerId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: `payout_ledger.${args.status}`,
+      entityType: "payout_ledger",
+      entityId: args.payoutLedgerId,
+      before: auditSnapshot(payout),
+      after: after === null ? undefined : auditSnapshot(after),
+      metadata: { reason },
+    });
+    await notifyFarmerPayoutStatus(ctx, after ?? payout, sale, reason);
+    if (args.status === "paid" && sale.paymentStatus !== "paid") {
+      await ctx.db.patch(sale._id, {
+        paymentStatus: "paid",
+        updatedAt: now,
+      });
+      const afterSale = await ctx.db.get(sale._id);
+      await insertAuditLog(ctx, {
+        actor,
+        action: "sale_record.payment_status_updated_from_payout",
+        entityType: "sale_record",
+        entityId: sale._id,
+        before: auditSnapshot(sale),
+        after: afterSale === null ? undefined : auditSnapshot(afterSale),
+        metadata: { payoutLedgerId: args.payoutLedgerId, reason },
+      });
+    }
+    return args.payoutLedgerId;
   },
 });
 
@@ -364,6 +693,49 @@ async function findTransaction(
       q.eq("provider", provider).eq("providerReference", providerReference),
     )
     .first();
+}
+
+function canTransitionPayoutStatus(currentStatus: PayoutStatus, nextStatus: PayoutStatus): boolean {
+  if (currentStatus === nextStatus) {
+    return true;
+  }
+  const allowed: Record<PayoutStatus, readonly PayoutStatus[]> = {
+    pending: ["approved", "cancelled", "manual_review"],
+    approved: ["processing", "cancelled", "manual_review"],
+    processing: ["paid", "failed", "manual_review"],
+    paid: ["manual_review"],
+    failed: ["processing", "cancelled", "manual_review"],
+    cancelled: ["manual_review"],
+    manual_review: ["pending", "approved", "processing", "failed", "cancelled"],
+  };
+  return allowed[currentStatus].includes(nextStatus);
+}
+
+async function notifyFarmerPayoutStatus(
+  ctx: MutationCtx,
+  payout: Doc<"payoutLedger">,
+  sale: Doc<"saleRecords">,
+  reason: string,
+): Promise<void> {
+  const farmer = await ctx.db.get(payout.farmerId);
+  await insertNotificationRecord(ctx, {
+    recipientId: payout.farmerId,
+    recipientUserId: farmer?.userId,
+    recipientRole: "farmer",
+    channel: "sms",
+    title: "Payout updated",
+    message: `Payout for your sale is now ${payout.status}. Amount: ${payout.currency} ${payout.amount}.`,
+    messageKind: "payout_update",
+    templateKey: "payout_update",
+    templateData: {
+      amount: `${payout.currency} ${payout.amount}`,
+      receiptCode: sale._id,
+      status: payout.status,
+      reason,
+    },
+    relatedEntityType: "payout_ledger",
+    relatedEntityId: payout._id,
+  });
 }
 
 async function applyPaymentReconciliation(

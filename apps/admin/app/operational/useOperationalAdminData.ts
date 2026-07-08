@@ -81,6 +81,8 @@ export function useOperationalAdminData() {
   const canReadReports = hasPermission("reports:read");
   const canReadNotifications = hasPermission("notifications:read");
   const canReadUploads = hasPermission("uploads:read");
+  const canReadPayments = hasPermission("payments:read");
+  const canReadPayouts = hasPermission("payouts:read");
 
   const warehousesQuery = useQuery(
     api.warehouses.list,
@@ -142,6 +144,18 @@ export function useOperationalAdminData() {
     api.notifications.listForAdmin,
     actorUserId === undefined || !canReadNotifications ? "skip" : { actorUserId, limit: 100 },
   ) as ConvexRecord[] | undefined;
+  const paymentsQuery = useQuery(
+    api.payments.listPaymentsForFinance,
+    actorUserId === undefined || !canReadPayments ? "skip" : { actorUserId, limit: 100 },
+  ) as ConvexRecord[] | undefined;
+  const paymentWebhookEventsQuery = useQuery(
+    api.payments.listWebhookEventsForFinance,
+    actorUserId === undefined || !canReadPayments ? "skip" : { actorUserId, limit: 100 },
+  ) as ConvexRecord[] | undefined;
+  const payoutLedgerQuery = useQuery(
+    api.payments.listPayoutLedgerForFinance,
+    actorUserId === undefined || !canReadPayouts ? "skip" : { actorUserId, limit: 100 },
+  ) as ConvexRecord[] | undefined;
   const platformSummary = useQuery(
     api.admin.getPlatformSummaryCounts,
     actorUserId === undefined || !canReadReports
@@ -156,6 +170,9 @@ export function useOperationalAdminData() {
   const updateBuyerVerificationMutation = useMutation(api.buyers.updateVerificationStatus);
   const updateDisputeStatusMutation = useMutation(api.disputes.updateStatus);
   const replaceFeeRuleMutation = useMutation(api.feeRules.replace);
+  const reconcilePaymentMutation = useMutation(api.payments.adminReconcilePayment);
+  const markPaymentManualReviewMutation = useMutation(api.payments.adminMarkPaymentManualReview);
+  const updatePayoutStatusMutation = useMutation(api.payments.adminUpdatePayoutStatus);
 
   const requireActorUserId = () => {
     if (actorUserId === undefined) {
@@ -181,6 +198,9 @@ export function useOperationalAdminData() {
     canReadDispatches ? dispatchesQuery : [],
     canReadTransporters ? transportersQuery : [],
     canReadNotifications ? notificationsQuery : [],
+    canReadPayments ? paymentsQuery : [],
+    canReadPayments ? paymentWebhookEventsQuery : [],
+    canReadPayouts ? payoutLedgerQuery : [],
     canReadReports ? platformSummary : {},
   ];
 
@@ -200,6 +220,9 @@ export function useOperationalAdminData() {
   const dispatches = mapRecords(dispatchesQuery);
   const transporters = mapRecords(transportersQuery);
   const notifications = mapRecords(notificationsQuery);
+  const payments = mapRecords(paymentsQuery);
+  const paymentWebhookEvents = mapRecords(paymentWebhookEventsQuery);
+  const payoutLedger = mapRecords(payoutLedgerQuery);
 
   const summaryStats = {
     farmersCount: farmers.length,
@@ -247,6 +270,8 @@ export function useOperationalAdminData() {
       canReadReports,
       canReadNotifications,
       canReadUploads,
+      canReadPayments,
+      canReadPayouts,
       canManageWarehouses: hasPermission("warehouses:manage"),
       canManageAgents: hasPermission("warehouseAgents:manage"),
       canVerifyFarmers: hasPermission("farmers:verify"),
@@ -254,6 +279,8 @@ export function useOperationalAdminData() {
       canManageDisputes: hasPermission("disputes:manage"),
       canManageFees: hasPermission("fees:manage"),
       canManageSalePayments: hasPermission("sales:managePaymentStatus"),
+      canManagePayments: hasPermission("payments:manage"),
+      canManagePayouts: hasPermission("payouts:manage"),
       canManageUploads: hasPermission("uploads:manage"),
     },
     warehouses,
@@ -270,6 +297,9 @@ export function useOperationalAdminData() {
     dispatches,
     transporters,
     notifications,
+    payments,
+    paymentWebhookEvents,
+    payoutLedger,
     summaryStats,
     actions: {
       updateWarehouseStatus: (warehouseId: string, status: "active" | "inactive" | "maintenance" | "closed", reason?: string) =>
@@ -334,6 +364,38 @@ export function useOperationalAdminData() {
           ...ratePatch,
         });
       },
+      reconcilePayment: (
+        paymentTransactionId: string,
+        status: "initialized" | "pending" | "processing" | "successful" | "failed" | "abandoned" | "reversed" | "refunded" | "manual_review",
+        reason: string,
+      ) =>
+        reconcilePaymentMutation({
+          actorUserId: requireActorUserId(),
+          paymentTransactionId: paymentTransactionId as Id<"paymentTransactions">,
+          status,
+          reason,
+        }),
+      markPaymentManualReview: (paymentTransactionId: string, reason: string) =>
+        markPaymentManualReviewMutation({
+          actorUserId: requireActorUserId(),
+          paymentTransactionId: paymentTransactionId as Id<"paymentTransactions">,
+          reason,
+        }),
+      updatePayoutStatus: (
+        payoutLedgerId: string,
+        status: "pending" | "approved" | "processing" | "paid" | "failed" | "cancelled" | "manual_review",
+        reason: string,
+        providerReference?: string,
+      ) =>
+        updatePayoutStatusMutation({
+          actorUserId: requireActorUserId(),
+          payoutLedgerId: payoutLedgerId as Id<"payoutLedger">,
+          status,
+          reason,
+          ...(providerReference === undefined || providerReference.trim().length === 0
+            ? {}
+            : { providerReference: providerReference.trim() }),
+        }),
     },
   };
 }
