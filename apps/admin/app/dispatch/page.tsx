@@ -2,6 +2,7 @@
 
 import { DataTable, StatusBadge, gray, palette } from "@kuapa-dwaso/dashboard-ui";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { EvidencePanel } from "../operational/EvidencePanel";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function DispatchPage() {
@@ -72,6 +73,28 @@ export default function DispatchPage() {
                   <Timeline label="Departed" value={row.departedAt} />
                   <Timeline label="Arrived" value={row.arrivedAt} />
                 </section>
+
+                {access.canReadUploads && (
+                  <EvidencePanel
+                    actorUserId={access.actorUserId}
+                    relatedEntityType="dispatch"
+                    relatedEntityId={String(row.id)}
+                    title="Dispatch Proof"
+                    purpose="dispatch_proof_photo"
+                    canManage={access.canManageUploads}
+                  />
+                )}
+
+                {access.canReadUploads && transporter !== undefined && (
+                  <EvidencePanel
+                    actorUserId={access.actorUserId}
+                    relatedEntityType="transporter_profile"
+                    relatedEntityId={String(transporter.id)}
+                    title="Transporter Truck Photos"
+                    purpose="transporter_truck_photo"
+                    canManage={access.canManageUploads}
+                  />
+                )}
 
                 <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <span style={{ color: gray[500], fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>Linked Orders ({orders.length})</span>

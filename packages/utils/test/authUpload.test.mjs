@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   assertInvitationCanBeAccepted,
   assertInviteTargetMatchesIdentity,
+  assertUploadPurposeAllowedForRelatedEntity,
   assertUploadMetadata,
   buildUploadObjectKey,
   calculateInviteExpiry,
+  isUploadPurposeAllowedForRelatedEntity,
   resolveInvitationStatus,
 } from "../src/index.ts";
 
@@ -69,5 +71,37 @@ test("upload object keys are normalized and scoped", () => {
       fileName: "truck.photo.webp",
     }),
     "local-dev/transporter-truck-photo/user-123/asset-456.webp",
+  );
+});
+
+test("upload purposes are constrained to compatible evidence entities", () => {
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "produce_intake_photo",
+      relatedEntityType: "inventory_batch",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "dispatch_proof_photo",
+      relatedEntityType: "dispatch",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "transporter_truck_photo",
+      relatedEntityType: "inventory_batch",
+    }),
+    false,
+  );
+  assert.throws(
+    () =>
+      assertUploadPurposeAllowedForRelatedEntity({
+        purpose: "dispute_evidence",
+        relatedEntityType: "dispatch",
+      }),
+    /not allowed/,
   );
 });

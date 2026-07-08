@@ -9,6 +9,7 @@ import type {
   SmsMessageKind,
   SmsTemplateKey,
   UploadAssetPurpose,
+  UploadRelatedEntityType,
   ProduceGrade,
 } from "@kuapa-dwaso/types";
 
@@ -741,6 +742,42 @@ export function buildUploadObjectKey(input: {
   const extension = input.fileName?.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const suffix = extension === undefined || extension.length === 0 ? "" : `.${extension}`;
   return `${safeEnvironment}/${safePurpose}/${safeOwner}/${safeUpload}${suffix}`;
+}
+
+export function isUploadPurposeAllowedForRelatedEntity(input: {
+  purpose: UploadAssetPurpose;
+  relatedEntityType?: UploadRelatedEntityType;
+}): boolean {
+  if (input.relatedEntityType === undefined) {
+    return true;
+  }
+  switch (input.purpose) {
+    case "produce_intake_photo":
+    case "condition_evidence":
+      return input.relatedEntityType === "inventory_batch";
+    case "dispute_evidence":
+      return input.relatedEntityType === "dispute";
+    case "dispatch_proof_photo":
+      return input.relatedEntityType === "dispatch";
+    case "transporter_truck_photo":
+      return input.relatedEntityType === "transporter_profile";
+    case "profile_evidence":
+      return (
+        input.relatedEntityType === "farmer" ||
+        input.relatedEntityType === "buyer" ||
+        input.relatedEntityType === "transporter_profile" ||
+        input.relatedEntityType === "warehouse_agent"
+      );
+  }
+}
+
+export function assertUploadPurposeAllowedForRelatedEntity(input: {
+  purpose: UploadAssetPurpose;
+  relatedEntityType?: UploadRelatedEntityType;
+}): void {
+  if (!isUploadPurposeAllowedForRelatedEntity(input)) {
+    throw new Error("Upload purpose is not allowed for this related entity.");
+  }
 }
 
 const gsm7BasicCharacters =

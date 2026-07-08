@@ -99,6 +99,10 @@ export class UploadsController {
     if (body.relatedEntityId !== undefined) {
       createUploadArgs.relatedEntityId = body.relatedEntityId;
     }
+    const publicBaseUrl = this.r2.getPublicBaseUrl();
+    if (body.accessLevel === "public_read" && publicBaseUrl !== undefined) {
+      createUploadArgs.publicBaseUrl = publicBaseUrl;
+    }
     const pending = await this.convex.createPendingUpload(createUploadArgs);
     const presigned = this.r2.presignPutObject({
       objectKey: pending.objectKey,
@@ -120,7 +124,7 @@ export class UploadsController {
   async complete(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Body() body: CompleteBody
-  ): Promise<{ uploadAssetId: string; status: "uploaded" }> {
+  ): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
     if (principal.userId === undefined) {
       throw new UnauthorizedException("Convex user profile is required.");
     }
@@ -132,7 +136,6 @@ export class UploadsController {
     if (body.checksumSha256 !== undefined) {
       completeArgs.checksumSha256 = body.checksumSha256;
     }
-    const uploadAssetId = await this.convex.completeUpload(completeArgs);
-    return { uploadAssetId, status: "uploaded" };
+    return await this.convex.completeUpload(completeArgs);
   }
 }

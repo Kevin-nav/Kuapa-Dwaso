@@ -1085,6 +1085,7 @@ export const uploadAssetPurposes = [
   "produce_intake_photo",
   "condition_evidence",
   "dispute_evidence",
+  "dispatch_proof_photo",
   "profile_evidence",
 ] as const;
 export type UploadAssetPurpose = (typeof uploadAssetPurposes)[number];
@@ -1093,7 +1094,9 @@ export const uploadAssetStatuses = [
   "pending_upload",
   "uploaded",
   "attached",
+  "verified",
   "rejected",
+  "expired",
   "deleted",
 ] as const;
 export type UploadAssetStatus = (typeof uploadAssetStatuses)[number];
@@ -1129,6 +1132,14 @@ export type UploadAsset = TimestampFields & {
   relatedEntityId?: string;
   createdByUserId: string;
   completedAt?: number;
+  verifiedByUserId?: string;
+  verifiedAt?: number;
+  rejectedByUserId?: string;
+  rejectedAt?: number;
+  rejectionReason?: string;
+  deletedAt?: number;
+  expiredAt?: number;
+  publicUrl?: string;
 };
 
 export type PresignedUploadRequest = {

@@ -77,6 +77,7 @@ type CreatePendingUploadArgs = {
   fileName?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
+  publicBaseUrl?: string;
 };
 
 type CompleteUploadArgs = {
@@ -214,7 +215,7 @@ const createPendingUpload = makeFunctionReference<
 const completeUpload = makeFunctionReference<
   "mutation",
   CompleteUploadArgs,
-  string
+  { uploadAssetId: string; status: "uploaded" | "attached" }
 >("uploads:complete");
 
 const recordSmsSend = makeFunctionReference<
@@ -278,7 +279,7 @@ export class ConvexPlatformProvider {
     return await this.getClient().mutation(createPendingUpload, args);
   }
 
-  async completeUpload(args: CompleteUploadArgs): Promise<string> {
+  async completeUpload(args: CompleteUploadArgs): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
     return await this.getClient().mutation(completeUpload, args);
   }
 

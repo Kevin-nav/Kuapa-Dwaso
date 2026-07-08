@@ -44,6 +44,13 @@ describe("R2UploadProvider", () => {
         sizeBytes: 1_024
       })
     ).not.toThrow();
+    expect(() =>
+      provider.assertPresignPolicy({
+        purpose: "dispatch_proof_photo",
+        contentType: "image/jpeg",
+        sizeBytes: 1_024
+      })
+    ).not.toThrow();
   });
 
   it("fails closed when R2 credentials are missing", () => {

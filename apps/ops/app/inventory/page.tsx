@@ -10,6 +10,7 @@ import { allowedInventoryBatchStatusTransitions } from "@kuapa-dwaso/permissions
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../context/WarehouseContext";
+import { EvidencePanel } from "../EvidencePanel";
 import { 
   Search, 
   Clock, 
@@ -366,6 +367,14 @@ function InventoryContent() {
               )}
             </div>
           </div>
+
+          <EvidencePanel
+            actorUserId={actorUserId}
+            relatedEntityType="inventory_batch"
+            relatedEntityId={activeBatch.id}
+            purpose="condition_evidence"
+            title="Condition Evidence"
+          />
 
           {/* Storage Fees summary */}
           <div>

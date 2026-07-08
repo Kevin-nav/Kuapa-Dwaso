@@ -5,6 +5,7 @@ import { useState } from "react";
 import { DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { CheckSquare } from "lucide-react";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { EvidencePanel } from "../operational/EvidencePanel";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function DisputesPage() {
@@ -172,6 +173,17 @@ export default function DisputesPage() {
                   </div>
                 </div>
               </div>
+
+              {access.canReadUploads && (
+                <EvidencePanel
+                  actorUserId={access.actorUserId}
+                  relatedEntityType="dispute"
+                  relatedEntityId={row.id}
+                  title="Dispute Evidence"
+                  purpose="dispute_evidence"
+                  canManage={access.canManageUploads}
+                />
+              )}
 
               {/* Timeline / Resolution notes */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

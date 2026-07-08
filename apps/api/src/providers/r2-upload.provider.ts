@@ -32,6 +32,10 @@ export class R2UploadProvider {
     return bucket;
   }
 
+  getPublicBaseUrl(): string | undefined {
+    return getApiEnvironment().uploads.r2PublicBaseUrl;
+  }
+
   presignPutObject(input: PresignPutObjectInput): PresignPutObjectResult {
     const env = getApiEnvironment();
     const accountId = env.uploads.r2AccountId;

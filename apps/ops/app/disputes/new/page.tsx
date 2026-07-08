@@ -6,6 +6,7 @@ import type React from "react";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useWarehouse } from "../../context/WarehouseContext";
+import { EvidencePanel } from "../../EvidencePanel";
 import { 
   AlertTriangle, 
   User, 
@@ -21,7 +22,7 @@ import {
 function NewDisputeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { createDispute, inventory, farmers } = useWarehouse();
+  const { createDispute, inventory, farmers, actorUserId } = useWarehouse();
 
   // Query parameter pre-fills
   const queryEntityId = searchParams.get("entityId") || "";
@@ -43,6 +44,7 @@ function NewDisputeContent() {
   // Submission State
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedTicketCode, setSubmittedTicketCode] = useState("");
+  const [submittedDisputeId, setSubmittedDisputeId] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -101,7 +103,8 @@ function NewDisputeContent() {
       entityType: (entityType as any) || "inventory_batch",
       entityId: entityId || "unknown"
     })
-      .then(() => {
+      .then((dispute) => {
+        setSubmittedDisputeId(dispute.id);
         setSubmittedTicketCode(ticketCode);
         setIsSubmitted(true);
       })
@@ -183,6 +186,18 @@ function NewDisputeContent() {
             {entityId && (
               <div style={{ marginTop: "16px", backgroundColor: "var(--gray-50)", padding: "10px", borderRadius: "6px", fontSize: "13px", display: "inline-block" }}>
                 Linked Entity: <strong>{selectedEntityName}</strong>
+              </div>
+            )}
+
+            {submittedDisputeId && (
+              <div style={{ marginTop: "16px", textAlign: "left" }}>
+                <EvidencePanel
+                  actorUserId={actorUserId}
+                  relatedEntityType="dispute"
+                  relatedEntityId={submittedDisputeId}
+                  purpose="dispute_evidence"
+                  title="Dispute Evidence"
+                />
               </div>
             )}
           </div>

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { DataTable, StatusBadge, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
+import { EvidencePanel } from "../operational/EvidencePanel";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function InventoryPage() {
@@ -207,6 +208,16 @@ export default function InventoryPage() {
                         <p style={{ margin: "2px 0 0", fontWeight: 700, color: gray[800] }}>{row.askingPricePerUnit ? `${row.askingPricePerUnit} GHS` : "Not Listed"}</p>
                       </div>
                     </div>
+
+                    {access.canReadUploads && (
+                      <EvidencePanel
+                        actorUserId={access.actorUserId}
+                        relatedEntityType="inventory_batch"
+                        relatedEntityId={row.id}
+                        title="Inventory Evidence"
+                        canManage={access.canManageUploads}
+                      />
+                    )}
 
                     <div style={{ padding: "12px", border: `1px solid ${gray[100]}`, borderRadius: "6px", backgroundColor: gray[25] }}>
                       <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 600 }}>Storage Fee Balance</span>

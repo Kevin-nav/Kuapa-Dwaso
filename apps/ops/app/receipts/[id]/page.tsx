@@ -8,6 +8,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../../context/WarehouseContext";
+import { EvidencePanel } from "../../EvidencePanel";
 import { 
   CheckCircle, 
   Copy, 
@@ -308,6 +309,16 @@ export default function ReceiptPage({ params }: PageProps) {
               </div>
             </div>
           )}
+
+          <div style={{ marginTop: "16px", borderTop: "1px solid var(--color-line)", paddingTop: "12px" }}>
+            <EvidencePanel
+              actorUserId={actorUserId}
+              relatedEntityType="inventory_batch"
+              relatedEntityId={batch.id}
+              purpose="produce_intake_photo"
+              title="Intake Photos"
+            />
+          </div>
 
           {/* Share notification banner */}
           {shared && (

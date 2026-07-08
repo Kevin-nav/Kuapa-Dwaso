@@ -1,15 +1,27 @@
-import { assertUploadMetadata, buildUploadObjectKey } from "@kuapa-dwaso/utils";
+import {
+  assertUploadMetadata,
+  buildUploadObjectKey,
+  isUploadPurposeAllowedForRelatedEntity,
+} from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
+  adminScopeTarget,
   assertAllowed,
   auditSnapshot,
   cleanOptionalText,
+  dispatchScopeTarget,
+  disputeScopeTarget,
   getActor,
   insertAuditLog,
+  inventoryScopeTarget,
   omitUndefinedValues,
   requireAdminPermission,
+  requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
+  type Actor,
 } from "./workflowHelpers";
 
 const profileType = v.union(
@@ -24,13 +36,16 @@ const uploadPurpose = v.union(
   v.literal("produce_intake_photo"),
   v.literal("condition_evidence"),
   v.literal("dispute_evidence"),
+  v.literal("dispatch_proof_photo"),
   v.literal("profile_evidence"),
 );
 const uploadStatus = v.union(
   v.literal("pending_upload"),
   v.literal("uploaded"),
   v.literal("attached"),
+  v.literal("verified"),
   v.literal("rejected"),
+  v.literal("expired"),
   v.literal("deleted"),
 );
 const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
@@ -44,11 +59,198 @@ const relatedEntityType = v.union(
   v.literal("dispute"),
 );
 
+type UploadPurpose =
+  | "transporter_truck_photo"
+  | "produce_intake_photo"
+  | "condition_evidence"
+  | "dispute_evidence"
+  | "dispatch_proof_photo"
+  | "profile_evidence";
+
+type UploadStatus =
+  | "pending_upload"
+  | "uploaded"
+  | "attached"
+  | "verified"
+  | "rejected"
+  | "expired"
+  | "deleted";
+
+type RelatedEntityType =
+  | "farmer"
+  | "buyer"
+  | "transporter_profile"
+  | "warehouse_agent"
+  | "inventory_batch"
+  | "dispatch"
+  | "dispute";
+
 function actorCanCreateUploadForOwner(
   actor: { _id: Id<"users">; role: string },
   ownerUserId: Id<"users">,
 ): boolean {
   return actor._id === ownerUserId || actor.role === "admin" || actor.role === "warehouse_agent";
+}
+
+function publicUrlFromBase(publicBaseUrl: string | undefined, objectKey: string): string | undefined {
+  const cleaned = publicBaseUrl?.trim().replace(/\/+$/, "");
+  if (cleaned === undefined || cleaned.length === 0) {
+    return undefined;
+  }
+  return `${cleaned}/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function purposeAllowedForEntity(
+  purpose: UploadPurpose,
+  relatedEntityType: RelatedEntityType | undefined,
+): boolean {
+  if (relatedEntityType === undefined) {
+    return isUploadPurposeAllowedForRelatedEntity({ purpose });
+  }
+  return isUploadPurposeAllowedForRelatedEntity({ purpose, relatedEntityType });
+}
+
+async function requireActorCanUseRelatedEntity(
+  ctx: QueryCtx | MutationCtx,
+  actor: Actor,
+  permission: "read" | "manage",
+  relatedEntityType: RelatedEntityType | undefined,
+  relatedEntityId: string | undefined,
+): Promise<void> {
+  if (relatedEntityType === undefined || relatedEntityId === undefined) {
+    if (actor.role === "admin") {
+      await requireAdminPermission(ctx, actor._id, permission === "read" ? "uploads:read" : "uploads:manage", {});
+    }
+    return;
+  }
+
+  if (relatedEntityType === "inventory_batch") {
+    const batch = await ctx.db.get(relatedEntityId as Id<"inventoryBatches">);
+    assertAllowed(batch !== null, "Related inventory batch was not found.");
+    if (actor.role === "warehouse_agent") {
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, batch.warehouseId);
+      return;
+    }
+    if (actor.role === "farmer") {
+      const farmer = await ctx.db.get(batch.farmerId);
+      assertAllowed(farmer !== null && farmer.userId === actor._id, "Actor cannot access this batch evidence.");
+      return;
+    }
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      permission === "read" ? "uploads:read" : "uploads:manage",
+      await inventoryScopeTarget(ctx, batch),
+    );
+    return;
+  }
+
+  if (relatedEntityType === "dispatch") {
+    const dispatch = await ctx.db.get(relatedEntityId as Id<"dispatches">);
+    assertAllowed(dispatch !== null, "Related dispatch was not found.");
+    if (actor.role === "warehouse_agent") {
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, dispatch.warehouseId);
+      return;
+    }
+    if (actor.role === "transporter") {
+      const transporter = await ctx.db
+        .query("transporterProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", actor._id))
+        .unique();
+      assertAllowed(transporter !== null && dispatch.transporterId === transporter._id, "Actor cannot access this dispatch evidence.");
+      return;
+    }
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      permission === "read" ? "uploads:read" : "uploads:manage",
+      await dispatchScopeTarget(ctx, dispatch),
+    );
+    return;
+  }
+
+  if (relatedEntityType === "dispute") {
+    const dispute = await ctx.db.get(relatedEntityId as Id<"disputes">);
+    assertAllowed(dispute !== null, "Related dispute was not found.");
+    if (actor.role === "warehouse_agent") {
+      assertAllowed(dispute.warehouseId !== undefined, "Warehouse dispute scope is required.");
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, dispute.warehouseId);
+      return;
+    }
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      permission === "read" ? "uploads:read" : "uploads:manage",
+      await disputeScopeTarget(ctx, dispute),
+    );
+    return;
+  }
+
+  if (relatedEntityType === "transporter_profile") {
+    const profile = await ctx.db.get(relatedEntityId as Id<"transporterProfiles">);
+    assertAllowed(profile !== null, "Related transporter profile was not found.");
+    if (actor.role === "transporter") {
+      assertAllowed(profile.userId === actor._id, "Actor cannot access this transporter evidence.");
+      return;
+    }
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      permission === "read" ? "uploads:read" : "uploads:manage",
+      adminScopeTarget({ destinationMarket: profile.destinationsServed[0] }),
+    );
+    return;
+  }
+
+  if (relatedEntityType === "farmer") {
+    const farmer = await ctx.db.get(relatedEntityId as Id<"farmers">);
+    assertAllowed(farmer !== null, "Related farmer was not found.");
+    if (actor.role === "farmer") {
+      assertAllowed(farmer.userId === actor._id, "Actor cannot access this farmer evidence.");
+      return;
+    }
+    await requireAdminPermission(ctx, actor._id, permission === "read" ? "uploads:read" : "uploads:manage", adminScopeTarget({
+      warehouseId: farmer.preferredWarehouseId,
+      region: farmer.region,
+      district: farmer.community,
+    }));
+    return;
+  }
+
+  if (relatedEntityType === "buyer") {
+    const buyer = await ctx.db.get(relatedEntityId as Id<"buyers">);
+    assertAllowed(buyer !== null, "Related buyer was not found.");
+    if (actor.role === "buyer") {
+      assertAllowed(buyer.userId === actor._id, "Actor cannot access this buyer evidence.");
+      return;
+    }
+    await requireAdminPermission(ctx, actor._id, permission === "read" ? "uploads:read" : "uploads:manage", adminScopeTarget({
+      destinationMarket: buyer.destinationMarket,
+    }));
+    return;
+  }
+
+  if (relatedEntityType === "warehouse_agent") {
+    const warehouseAgent = await ctx.db.get(relatedEntityId as Id<"warehouseAgents">);
+    assertAllowed(warehouseAgent !== null, "Related warehouse agent was not found.");
+    if (actor.role === "warehouse_agent") {
+      assertAllowed(warehouseAgent.userId === actor._id, "Actor cannot access this warehouse agent evidence.");
+      return;
+    }
+    if (warehouseAgent.assignedWarehouseIds.length === 0) {
+      await requireAdminPermission(ctx, actor._id, permission === "read" ? "uploads:read" : "uploads:manage", {});
+      return;
+    }
+    for (const warehouseId of warehouseAgent.assignedWarehouseIds) {
+      await requireAdminPermission(
+        ctx,
+        actor._id,
+        permission === "read" ? "uploads:read" : "uploads:manage",
+        await warehouseScopeTarget(ctx, warehouseId),
+      );
+    }
+    return;
+  }
 }
 
 export const createPending = mutation({
@@ -66,6 +268,7 @@ export const createPending = mutation({
     fileName: v.optional(v.string()),
     relatedEntityType: v.optional(relatedEntityType),
     relatedEntityId: v.optional(v.string()),
+    publicBaseUrl: v.optional(v.string()),
   },
   returns: v.object({
     uploadAssetId: v.string(),
@@ -85,6 +288,17 @@ export const createPending = mutation({
       contentType: args.contentType,
       sizeBytes: args.sizeBytes,
     });
+    assertAllowed(
+      purposeAllowedForEntity(args.purpose, args.relatedEntityType),
+      "Upload purpose is not allowed for this related entity.",
+    );
+    await requireActorCanUseRelatedEntity(
+      ctx,
+      actor,
+      "manage",
+      args.relatedEntityType,
+      cleanOptionalText(args.relatedEntityId),
+    );
 
     const now = Date.now();
     const placeholderObjectKey =
@@ -110,6 +324,9 @@ export const createPending = mutation({
       relatedEntityType: args.relatedEntityType,
       relatedEntityId: cleanOptionalText(args.relatedEntityId),
       createdByUserId: args.actorUserId,
+      publicUrl: args.objectKey !== undefined && args.accessLevel === "public_read"
+        ? publicUrlFromBase(args.publicBaseUrl, placeholderObjectKey)
+        : undefined,
       createdAt: now,
       updatedAt: now,
     }));
@@ -124,7 +341,11 @@ export const createPending = mutation({
         fileName: args.fileName,
       }));
     if (objectKey !== placeholderObjectKey) {
-      await ctx.db.patch(uploadAssetId, { objectKey, updatedAt: now });
+      await ctx.db.patch(uploadAssetId, omitUndefinedValues({
+        objectKey,
+        publicUrl: args.accessLevel === "public_read" ? publicUrlFromBase(args.publicBaseUrl, objectKey) : undefined,
+        updatedAt: now,
+      }));
     }
 
     const after = await ctx.db.get(uploadAssetId);
@@ -150,7 +371,10 @@ export const complete = mutation({
     sizeBytes: v.number(),
     checksumSha256: v.optional(v.string()),
   },
-  returns: v.id("uploadAssets"),
+  returns: v.object({
+    uploadAssetId: v.id("uploadAssets"),
+    status: v.union(v.literal("uploaded"), v.literal("attached")),
+  }),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     const asset = await ctx.db.get(args.uploadAssetId);
@@ -166,8 +390,9 @@ export const complete = mutation({
     assertAllowed(args.sizeBytes === asset.sizeBytes, "Completed upload size does not match presigned metadata.");
 
     const now = Date.now();
+    const status: "uploaded" | "attached" = asset.relatedEntityType === undefined ? "uploaded" : "attached";
     await ctx.db.patch(args.uploadAssetId, omitUndefinedValues({
-      status: "uploaded",
+      status,
       checksumSha256: cleanOptionalText(args.checksumSha256),
       completedAt: now,
       updatedAt: now,
@@ -181,9 +406,95 @@ export const complete = mutation({
       before: auditSnapshot(asset),
       after: after === null ? undefined : auditSnapshot(after),
     });
+    return {
+      uploadAssetId: args.uploadAssetId,
+      status,
+    };
+  },
+});
+
+export const attachToEntity = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    uploadAssetId: v.id("uploadAssets"),
+    relatedEntityType,
+    relatedEntityId: v.string(),
+    purpose: v.optional(uploadPurpose),
+    reason: v.optional(v.string()),
+  },
+  returns: v.id("uploadAssets"),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const asset = await ctx.db.get(args.uploadAssetId);
+    assertAllowed(asset !== null, "Upload asset was not found.");
+    assertAllowed(asset.status === "uploaded" || asset.status === "attached", "Only uploaded evidence can be attached.");
+    const purpose = args.purpose ?? asset.purpose;
+    assertAllowed(purposeAllowedForEntity(purpose, args.relatedEntityType), "Upload purpose is not allowed for this related entity.");
+    assertAllowed(
+      actor._id === asset.ownerUserId || actor._id === asset.createdByUserId || actor.role === "admin" || actor.role === "warehouse_agent",
+      "Actor cannot attach this upload.",
+    );
+    await requireActorCanUseRelatedEntity(ctx, actor, "manage", args.relatedEntityType, cleanOptionalText(args.relatedEntityId));
+
+    const now = Date.now();
+    await ctx.db.patch(args.uploadAssetId, omitUndefinedValues({
+      purpose,
+      relatedEntityType: args.relatedEntityType,
+      relatedEntityId: cleanOptionalText(args.relatedEntityId),
+      status: "attached",
+      updatedAt: now,
+    }));
+    const after = await ctx.db.get(args.uploadAssetId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "upload_asset.attached",
+      entityType: "upload_asset",
+      entityId: args.uploadAssetId,
+      before: auditSnapshot(asset),
+      after: after === null ? undefined : auditSnapshot(after),
+      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+    });
     return args.uploadAssetId;
   },
 });
+
+async function updateUploadAssetStatus(
+  ctx: MutationCtx,
+  args: {
+    actorUserId: Id<"users">;
+    uploadAssetId: Id<"uploadAssets">;
+    status: UploadStatus;
+    reason?: string | undefined;
+  },
+): Promise<Id<"uploadAssets">> {
+  const actor = await getActor(ctx, args.actorUserId);
+  const asset = await ctx.db.get(args.uploadAssetId);
+  assertAllowed(asset !== null, "Upload asset was not found.");
+  await requireActorCanUseRelatedEntity(ctx, actor, "manage", asset.relatedEntityType, asset.relatedEntityId);
+  const now = Date.now();
+  await ctx.db.patch(args.uploadAssetId, omitUndefinedValues({
+    status: args.status,
+    verifiedByUserId: args.status === "verified" ? actor._id : undefined,
+    verifiedAt: args.status === "verified" ? now : undefined,
+    rejectedByUserId: args.status === "rejected" ? actor._id : undefined,
+    rejectedAt: args.status === "rejected" ? now : undefined,
+    rejectionReason: args.status === "rejected" ? cleanOptionalText(args.reason) : undefined,
+    deletedAt: args.status === "deleted" ? now : undefined,
+    expiredAt: args.status === "expired" ? now : undefined,
+    updatedAt: now,
+  }));
+  const after = await ctx.db.get(args.uploadAssetId);
+  await insertAuditLog(ctx, {
+    actor,
+    action: "upload_asset.status_updated",
+    entityType: "upload_asset",
+    entityId: args.uploadAssetId,
+    before: auditSnapshot(asset),
+    after: after === null ? undefined : auditSnapshot(after),
+    metadata: args.reason === undefined ? undefined : { reason: args.reason },
+  });
+  return args.uploadAssetId;
+}
 
 export const updateStatus = mutation({
   args: {
@@ -194,25 +505,41 @@ export const updateStatus = mutation({
   },
   returns: v.id("uploadAssets"),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
-    await requireAdminPermission(ctx, actor._id, "uploads:manage", {});
-    const asset = await ctx.db.get(args.uploadAssetId);
-    assertAllowed(asset !== null, "Upload asset was not found.");
-    await ctx.db.patch(args.uploadAssetId, {
-      status: args.status,
-      updatedAt: Date.now(),
+    return await updateUploadAssetStatus(ctx, args);
+  },
+});
+
+export const verify = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    uploadAssetId: v.id("uploadAssets"),
+    reason: v.optional(v.string()),
+  },
+  returns: v.id("uploadAssets"),
+  handler: async (ctx, args) => {
+    return await updateUploadAssetStatus(ctx, {
+      actorUserId: args.actorUserId,
+      uploadAssetId: args.uploadAssetId,
+      status: "verified",
+      reason: args.reason,
     });
-    const after = await ctx.db.get(args.uploadAssetId);
-    await insertAuditLog(ctx, {
-      actor,
-      action: "upload_asset.status_updated",
-      entityType: "upload_asset",
-      entityId: args.uploadAssetId,
-      before: auditSnapshot(asset),
-      after: after === null ? undefined : auditSnapshot(after),
-      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+  },
+});
+
+export const reject = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    uploadAssetId: v.id("uploadAssets"),
+    reason: v.string(),
+  },
+  returns: v.id("uploadAssets"),
+  handler: async (ctx, args) => {
+    return await updateUploadAssetStatus(ctx, {
+      actorUserId: args.actorUserId,
+      uploadAssetId: args.uploadAssetId,
+      status: "rejected",
+      reason: args.reason,
     });
-    return args.uploadAssetId;
   },
 });
 
@@ -229,9 +556,39 @@ export const getById = query({
       return null;
     }
     if (actor._id !== asset.ownerUserId && actor._id !== asset.createdByUserId) {
-      await requireAdminPermission(ctx, actor._id, "uploads:read", {});
+      await requireActorCanUseRelatedEntity(ctx, actor, "read", asset.relatedEntityType, asset.relatedEntityId);
     }
     return asset;
+  },
+});
+
+export const listByRelatedEntity = query({
+  args: {
+    actorUserId: v.id("users"),
+    relatedEntityType,
+    relatedEntityId: v.string(),
+    status: v.optional(uploadStatus),
+    purpose: v.optional(uploadPurpose),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const relatedEntityId = cleanOptionalText(args.relatedEntityId);
+    assertAllowed(relatedEntityId !== undefined, "Related entity id is required.");
+    await requireActorCanUseRelatedEntity(ctx, actor, "read", args.relatedEntityType, relatedEntityId);
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates = await ctx.db
+      .query("uploadAssets")
+      .withIndex("by_related_entity", (q) =>
+        q.eq("relatedEntityType", args.relatedEntityType).eq("relatedEntityId", relatedEntityId),
+      )
+      .order("desc")
+      .take(limit * 3);
+    return candidates
+      .filter((asset) => args.status === undefined || asset.status === args.status)
+      .filter((asset) => args.purpose === undefined || asset.purpose === args.purpose)
+      .slice(0, limit);
   },
 });
 

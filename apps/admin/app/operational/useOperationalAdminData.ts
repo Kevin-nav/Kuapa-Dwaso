@@ -80,6 +80,7 @@ export function useOperationalAdminData() {
   const canReadTransporters = hasPermission("transporters:read");
   const canReadReports = hasPermission("reports:read");
   const canReadNotifications = hasPermission("notifications:read");
+  const canReadUploads = hasPermission("uploads:read");
 
   const warehousesQuery = useQuery(
     api.warehouses.list,
@@ -245,6 +246,7 @@ export function useOperationalAdminData() {
       canReadTransporters,
       canReadReports,
       canReadNotifications,
+      canReadUploads,
       canManageWarehouses: hasPermission("warehouses:manage"),
       canManageAgents: hasPermission("warehouseAgents:manage"),
       canVerifyFarmers: hasPermission("farmers:verify"),
@@ -252,6 +254,7 @@ export function useOperationalAdminData() {
       canManageDisputes: hasPermission("disputes:manage"),
       canManageFees: hasPermission("fees:manage"),
       canManageSalePayments: hasPermission("sales:managePaymentStatus"),
+      canManageUploads: hasPermission("uploads:manage"),
     },
     warehouses,
     agents,
