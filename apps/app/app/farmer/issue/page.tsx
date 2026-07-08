@@ -51,31 +51,22 @@ function IssueFormContent() {
     setIsSubmitting(true);
 
     try {
-      const isDemo = receiptId.startsWith("demo") || receiptId === "";
-      
-      if (isDemo) {
-        // Simulate successful dispute submission for demo ids
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        console.log("Mock dispute submitted:", {
-          category,
-          note,
-          receiptId,
-          farmerId: farmer._id,
-        });
-      } else {
-        // Submit real dispute to Convex
-        const disputeArgs = {
-          actorId: farmer.farmerCode,
-          actorUserId: principal.userId as Id<"users">,
-          actorRole: "farmer" as const,
-          entityType: "inventory_batch" as const,
-          entityId: receiptId,
-          openedByUserId: principal.userId as Id<"users">,
-          summary: `[${category}] ${note}`,
-          ...(farmer.preferredWarehouseId !== undefined ? { warehouseId: farmer.preferredWarehouseId } : {}),
-        };
-        await createDispute(disputeArgs);
+      if (receiptId === "") {
+        setError("Please open this form from a receipt so the issue can be linked to a real warehouse record.");
+        return;
       }
+
+      const disputeArgs = {
+        actorId: farmer.farmerCode,
+        actorUserId: principal.userId as Id<"users">,
+        actorRole: "farmer" as const,
+        entityType: "inventory_batch" as const,
+        entityId: receiptId,
+        openedByUserId: principal.userId as Id<"users">,
+        summary: `[${category}] ${note}`,
+        ...(farmer.preferredWarehouseId !== undefined ? { warehouseId: farmer.preferredWarehouseId } : {}),
+      };
+      await createDispute(disputeArgs);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit dispute.");

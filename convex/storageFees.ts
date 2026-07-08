@@ -9,6 +9,7 @@ import {
   getActor,
   insertAuditLog,
   inventoryScopeTarget,
+  omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
@@ -138,6 +139,54 @@ export const listByBatch = query({
       .withIndex("by_batch_date", (q) => q.eq("inventoryBatchId", args.inventoryBatchId))
       .order("desc")
       .take(Math.min(args.limit ?? 50, 100));
+  },
+});
+
+export const listForFarmer = query({
+  args: {
+    actorUserId: v.id("users"),
+    farmerId: v.id("farmers"),
+    status: v.optional(storageFeeLedgerStatus),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const farmer = await ctx.db.get(args.farmerId);
+    assertAllowed(farmer !== null, "Farmer was not found.");
+    if (actor.role === "farmer") {
+      assertAllowed(farmer.userId === actor._id, "Farmers can only view their own storage fees.");
+    } else if (actor.role === "warehouse_agent") {
+      assertAllowed(farmer.preferredWarehouseId !== undefined, "Farmer does not have a preferred warehouse.");
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, farmer.preferredWarehouseId);
+    } else {
+      assertAllowed(actor.role === "admin", "Actor cannot view farmer storage fees.");
+      await requireAdminPermission(ctx, args.actorUserId, "fees:read", omitUndefinedValues({
+        warehouseId: farmer.preferredWarehouseId,
+        region: farmer.region,
+        district: farmer.community,
+      }));
+    }
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.status === undefined
+        ? await ctx.db
+            .query("storageFeeLedger")
+            .withIndex("by_farmer_status_date", (q) => q.eq("farmerId", args.farmerId))
+            .order("desc")
+            .take(limit * 3)
+        : await ctx.db
+            .query("storageFeeLedger")
+            .withIndex("by_farmer_status_date", (q) =>
+              q.eq("farmerId", args.farmerId).eq("status", args.status!),
+            )
+            .order("desc")
+            .take(limit * 3);
+
+    return candidates
+      .filter((ledger) => args.status === undefined || ledger.status === args.status)
+      .slice(0, limit);
   },
 });
 

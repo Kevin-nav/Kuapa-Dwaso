@@ -423,6 +423,64 @@ export const listPayoutLedgerForFinance = query({
   },
 });
 
+export const listPayoutLedgerForFarmer = query({
+  args: {
+    actorUserId: v.id("users"),
+    farmerId: v.id("farmers"),
+    status: v.optional(payoutLedgerStatus),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    const farmer = await ctx.db.get(args.farmerId);
+    assertAllowed(farmer !== null, "Farmer was not found.");
+    if (actor.role === "farmer") {
+      assertAllowed(farmer.userId === actor._id, "Farmers can only view their own payouts.");
+    } else {
+      assertAllowed(actor.role === "admin", "Actor cannot view farmer payouts.");
+      await requireAdminPermission(ctx, args.actorUserId, "payouts:read", omitUndefinedValues({
+        warehouseId: farmer.preferredWarehouseId,
+        region: farmer.region,
+        district: farmer.community,
+      }));
+    }
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const candidates =
+      args.status === undefined
+        ? await ctx.db
+            .query("payoutLedger")
+            .withIndex("by_farmer_status", (q) => q.eq("farmerId", args.farmerId))
+            .take(limit * 3)
+        : await ctx.db
+            .query("payoutLedger")
+            .withIndex("by_farmer_status", (q) =>
+              q.eq("farmerId", args.farmerId).eq("status", args.status!),
+            )
+            .take(limit * 3);
+    const filtered = candidates
+      .filter((entry) => args.status === undefined || entry.status === args.status)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, limit);
+
+    return await Promise.all(
+      filtered.map(async (entry) => {
+        const [sale, order] = await Promise.all([
+          ctx.db.get(entry.saleRecordId),
+          ctx.db.get(entry.buyerOrderId),
+        ]);
+        return {
+          ...entry,
+          id: entry._id,
+          sale,
+          order,
+        };
+      }),
+    );
+  },
+});
+
 export const listWebhookEventsForFinance = query({
   args: {
     actorUserId: v.id("users"),

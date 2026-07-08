@@ -48,7 +48,7 @@ const audienceConfig: Record<LoginAudience, AudienceConfig> = {
     eyebrow: "Transporter login",
     title: "View dispatch assignments and delivery status.",
     description: "Use the phone number connected to your transporter profile.",
-    successPath: "/",
+    successPath: "/transporter",
     missingProfileText: "We could not find a transporter profile for this phone number yet.",
     icon: Truck,
     trustItems: ["Assigned dispatches", "Route details", "Delivery status"],
