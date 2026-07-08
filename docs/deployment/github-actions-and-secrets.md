@@ -160,12 +160,9 @@ INFISICAL_CLIENT_ID
 INFISICAL_CLIENT_SECRET
 ```
 
-Optional environment secrets:
-
-```text
-VPS_DEPLOY_PORT
-VPS_DEPLOY_KNOWN_HOSTS
-```
+There are no optional secrets in the default workflow. `VPS_DEPLOY_PORT` and
+`VPS_DEPLOY_KNOWN_HOSTS` are environment variables because they are not
+credentials.
 
 `VPS_DEPLOY_PORT` defaults to `22`. `VPS_DEPLOY_KNOWN_HOSTS` is strongly
 recommended. If omitted, the workflow uses `ssh-keyscan`, which is convenient
@@ -220,13 +217,8 @@ VPS_DEPLOY_WORKDIR
 ALLOW_MISSING_KUSTOMIZE_OVERLAY
 INFISICAL_ENVIRONMENT_SLUG
 INFISICAL_SECRET_PATH
-INFISICAL_SYNC_REQUIRED
-K8S_RUNTIME_SECRET_NAME
-K8S_IMAGE_NAME_WWW
-K8S_IMAGE_NAME_APP
-K8S_IMAGE_NAME_ADMIN
-K8S_IMAGE_NAME_OPS
-K8S_IMAGE_NAME_API
+VPS_DEPLOY_PORT
+VPS_DEPLOY_KNOWN_HOSTS
 ```
 
 Defaults:
@@ -240,26 +232,13 @@ VPS_DEPLOY_WORKDIR=~/kuapa-dwaso
 ALLOW_MISSING_KUSTOMIZE_OVERLAY=true
 INFISICAL_ENVIRONMENT_SLUG=<environment>
 INFISICAL_SECRET_PATH=/
-INFISICAL_SYNC_REQUIRED=false
-K8S_RUNTIME_SECRET_NAME=kuapa-dwaso-runtime-env
-K8S_IMAGE_NAME_WWW=kuapa-dwaso/www
-K8S_IMAGE_NAME_APP=kuapa-dwaso/app
-K8S_IMAGE_NAME_ADMIN=kuapa-dwaso/admin
-K8S_IMAGE_NAME_OPS=kuapa-dwaso/ops
-K8S_IMAGE_NAME_API=kuapa-dwaso/api
+VPS_DEPLOY_PORT=22
 ```
 
 After Kubernetes manifests exist, set:
 
 ```text
 ALLOW_MISSING_KUSTOMIZE_OVERLAY=false
-```
-
-If the workflow must fail whenever Infisical sync is not performed by the deploy
-script, set:
-
-```text
-INFISICAL_SYNC_REQUIRED=true
 ```
 
 ## VPS Setup

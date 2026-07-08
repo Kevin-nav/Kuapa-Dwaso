@@ -103,9 +103,9 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
         env:
           VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
-          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
+          VPS_DEPLOY_PORT: ${{ vars.VPS_DEPLOY_PORT || '22' }}
           VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
-          VPS_DEPLOY_KNOWN_HOSTS: ${{ secrets.VPS_DEPLOY_KNOWN_HOSTS }}
+          VPS_DEPLOY_KNOWN_HOSTS: ${{ vars.VPS_DEPLOY_KNOWN_HOSTS }}
 
       - name: Copy deploy script and environment
         shell: bash
@@ -150,7 +150,7 @@ jobs:
         env:
           VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
           VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
-          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
+          VPS_DEPLOY_PORT: ${{ vars.VPS_DEPLOY_PORT || '22' }}
           VPS_DEPLOY_WORKDIR: ${{ vars.VPS_DEPLOY_WORKDIR }}
           ALLOW_MISSING_KUSTOMIZE_OVERLAY: ${{ vars.ALLOW_MISSING_KUSTOMIZE_OVERLAY || 'true' }}
           INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
@@ -172,4 +172,4 @@ jobs:
         env:
           VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
           VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
-          VPS_DEPLOY_PORT: ${{ secrets.VPS_DEPLOY_PORT || '22' }}
+          VPS_DEPLOY_PORT: ${{ vars.VPS_DEPLOY_PORT || '22' }}
