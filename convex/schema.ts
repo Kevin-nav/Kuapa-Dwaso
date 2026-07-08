@@ -260,6 +260,34 @@ const smsDeliveryStatus = v.union(
   v.literal("rejected")
 );
 
+const paymentProvider = v.union(v.literal("mock"), v.literal("paystack"));
+const paymentTransactionStatus = v.union(
+  v.literal("initialized"),
+  v.literal("pending"),
+  v.literal("processing"),
+  v.literal("successful"),
+  v.literal("failed"),
+  v.literal("abandoned"),
+  v.literal("reversed"),
+  v.literal("refunded"),
+  v.literal("manual_review")
+);
+const paymentEventStatus = v.union(
+  v.literal("received"),
+  v.literal("processed"),
+  v.literal("ignored"),
+  v.literal("failed")
+);
+const payoutLedgerStatus = v.union(
+  v.literal("pending"),
+  v.literal("approved"),
+  v.literal("processing"),
+  v.literal("paid"),
+  v.literal("failed"),
+  v.literal("cancelled"),
+  v.literal("manual_review")
+);
+
 const disputeStatus = v.union(
   v.literal("open"),
   v.literal("under_review"),
@@ -777,6 +805,51 @@ export default defineSchema({
     createdAt: v.number()
   }).index("by_order", ["buyerOrderId"]),
 
+  paymentTransactions: defineTable({
+    buyerOrderId: v.id("buyerOrders"),
+    buyerId: v.id("buyers"),
+    provider: paymentProvider,
+    providerReference: v.string(),
+    providerAccessCode: v.optional(v.string()),
+    authorizationUrl: v.optional(v.string()),
+    amount: v.number(),
+    currency: v.string(),
+    status: paymentTransactionStatus,
+    idempotencyKey: v.string(),
+    correlationId: v.optional(v.string()),
+    initializedByUserId: v.id("users"),
+    verifiedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    providerStatus: v.optional(v.string()),
+    providerMessage: v.optional(v.string()),
+    rawProviderData: v.optional(genericRecord),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_order", ["buyerOrderId"])
+    .index("by_order_status", ["buyerOrderId", "status"])
+    .index("by_provider_reference", ["provider", "providerReference"])
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_status_created_at", ["status", "createdAt"]),
+
+  paymentWebhookEvents: defineTable({
+    provider: paymentProvider,
+    providerEventId: v.string(),
+    providerReference: v.optional(v.string()),
+    eventType: v.string(),
+    status: paymentEventStatus,
+    paymentTransactionId: v.optional(v.id("paymentTransactions")),
+    rawPayload: genericRecord,
+    processedAt: v.optional(v.number()),
+    errorMessage: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_provider_event", ["provider", "providerEventId"])
+    .index("by_reference", ["provider", "providerReference"])
+    .index("by_status_created_at", ["status", "createdAt"]),
+
   saleRecords: defineTable({
     buyerOrderId: v.id("buyerOrders"),
     inventoryBatchId: v.id("inventoryBatches"),
@@ -815,6 +888,29 @@ export default defineSchema({
     .index("by_sale", ["saleRecordId"])
     .index("by_farmer", ["farmerId"])
     .index("by_batch", ["inventoryBatchId"]),
+
+  payoutLedger: defineTable({
+    saleRecordId: v.id("saleRecords"),
+    farmerId: v.id("farmers"),
+    buyerOrderId: v.id("buyerOrders"),
+    amount: v.number(),
+    currency: v.string(),
+    status: payoutLedgerStatus,
+    sourcePaymentTransactionId: v.optional(v.id("paymentTransactions")),
+    approvedByUserId: v.optional(v.id("users")),
+    processedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    failedAt: v.optional(v.number()),
+    provider: v.optional(paymentProvider),
+    providerReference: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_sale", ["saleRecordId"])
+    .index("by_farmer_status", ["farmerId", "status"])
+    .index("by_order", ["buyerOrderId"])
+    .index("by_status_created_at", ["status", "createdAt"]),
 
   dispatches: defineTable({
     warehouseId: v.id("warehouses"),

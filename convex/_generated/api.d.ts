@@ -24,6 +24,7 @@ import type * as inventoryBatches from "../inventoryBatches.js";
 import type * as invitations from "../invitations.js";
 import type * as notifications from "../notifications.js";
 import type * as observabilityAccess from "../observabilityAccess.js";
+import type * as payments from "../payments.js";
 import type * as sales from "../sales.js";
 import type * as smokeCleanup from "../smokeCleanup.js";
 import type * as smsDeliveries from "../smsDeliveries.js";
@@ -58,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   invitations: typeof invitations;
   notifications: typeof notifications;
   observabilityAccess: typeof observabilityAccess;
+  payments: typeof payments;
   sales: typeof sales;
   smokeCleanup: typeof smokeCleanup;
   smsDeliveries: typeof smsDeliveries;

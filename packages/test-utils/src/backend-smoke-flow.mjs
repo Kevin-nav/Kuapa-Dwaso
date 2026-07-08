@@ -358,6 +358,55 @@ async function main() {
   assert(sale.handlingFeeDeducted === 1.25, "Expected GHS 1.25 handling deduction.");
   assert(sale.netAmountDueToFarmer === 876.25, "Expected GHS 876.25 net due to farmer.");
 
+  const preparedPayment = await mutation("buyer payment prepared", api.payments.prepareBuyerPayment, {
+    actorUserId: buyerUserId,
+    buyerOrderId,
+    provider: "mock",
+    idempotencyKey: `backend-smoke-payment-${runId}`,
+    correlationId: `backend-smoke-${runId}`,
+    currency: "GHS",
+  });
+  await mutation("mock payment provider initialization recorded", api.payments.recordProviderInitialization, {
+    provider: "mock",
+    providerReference: preparedPayment.providerReference,
+    providerAccessCode: `mock-access-${runId}`,
+    authorizationUrl: `https://mock-payments.local/checkout/${preparedPayment.providerReference}`,
+    providerStatus: "pending",
+    providerMessage: "backend smoke mock initialization",
+  });
+  await mutation("mock payment reconciled", api.payments.reconcileProviderPayment, {
+    provider: "mock",
+    providerReference: preparedPayment.providerReference,
+    status: "successful",
+    amount: preparedPayment.amount,
+    currency: preparedPayment.currency,
+    providerStatus: "success",
+    providerMessage: "backend smoke mock payment verified",
+  });
+  const orderAfterPayment = await query("paid order loaded", api.buyerOrders.getById, {
+    actorUserId: adminUserId,
+    buyerOrderId,
+  });
+  assert(orderAfterPayment.paymentStatus === "fully_paid", "Expected buyer order to be fully paid.");
+  const saleAfterPayment = await query("sale after payment loaded", api.sales.getById, {
+    actorUserId: adminUserId,
+    saleRecordId: saleRecordIds[0],
+  });
+  assert(saleAfterPayment.paymentStatus === "withheld", "Expected farmer sale funds to be withheld pending payout.");
+  const paymentLedger = await query("payment transactions listed", api.payments.listPaymentsForFinance, {
+    actorUserId: adminUserId,
+    buyerOrderId,
+    limit: 10,
+  });
+  assert(paymentLedger.some((payment) => payment.providerReference === preparedPayment.providerReference && payment.status === "successful"), "Expected successful payment transaction.");
+  const payoutLedger = await query("payout ledger listed", api.payments.listPayoutLedgerForFinance, {
+    actorUserId: adminUserId,
+    buyerOrderId,
+    status: "pending",
+    limit: 10,
+  });
+  assert(payoutLedger.some((entry) => entry.saleRecordId === saleRecordIds[0] && entry.amount === sale.netAmountDueToFarmer), "Expected pending payout ledger entry.");
+
   await mutation("sale payment marked paid", api.sales.updatePaymentStatus, {
     actorUserId: adminUserId,
     saleRecordId: saleRecordIds[0],
@@ -499,6 +548,7 @@ async function main() {
       buyerId,
       buyerOrderId,
       saleRecordIds,
+      paymentTransactionId: preparedPayment._id,
       dispatchId,
     },
     sale: {
@@ -513,6 +563,8 @@ async function main() {
       saleRecords: summaryAfter.saleRecords - summaryBefore.saleRecords,
       dispatches: summaryAfter.dispatches - summaryBefore.dispatches,
       paidSales: summaryAfter.salePaymentStatusCounts.paid - summaryBefore.salePaymentStatusCounts.paid,
+      paymentTransactions: paymentLedger.length,
+      pendingPayouts: payoutLedger.length,
       closedDispatches: summaryAfter.dispatchStatusCounts.closed - summaryBefore.dispatchStatusCounts.closed,
       notifications:
         intakeNotifications.length +

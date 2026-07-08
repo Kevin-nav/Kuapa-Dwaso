@@ -375,6 +375,42 @@ export const smsDeliveryStatuses = [
 ] as const;
 export type SmsDeliveryStatus = (typeof smsDeliveryStatuses)[number];
 
+export const paymentProviders = ["mock", "paystack"] as const;
+export type PaymentProvider = (typeof paymentProviders)[number];
+
+export const paymentTransactionStatuses = [
+  "initialized",
+  "pending",
+  "processing",
+  "successful",
+  "failed",
+  "abandoned",
+  "reversed",
+  "refunded",
+  "manual_review",
+] as const;
+export type PaymentTransactionStatus =
+  (typeof paymentTransactionStatuses)[number];
+
+export const paymentEventStatuses = [
+  "received",
+  "processed",
+  "ignored",
+  "failed",
+] as const;
+export type PaymentEventStatus = (typeof paymentEventStatuses)[number];
+
+export const payoutLedgerStatuses = [
+  "pending",
+  "approved",
+  "processing",
+  "paid",
+  "failed",
+  "cancelled",
+  "manual_review",
+] as const;
+export type PayoutLedgerStatus = (typeof payoutLedgerStatuses)[number];
+
 export const smsProviderErrorClasses = ["retryable", "nonretryable"] as const;
 export type SmsProviderErrorClass = (typeof smsProviderErrorClasses)[number];
 
@@ -429,6 +465,9 @@ export const auditEntityTypes = [
   "dispatch",
   "dispute",
   "notification",
+  "payment_transaction",
+  "payment_webhook_event",
+  "payout_ledger",
   "app_setting",
 ] as const;
 export type AuditEntityType = (typeof auditEntityTypes)[number];
@@ -650,6 +689,28 @@ export type BuyerOrderCharge = {
   createdAt: number;
 };
 
+export type PaymentTransaction = TimestampFields & {
+  id: string;
+  buyerOrderId: string;
+  buyerId: string;
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  amount: number;
+  currency: string;
+  status: PaymentTransactionStatus;
+  idempotencyKey: string;
+  correlationId?: string;
+  initializedByUserId: string;
+  verifiedAt?: number;
+  paidAt?: number;
+  failedAt?: number;
+  providerStatus?: string;
+  providerMessage?: string;
+  rawProviderData?: Record<string, unknown>;
+};
+
 export type SaleRecord = TimestampFields & {
   id: string;
   buyerOrderId: string;
@@ -667,6 +728,24 @@ export type SaleRecord = TimestampFields & {
   adjustmentAmount?: number;
   netAmountDueToFarmer: number;
   paymentStatus: SalePaymentStatus;
+};
+
+export type PayoutLedgerEntry = TimestampFields & {
+  id: string;
+  saleRecordId: string;
+  farmerId: string;
+  buyerOrderId: string;
+  amount: number;
+  currency: string;
+  status: PayoutLedgerStatus;
+  sourcePaymentTransactionId?: string;
+  approvedByUserId?: string;
+  processedAt?: number;
+  paidAt?: number;
+  failedAt?: number;
+  provider?: PaymentProvider;
+  providerReference?: string;
+  failureReason?: string;
 };
 
 export type SaleDeduction = {

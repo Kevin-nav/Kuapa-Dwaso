@@ -25,6 +25,13 @@ export type ApiEnvironment = {
     webhookSignatureSecret?: string;
     webhookSignatureHeader: string;
   };
+  payments: {
+    provider: "mock" | "paystack";
+    unsupportedProvider?: string;
+    paystackSecretKey?: string;
+    paystackPublicKey?: string;
+    webhookSecret?: string;
+  };
   uploads: {
     r2AccountId?: string;
     r2AccessKeyId?: string;
@@ -122,6 +129,24 @@ export function getApiEnvironment(): ApiEnvironment {
     sms.webhookSignatureSecret = process.env.ARKESEL_WEBHOOK_SIGNATURE_SECRET;
   }
 
+  const requestedPaymentProvider = process.env.PAYMENT_PROVIDER ?? "mock";
+  const paymentProvider = requestedPaymentProvider === "paystack" ? "paystack" : "mock";
+  const payments: ApiEnvironment["payments"] = {
+    provider: paymentProvider,
+  };
+  if (requestedPaymentProvider !== "mock" && requestedPaymentProvider !== "paystack") {
+    payments.unsupportedProvider = requestedPaymentProvider;
+  }
+  if (process.env.PAYSTACK_SECRET_KEY !== undefined) {
+    payments.paystackSecretKey = process.env.PAYSTACK_SECRET_KEY;
+  }
+  if (process.env.PAYSTACK_PUBLIC_KEY !== undefined) {
+    payments.paystackPublicKey = process.env.PAYSTACK_PUBLIC_KEY;
+  }
+  if (process.env.PAYSTACK_WEBHOOK_SECRET !== undefined) {
+    payments.webhookSecret = process.env.PAYSTACK_WEBHOOK_SECRET;
+  }
+
   const uploads: ApiEnvironment["uploads"] = {
     presignTtlSeconds: parsePositiveInteger(process.env.R2_PRESIGN_TTL_SECONDS, 900),
     maxSizeBytes: parsePositiveInteger(process.env.UPLOAD_MAX_SIZE_BYTES, 8 * 1024 * 1024)
@@ -154,6 +179,7 @@ export function getApiEnvironment(): ApiEnvironment {
     auth,
     email,
     sms,
+    payments,
     uploads,
     rateLimit: {
       windowMs: parsePositiveInteger(process.env.API_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),

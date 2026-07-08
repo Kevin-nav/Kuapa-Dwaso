@@ -33,15 +33,21 @@ test("operations manager can run operations without finance-only mutation rights
 test("finance manager owns fee and payment capabilities without admin access management", () => {
   assert.equal(adminRoleHasPermission("finance_manager", "fees:manage"), true);
   assert.equal(adminRoleHasPermission("finance_manager", "sales:managePaymentStatus"), true);
+  assert.equal(adminRoleHasPermission("finance_manager", "payments:manage"), true);
+  assert.equal(adminRoleHasPermission("finance_manager", "payouts:manage"), true);
   assert.equal(adminRoleHasPermission("finance_manager", "warehouses:manage"), false);
   assert.equal(adminRoleHasPermission("finance_manager", "adminAccess:manage"), false);
 });
 
 test("viewer and analyst roles are read-only", () => {
   assert.equal(adminRoleHasPermission("admin_viewer", "reports:read"), true);
+  assert.equal(adminRoleHasPermission("admin_viewer", "payments:read"), true);
+  assert.equal(adminRoleHasPermission("admin_viewer", "payouts:read"), true);
   assert.equal(adminRoleHasPermission("admin_viewer", "orders:manage"), false);
   assert.equal(adminRoleHasPermission("admin_viewer", "invitations:manage"), false);
   assert.equal(adminRoleHasPermission("analyst", "reports:read"), true);
+  assert.equal(adminRoleHasPermission("analyst", "payments:read"), true);
+  assert.equal(adminRoleHasPermission("analyst", "payouts:read"), true);
   assert.equal(adminRoleHasPermission("analyst", "disputes:manage"), false);
 });
 

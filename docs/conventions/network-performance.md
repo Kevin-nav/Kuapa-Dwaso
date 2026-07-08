@@ -14,4 +14,6 @@ Stable rules:
 8. External service failures produce clear recoverable states.
 9. Paystack uses test mode for MVP and demo work.
 10. SMS and webhook flows are mockable locally.
-
+11. Payment workflows must remain provider-neutral in product code. Use
+    `PAYMENT_PROVIDER=mock` for local and smoke tests, and keep Paystack secret
+    keys API-only.

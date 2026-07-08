@@ -15,6 +15,10 @@ import {
   inventoryReservationStatuses,
   marketplaceRoles,
   notificationStatuses,
+  paymentEventStatuses,
+  paymentProviders,
+  paymentTransactionStatuses,
+  payoutLedgerStatuses,
   smsDeliveryStatuses,
   smsMessageKinds,
   smsProviderErrorClasses,
@@ -57,6 +61,10 @@ import {
   type InventoryReservationStatus,
   type MarketplaceRole,
   type NotificationStatus,
+  type PaymentEventStatus,
+  type PaymentProvider,
+  type PaymentTransactionStatus,
+  type PayoutLedgerStatus,
   type SmsDeliveryStatus,
   type SmsMessageKind,
   type SmsProvider,
@@ -212,6 +220,24 @@ export function isNotificationStatus(
   value: unknown,
 ): value is NotificationStatus {
   return isOneOf(notificationStatuses, value);
+}
+
+export function isPaymentProvider(value: unknown): value is PaymentProvider {
+  return isOneOf(paymentProviders, value);
+}
+
+export function isPaymentTransactionStatus(
+  value: unknown,
+): value is PaymentTransactionStatus {
+  return isOneOf(paymentTransactionStatuses, value);
+}
+
+export function isPaymentEventStatus(value: unknown): value is PaymentEventStatus {
+  return isOneOf(paymentEventStatuses, value);
+}
+
+export function isPayoutLedgerStatus(value: unknown): value is PayoutLedgerStatus {
+  return isOneOf(payoutLedgerStatuses, value);
 }
 
 export function isSmsProvider(value: unknown): value is SmsProvider {

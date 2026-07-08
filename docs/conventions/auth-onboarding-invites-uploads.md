@@ -34,7 +34,17 @@ Frontend apps never receive Cloudflare credentials. The API creates R2
 presigned PUT URLs and Convex stores upload metadata including owner, purpose,
 content type, size, object key, status, and related entity. Initial upload
 purposes are image-only and size-limited for transporter truck photos, produce
-intake photos, condition evidence, dispute evidence, and profile evidence.
+intake photos, condition evidence, dispute evidence, dispatch proof photos, and
+profile evidence.
+
+Upload evidence follows the product lifecycle `pending_upload` -> `uploaded`
+or `attached`, then optional admin review to `verified` or `rejected`.
+Operational evidence may also be marked `expired` or `deleted` without exposing
+storage credentials to frontend apps. Related entity scoping is enforced in
+Convex: assigned warehouse agents can attach warehouse-scoped inventory,
+dispatch, and dispute evidence only for their warehouses; admins must hold
+`uploads:read` or `uploads:manage` for the target scope; transporter truck
+photos attach to transporter profiles.
 
 Provider failures should be recoverable and must not corrupt Convex product
 state.
@@ -147,6 +157,30 @@ https://developers.cloudflare.com/r2/api/s3/presigned-urls/
 Buckets used from browsers must have CORS that allows the deployed app origins,
 `PUT`, and the `Content-Type` header. Cloudflare's CORS setup is documented at:
 https://developers.cloudflare.com/r2/buckets/cors/
+
+## Payment Provider Setup
+
+Buyer payments use the API payment-provider seam. Local development and smoke
+tests should use:
+
+```text
+PAYMENT_PROVIDER=mock
+```
+
+Paystack is the first real adapter:
+
+```text
+PAYMENT_PROVIDER=paystack
+PAYSTACK_PUBLIC_KEY=
+PAYSTACK_SECRET_KEY=
+PAYSTACK_WEBHOOK_SECRET=
+```
+
+Paystack secret keys and webhook secrets are API-only and must never be exposed
+through `NEXT_PUBLIC_*` variables. Product workflows store provider-neutral
+payment transactions, webhook events, and farmer payout ledger rows; actual
+farmer bank or mobile-money transfer automation remains manual/ledger-only until
+a separate payout automation boundary is designed.
 
 Invite links use `PUBLIC_APP_URL` and currently resolve to:
 

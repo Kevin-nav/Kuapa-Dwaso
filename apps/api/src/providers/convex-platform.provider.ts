@@ -8,6 +8,8 @@ import type {
   SmsMessageKind,
   SmsProvider,
   SmsTemplateKey,
+  PaymentProvider,
+  PaymentTransactionStatus,
   UploadAccessLevel,
   UploadAssetPurpose,
   UploadRelatedEntityType,
@@ -117,6 +119,67 @@ type ClaimPendingSmsDeliveriesArgs = {
   retryQueuedBefore?: number;
 };
 
+type PrepareBuyerPaymentArgs = {
+  actorUserId: string;
+  buyerOrderId: string;
+  provider: PaymentProvider;
+  idempotencyKey: string;
+  correlationId?: string;
+  currency?: string;
+};
+
+type PreparedBuyerPayment = {
+  _id: string;
+  buyerOrderId: string;
+  buyerId: string;
+  provider: PaymentProvider;
+  providerReference: string;
+  amount: number;
+  currency: string;
+  status: PaymentTransactionStatus;
+  idempotencyKey: string;
+  authorizationUrl?: string;
+  providerAccessCode?: string;
+  buyer?: {
+    userId?: string;
+    phoneNumber?: string;
+  } | null;
+};
+
+type RecordProviderInitializationArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+  rawProviderData?: Record<string, unknown>;
+};
+
+type ReconcileProviderPaymentArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  status: PaymentTransactionStatus;
+  amount?: number;
+  currency?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+  rawProviderData?: Record<string, unknown>;
+};
+
+type RecordProviderEventArgs = {
+  provider: PaymentProvider;
+  providerEventId: string;
+  providerReference?: string;
+  eventType: string;
+  normalizedStatus: PaymentTransactionStatus;
+  amount?: number;
+  currency?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+  rawPayload: Record<string, unknown>;
+};
+
 type ClaimedSmsNotification = {
   notificationId: string;
   recipient: string;
@@ -172,6 +235,30 @@ const claimPendingSmsDeliveries = makeFunctionReference<
   ClaimedSmsNotification[]
 >("notifications:claimPendingSmsDeliveries");
 
+const prepareBuyerPayment = makeFunctionReference<
+  "mutation",
+  PrepareBuyerPaymentArgs,
+  PreparedBuyerPayment
+>("payments:prepareBuyerPayment");
+
+const recordProviderInitialization = makeFunctionReference<
+  "mutation",
+  RecordProviderInitializationArgs,
+  string
+>("payments:recordProviderInitialization");
+
+const reconcileProviderPayment = makeFunctionReference<
+  "mutation",
+  ReconcileProviderPaymentArgs,
+  unknown
+>("payments:reconcileProviderPayment");
+
+const recordProviderEvent = makeFunctionReference<
+  "mutation",
+  RecordProviderEventArgs,
+  unknown
+>("payments:recordProviderEvent");
+
 @Injectable()
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
@@ -205,6 +292,22 @@ export class ConvexPlatformProvider {
 
   async claimPendingSmsDeliveries(args: ClaimPendingSmsDeliveriesArgs): Promise<ClaimedSmsNotification[]> {
     return await this.getClient().mutation(claimPendingSmsDeliveries, args);
+  }
+
+  async prepareBuyerPayment(args: PrepareBuyerPaymentArgs): Promise<PreparedBuyerPayment> {
+    return await this.getClient().mutation(prepareBuyerPayment, args);
+  }
+
+  async recordProviderInitialization(args: RecordProviderInitializationArgs): Promise<string> {
+    return await this.getClient().mutation(recordProviderInitialization, args);
+  }
+
+  async reconcileProviderPayment(args: ReconcileProviderPaymentArgs): Promise<unknown> {
+    return await this.getClient().mutation(reconcileProviderPayment, args);
+  }
+
+  async recordProviderEvent(args: RecordProviderEventArgs): Promise<unknown> {
+    return await this.getClient().mutation(recordProviderEvent, args);
   }
 
   private getClient(): ConvexHttpClient {
