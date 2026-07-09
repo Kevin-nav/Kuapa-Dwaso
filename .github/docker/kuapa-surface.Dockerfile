@@ -2,6 +2,7 @@ FROM node:22-bookworm-slim AS builder
 
 WORKDIR /repo
 
+ENV CI=true
 ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN corepack enable
