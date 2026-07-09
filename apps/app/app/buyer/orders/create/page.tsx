@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
@@ -23,7 +23,7 @@ type InventoryBatchSummary = {
   availableQuantity: number;
 };
 
-export default function CreateOrderPage() {
+function CreateOrderContent() {
   const { principal } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -313,5 +313,13 @@ export default function CreateOrderPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function CreateOrderPage() {
+  return (
+    <Suspense fallback={<div className="skeleton" style={{ width: "100%", height: "320px", borderRadius: "16px" }} />}>
+      <CreateOrderContent />
+    </Suspense>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import type { FormEvent } from "react";
 import {
   createUserWithEmailAndPassword,
@@ -16,7 +16,7 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
 
 type InviteMode = "admin_email" | "warehouse_manager_email" | "warehouse_agent_phone";
 
-export default function InviteAcceptPage() {
+function InviteAcceptContent() {
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<InviteMode>("admin_email");
   const [email, setEmail] = useState("");
@@ -152,5 +152,13 @@ export default function InviteAcceptPage() {
         {error !== undefined && <p className="auth-error">{error}</p>}
       </section>
     </main>
+  );
+}
+
+export default function InviteAcceptPage() {
+  return (
+    <Suspense fallback={<main className="page-shell auth-page"><div className="skeleton" style={{ width: "100%", height: "360px", borderRadius: "16px" }} /></main>}>
+      <InviteAcceptContent />
+    </Suspense>
   );
 }

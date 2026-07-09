@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
@@ -30,7 +30,7 @@ type InventoryBatchSummary = {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export default function InventorySummaryPage() {
+function InventorySummaryContent() {
   const { principal } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -320,5 +320,13 @@ export default function InventorySummaryPage() {
 
       <p className="timestamp">Official warehouse records synced · Connected</p>
     </div>
+  );
+}
+
+export default function InventorySummaryPage() {
+  return (
+    <Suspense fallback={<div className="skeleton" style={{ width: "100%", height: "280px", borderRadius: "16px" }} />}>
+      <InventorySummaryContent />
+    </Suspense>
   );
 }
