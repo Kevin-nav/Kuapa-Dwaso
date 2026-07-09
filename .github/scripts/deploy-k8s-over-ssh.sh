@@ -37,18 +37,30 @@ required KUSTOMIZE_OVERLAY_PATH
 ALLOW_MISSING_KUSTOMIZE_OVERLAY="${ALLOW_MISSING_KUSTOMIZE_OVERLAY:-true}"
 VPS_DEPLOY_WORKDIR="${VPS_DEPLOY_WORKDIR:-$HOME/kuapa-dwaso}"
 
-if [[ ! -d "$VPS_DEPLOY_WORKDIR/.git" ]]; then
+if [[ ! -d "$VPS_DEPLOY_WORKDIR" ]]; then
   if [[ "$ALLOW_MISSING_KUSTOMIZE_OVERLAY" == "true" ]]; then
-    echo "VPS_DEPLOY_WORKDIR $VPS_DEPLOY_WORKDIR is not a git checkout; skipping deployment until manifests are installed."
+    echo "VPS_DEPLOY_WORKDIR $VPS_DEPLOY_WORKDIR is missing; skipping deployment until manifests are installed."
     exit 0
   fi
-  echo "VPS_DEPLOY_WORKDIR $VPS_DEPLOY_WORKDIR must be an existing git checkout." >&2
+  echo "VPS_DEPLOY_WORKDIR $VPS_DEPLOY_WORKDIR must be an existing directory." >&2
   exit 1
 fi
 
 cd "$VPS_DEPLOY_WORKDIR"
-git fetch --quiet origin "$GITHUB_SHA"
-git checkout --quiet "$GITHUB_SHA"
+
+if [[ -d .git ]]; then
+  git fetch --quiet origin "$GITHUB_SHA"
+  git checkout --quiet "$GITHUB_SHA"
+else
+  if [[ -f .kuapa-deploy-sha ]]; then
+    snapshot_sha="$(<.kuapa-deploy-sha)"
+    if [[ "$snapshot_sha" != "$GITHUB_SHA" ]]; then
+      echo "Deployment snapshot SHA $snapshot_sha does not match expected $GITHUB_SHA." >&2
+      exit 1
+    fi
+  fi
+  echo "Using uploaded deployment snapshot for $GITHUB_SHA."
+fi
 
 if [[ ! -d "$KUSTOMIZE_OVERLAY_PATH" ]]; then
   if [[ "$ALLOW_MISSING_KUSTOMIZE_OVERLAY" == "true" ]]; then

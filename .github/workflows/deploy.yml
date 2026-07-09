@@ -107,16 +107,25 @@ jobs:
           VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
           VPS_DEPLOY_KNOWN_HOSTS: ${{ vars.VPS_DEPLOY_KNOWN_HOSTS }}
 
-      - name: Copy deploy script and environment
+      - name: Copy deploy script, environment, and manifest snapshot
         shell: bash
         run: |
           remote_id="kuapa-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           script_path="/tmp/$remote_id.sh"
           env_path="/tmp/$remote_id.env"
+          archive_path="/tmp/$remote_id.tar.gz"
+          workdir_path="/tmp/$remote_id"
 
           write_env() {
             printf '%s=%q\n' "$1" "$2" >> deploy.env
           }
+
+          snapshot_dir="$(mktemp -d)"
+          mkdir -p "$snapshot_dir"
+          cp -R deploy "$snapshot_dir/deploy"
+          printf '%s\n' "${{ steps.deploy.outputs.deploy_sha }}" > "$snapshot_dir/.kuapa-deploy-sha"
+          tar -czf deploy-snapshot.tar.gz -C "$snapshot_dir" .
+          rm -rf "$snapshot_dir"
 
           : > deploy.env
           write_env DEPLOY_ENVIRONMENT "${{ steps.deploy.outputs.deploy_environment }}"
@@ -128,7 +137,7 @@ jobs:
           write_env IMAGE_TAG "${{ steps.deploy.outputs.image_tag }}"
           write_env KUBE_NAMESPACE "${{ steps.deploy.outputs.kube_namespace }}"
           write_env KUSTOMIZE_OVERLAY_PATH "${{ steps.deploy.outputs.kustomize_overlay_path }}"
-          write_env VPS_DEPLOY_WORKDIR "$VPS_DEPLOY_WORKDIR"
+          write_env VPS_DEPLOY_WORKDIR "$workdir_path"
           write_env ALLOW_MISSING_KUSTOMIZE_OVERLAY "$ALLOW_MISSING_KUSTOMIZE_OVERLAY"
           write_env INFISICAL_CLIENT_ID "$INFISICAL_CLIENT_ID"
           write_env INFISICAL_CLIENT_SECRET "$INFISICAL_CLIENT_SECRET"
@@ -145,13 +154,16 @@ jobs:
 
           scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" .github/scripts/deploy-k8s-over-ssh.sh "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:$script_path"
           scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" deploy.env "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:$env_path"
+          scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" deploy-snapshot.tar.gz "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:$archive_path"
+          ssh -i ~/.ssh/kuapa_deploy -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST" "rm -rf '$workdir_path' && mkdir -p '$workdir_path' && tar -xzf '$archive_path' -C '$workdir_path'"
           echo "script_path=$script_path" >> "$GITHUB_ENV"
           echo "env_path=$env_path" >> "$GITHUB_ENV"
+          echo "archive_path=$archive_path" >> "$GITHUB_ENV"
+          echo "workdir_path=$workdir_path" >> "$GITHUB_ENV"
         env:
           VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
           VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
           VPS_DEPLOY_PORT: ${{ vars.VPS_DEPLOY_PORT || '22' }}
-          VPS_DEPLOY_WORKDIR: ${{ vars.VPS_DEPLOY_WORKDIR }}
           ALLOW_MISSING_KUSTOMIZE_OVERLAY: ${{ vars.ALLOW_MISSING_KUSTOMIZE_OVERLAY || 'true' }}
           INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
           INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
@@ -168,7 +180,7 @@ jobs:
       - name: Run remote Kubernetes deployment
         shell: bash
         run: |
-          ssh -i ~/.ssh/kuapa_deploy -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST" "chmod 700 '$script_path' && '$script_path' '$env_path'"
+          ssh -i ~/.ssh/kuapa_deploy -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST" "chmod 700 '$script_path' && '$script_path' '$env_path'; status=\$?; rm -rf '$workdir_path' '$archive_path'; exit \$status"
         env:
           VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
           VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}

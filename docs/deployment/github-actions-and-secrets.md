@@ -81,10 +81,11 @@ to use a kubeconfig directly in GitHub Actions, the Kubernetes API must be
 reachable from GitHub-hosted runners, strongly authenticated, IP/rate protected
 where practical, and the kubeconfig must be stored as an environment secret.
 
-The deployment script expects the VPS to have a repo checkout at
-`VPS_DEPLOY_WORKDIR`, defaulting to `~/kuapa-dwaso`. It fetches the target
-commit, copies the selected Kustomize overlay to a temp directory, rewrites the
-five image tags, and applies the overlay.
+The deploy job uploads a deployment snapshot from the checked-out GitHub
+Actions workspace to a temporary directory on the VPS. The deployment script
+uses that uploaded snapshot, copies the selected Kustomize overlay to a temp
+directory, rewrites the five image tags, and applies the overlay. The VPS does
+not need GitHub repo credentials or a persistent checkout for the default path.
 
 Until the Kubernetes lane lands manifests, `ALLOW_MISSING_KUSTOMIZE_OVERLAY`
 defaults to `true`. With that default, deploy jobs skip successfully when
@@ -213,7 +214,6 @@ IMAGE_REGISTRY
 IMAGE_REPOSITORY_PREFIX
 KUBE_NAMESPACE
 KUSTOMIZE_OVERLAY_PATH
-VPS_DEPLOY_WORKDIR
 ALLOW_MISSING_KUSTOMIZE_OVERLAY
 INFISICAL_ENVIRONMENT_SLUG
 INFISICAL_SECRET_PATH
@@ -228,7 +228,6 @@ IMAGE_REGISTRY=ghcr.io
 IMAGE_REPOSITORY_PREFIX=ghcr.io/<owner>/<repo>
 KUBE_NAMESPACE=kuapa-dwaso-<environment>
 KUSTOMIZE_OVERLAY_PATH=deploy/k8s/overlays/<environment>
-VPS_DEPLOY_WORKDIR=~/kuapa-dwaso
 ALLOW_MISSING_KUSTOMIZE_OVERLAY=true
 INFISICAL_ENVIRONMENT_SLUG=<environment>
 INFISICAL_SECRET_PATH=/
@@ -245,12 +244,14 @@ ALLOW_MISSING_KUSTOMIZE_OVERLAY=false
 
 The restricted deploy user needs:
 
-- `git`
 - `kubectl`
 - `kustomize`
 - optional `infisical`
-- read access to the repo checkout at `VPS_DEPLOY_WORKDIR`
 - Kubernetes RBAC to update the target namespace only
+
+`git` is optional on the VPS for the default workflow. It is only needed if an
+operator runs `.github/scripts/deploy-k8s-over-ssh.sh` against a persistent
+checkout instead of the uploaded GitHub Actions snapshot.
 
 The VPS or Kubernetes cluster must be able to pull the selected images from
 GHCR. If the GHCR packages remain private, create a Kubernetes image pull
