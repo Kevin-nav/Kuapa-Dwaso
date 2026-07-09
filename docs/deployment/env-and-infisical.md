@@ -14,7 +14,9 @@ deployment target is intentionally local/mock-only.
 
 API-only secrets must stay server-side: Firebase Admin credentials, Resend,
 Arkesel, notification delivery, Paystack secret/webhook keys, and Cloudflare R2
-credentials. Frontend apps must receive only `NEXT_PUBLIC_*` values.
+credentials. The Cloudflare Tunnel token is deployment-only secret material and
+also belongs in Infisical. Frontend apps must receive only `NEXT_PUBLIC_*`
+values.
 
 Store Firebase Admin credentials as `FIREBASE_SERVICE_ACCOUNT_JSON_BASE64`, not
 as raw JSON. Base64 is packaging for an env var; Infisical provides encryption
@@ -59,6 +61,13 @@ configuration.
 
 Keep Cloudflare R2 private. `CLOUDFLARE_R2_PUBLIC_BASE_URL` is intentionally
 unsupported and should not be present in any Infisical environment.
+
+Cloudflare Tunnel uses dashboard-managed token mode. Store each environment's
+tunnel token in that environment's Infisical inventory as
+`CLOUDFLARE_TUNNEL_TOKEN`. The Infisical Operator syncs it into the
+`cloudflare-tunnel-token` Kubernetes Secret, and the `cloudflared` Deployment
+reads it without a `credentials.json` file. GitHub Secrets do not hold
+Cloudflare Tunnel tokens.
 
 ## Firebase Admin Base64
 

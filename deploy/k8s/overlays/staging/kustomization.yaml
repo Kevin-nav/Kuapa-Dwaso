@@ -9,7 +9,6 @@ resources:
   - infisical-cluster-role-binding.yaml
 
 patches:
-  - path: cloudflared-config.yaml
   - target:
       group: secrets.infisical.com
       version: v1beta1
@@ -42,6 +41,9 @@ patches:
         value: staging
       - op: replace
         path: /spec/targets/0/namespace
+        value: kuapa-dwaso-staging
+      - op: replace
+        path: /spec/targets/1/namespace
         value: kuapa-dwaso-staging
 
 images:

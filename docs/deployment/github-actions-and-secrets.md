@@ -7,9 +7,9 @@ This repo uses GitHub-hosted runners only.
 - Pushes to `production` build images and then deploy `production`.
 - Manual dispatch can rebuild or redeploy either environment.
 
-Runtime application secrets and build-time public client values stay in
-Infisical. GitHub stores only deployment/bootstrap credentials, the Infisical
-machine identity, and environment routing metadata.
+Runtime application secrets, Cloudflare Tunnel tokens, and build-time public
+client values stay in Infisical. GitHub stores only deployment/bootstrap
+credentials, the Infisical machine identity, and environment routing metadata.
 
 Reference docs:
 
@@ -180,6 +180,7 @@ Do not store app runtime secrets in GitHub. These belong in Infisical:
 - Arkesel API key and webhook signing material
 - Paystack secret key and webhook secret
 - Cloudflare R2 access key and secret
+- Cloudflare Tunnel token
 - Notification delivery secret
 - Convex server/runtime secrets
 
@@ -258,8 +259,10 @@ GHCR. If the GHCR packages remain private, create a Kubernetes image pull
 secret in each namespace. Do not store that pull secret in this repo.
 
 Public traffic enters through Cloudflare Tunnel. The GitHub workflows do not
-need Cloudflare API credentials unless a future workflow automates tunnel
-creation or DNS changes.
+store Cloudflare Tunnel tokens and do not need Cloudflare API credentials unless
+a future workflow automates tunnel creation or DNS changes. Dashboard-managed
+tunnel tokens belong in Infisical as `CLOUDFLARE_TUNNEL_TOKEN` for each
+environment.
 
 ## Branch Protection
 

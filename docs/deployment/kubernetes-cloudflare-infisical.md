@@ -17,8 +17,8 @@ deploy/
 
 The base contains the shared Deployments, Services, `cloudflared` deployment,
 Infisical Operator resources, and the notification delivery CronJob. Overlays
-set namespaces, environment-specific tunnel hostnames, Infisical environment
-slugs, and image tags.
+set namespaces, Infisical environment slugs, and image tags. Cloudflare Tunnel
+public hostnames and service routes are managed in the Cloudflare dashboard.
 
 ## Images
 
@@ -52,28 +52,27 @@ manifests use the recommended `v1beta1` `InfisicalConnection`,
 `InfisicalAuth`, and `InfisicalStaticSecret` resources. Infisical documents the
 operator as syncing secrets into Kubernetes and keeping managed Secrets updated.
 
-Create these bootstrap Secrets in each namespace before applying workloads:
+Create this bootstrap Secret in each namespace before applying workloads:
 
 ```text
 kubectl create namespace kuapa-dwaso-staging
 kubectl -n kuapa-dwaso-staging create secret generic infisical-machine-identity --from-literal=identityId=<staging-machine-identity-id>
-kubectl -n kuapa-dwaso-staging create secret generic cloudflare-tunnel-credentials --from-file=credentials.json=<staging-tunnel-credentials.json>
 
 kubectl create namespace kuapa-dwaso-production
 kubectl -n kuapa-dwaso-production create secret generic infisical-machine-identity --from-literal=identityId=<production-machine-identity-id>
-kubectl -n kuapa-dwaso-production create secret generic cloudflare-tunnel-credentials --from-file=credentials.json=<production-tunnel-credentials.json>
 ```
 
-The committed manifests do not contain machine identity IDs, tunnel credential
-JSON, provider keys, Firebase Admin JSON, R2 credentials, or webhook secrets.
+The committed manifests do not contain machine identity IDs, Cloudflare Tunnel
+tokens, provider keys, Firebase Admin JSON, R2 credentials, or webhook secrets.
 
 ## Infisical Setup
 
 Create one Infisical project or project slug for Kuapa Dwaso and add separate
 `staging` and `prod` environments. Copy `.env.example.staging` into the staging
 environment and `.env.example.prod` into production. Store
-`FIREBASE_SERVICE_ACCOUNT_JSON_BASE64` as base64-encoded JSON, as described in
-`docs/deployment/env-and-infisical.md`.
+`FIREBASE_SERVICE_ACCOUNT_JSON_BASE64` as base64-encoded JSON and
+`CLOUDFLARE_TUNNEL_TOKEN` as the Cloudflare dashboard tunnel token for that
+environment, as described in `docs/deployment/env-and-infisical.md`.
 
 Patch `<infisical-project-slug>` in:
 
@@ -88,18 +87,20 @@ Firebase allowed domains must include every deployed origin.
 
 ## Cloudflare Tunnel Setup
 
-Create separate Cloudflare tunnels for staging and production. The manifests use
-locally managed tunnel credentials mounted as `credentials.json`, with
-`cloudflared` configured by ConfigMap. Cloudflare's Tunnel configuration file
-supports hostname-to-service ingress rules and requires a final catch-all rule;
-the overlays include that `http_status:404` rule.
+Create separate Cloudflare dashboard-managed tunnels for staging and
+production. Do not create Kubernetes `credentials.json` Secrets and do not copy
+tunnel credentials onto the VPS. Copy each tunnel's dashboard token into the
+matching Infisical environment as `CLOUDFLARE_TUNNEL_TOKEN`.
 
-Patch the tunnel IDs and hostnames in:
+The Infisical Operator syncs `CLOUDFLARE_TUNNEL_TOKEN` into the
+`cloudflare-tunnel-token` Kubernetes Secret. The `cloudflared` Deployment reads
+it as `TUNNEL_TOKEN` and starts with:
 
 ```text
-deploy/k8s/overlays/staging/cloudflared-config.yaml
-deploy/k8s/overlays/production/cloudflared-config.yaml
+cloudflared tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token <token>
 ```
+
+Configure public hostnames and service routes in the Cloudflare dashboard.
 
 Expected hostname shape:
 
@@ -116,6 +117,31 @@ admin.<domain>            -> admin
 ops.<domain>              -> ops
 api.<domain>              -> api
 ```
+
+Use these service URLs for staging:
+
+```text
+http://www.kuapa-dwaso-staging.svc.cluster.local:3000
+http://app.kuapa-dwaso-staging.svc.cluster.local:3000
+http://admin.kuapa-dwaso-staging.svc.cluster.local:3000
+http://ops.kuapa-dwaso-staging.svc.cluster.local:3000
+http://api.kuapa-dwaso-staging.svc.cluster.local:4000
+```
+
+Use these service URLs for production:
+
+```text
+http://www.kuapa-dwaso-production.svc.cluster.local:3000
+http://app.kuapa-dwaso-production.svc.cluster.local:3000
+http://admin.kuapa-dwaso-production.svc.cluster.local:3000
+http://ops.kuapa-dwaso-production.svc.cluster.local:3000
+http://api.kuapa-dwaso-production.svc.cluster.local:4000
+```
+
+To rotate a tunnel token, update `CLOUDFLARE_TUNNEL_TOKEN` in the matching
+Infisical environment, wait for the operator to refresh the Kubernetes Secret,
+then restart or roll the `cloudflared` Deployment if the pods do not restart
+through your normal deployment path.
 
 ## Apply And Verify
 
@@ -174,10 +200,11 @@ response, and back-port any emergency change into the manifests afterward.
 ## Production Hardening Notes
 
 Protect the `production` branch before enabling production automation. Rotate
-Infisical machine identities, provider keys, tunnel credentials, and Firebase
-Admin service accounts on a schedule and after personnel changes. Keep R2
-buckets private-only; this platform uses signed PUT and signed GET URLs, not a
-public bucket URL.
+Infisical machine identities, provider keys, Cloudflare Tunnel tokens, and
+Firebase Admin service accounts on a schedule and after personnel changes. Keep
+R2 buckets private-only; this platform uses signed PUT and signed GET URLs, not
+a public bucket URL. No public R2 bucket is involved in Cloudflare Tunnel
+routing.
 
 Configure provider webhooks to the deployed API origin:
 

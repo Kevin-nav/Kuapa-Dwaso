@@ -93,3 +93,11 @@ spec:
           API_AUTH_DISABLED: "{{ .API_AUTH_DISABLED.Value }}"
           NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK: "{{ .NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK.Value }}"
           NEXT_PUBLIC_OPS_ACTOR_USER_ID: "{{ .NEXT_PUBLIC_OPS_ACTOR_USER_ID.Value }}"
+    - name: cloudflare-tunnel-token
+      namespace: default
+      kind: Secret
+      creationPolicy: Owner
+      template:
+        engineVersion: v1
+        data:
+          CLOUDFLARE_TUNNEL_TOKEN: "{{ .CLOUDFLARE_TUNNEL_TOKEN.Value }}"
