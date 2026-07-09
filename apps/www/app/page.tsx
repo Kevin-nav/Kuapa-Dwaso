@@ -43,8 +43,9 @@ const audiences = [
 
 function getAppAuthHref() {
   const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app-staging.kuapadwaso.com";
+  const flatStagingUrl = appUrl.replace(/^https:\/\/app\.staging\./, "https://app-staging.");
 
-  return new URL("/signup", appUrl).toString();
+  return new URL("/signup", flatStagingUrl).toString();
 }
 
 export default function LandingPage() {
