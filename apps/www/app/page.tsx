@@ -26,42 +26,49 @@ const steps = [
 const audiences = [
   {
     title: "For Farmers",
-    href: "/farmers",
+    href: "#how",
     body: "Store produce locally, track storage fees, see sale status, and receive one-way SMS updates.",
   },
   {
     title: "For Buyers",
-    href: "/buyers",
+    href: "#buyers",
     body: "Source verified produce from warehouse stock by crop, grade, location, and dispatch day.",
   },
   {
     title: "For Warehouses",
-    href: "/warehouses",
+    href: "#warehouse",
     body: "Run intake, receipts, storage fee tracking, reservations, sales, dispatches, and audit-ready operations.",
   },
 ] as const;
 
+function getAppAuthHref() {
+  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.staging.kuapadwaso.com";
+
+  return new URL("/signup", appUrl).toString();
+}
 
 export default function LandingPage() {
+  const appAuthHref = getAppAuthHref();
+
   return (
     <div className="min-h-screen bg-brand-surface text-brand-ink">
-      <SiteHeader />
+      <SiteHeader joinHref={appAuthHref} />
       <main>
-        <HeroSection />
+        <HeroSection appAuthHref={appAuthHref} />
         <ProofBar />
         <WarehouseSection />
         <HowItWorks />
         <AudienceCards />
-        <FinalCta />
+        <FinalCta appAuthHref={appAuthHref} />
       </main>
-      <SiteFooter />
+      <SiteFooter appAuthHref={appAuthHref} />
     </div>
   );
 }
 
 
 
-function HeroSection() {
+function HeroSection({ appAuthHref }: { appAuthHref: string }) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
@@ -93,10 +100,10 @@ function HeroSection() {
             sales, and dispatches in one system.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
-            <a href="/farmers" className="btn-primary">
-              Store produce
+            <a href={appAuthHref} className="btn-primary">
+              Join the pilot
             </a>
-            <a href="/buyers" className="btn-ghost">
+            <a href="#buyers" className="btn-ghost">
               Source inventory
             </a>
           </div>
@@ -203,7 +210,7 @@ function AudienceCards() {
   );
 }
 
-function FinalCta() {
+function FinalCta({ appAuthHref }: { appAuthHref: string }) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
@@ -216,11 +223,11 @@ function FinalCta() {
           update.
         </p>
         <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
-          <a href="/join" className="btn-light">
+          <a href={appAuthHref} className="btn-light">
             Join the pilot
           </a>
-          <a href="/contact" className="btn-ghost">
-            Talk to us
+          <a href="#buyers" className="btn-ghost">
+            Explore roles
           </a>
         </div>
       </div>
@@ -228,7 +235,7 @@ function FinalCta() {
   );
 }
 
-function SiteFooter() {
+function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
   return (
     <footer className="bg-brand-ink py-12 text-white sm:py-16">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
@@ -248,18 +255,18 @@ function SiteFooter() {
             title="Product"
             links={[
               ["How it works", "#how"],
-              ["For farmers", "/farmers"],
-              ["For buyers", "/buyers"],
-              ["For warehouses", "/warehouses"],
+              ["For farmers", "#how"],
+              ["For buyers", "#buyers"],
+              ["For warehouses", "#warehouse"],
             ]}
           />
           <FooterLinks
             title="Company"
             links={[
-              ["About", "/about"],
-              ["Partners", "/partners"],
-              ["Contact", "/contact"],
-              ["Join the pilot", "/join"],
+              ["About", "#how"],
+              ["Partners", "#warehouse"],
+              ["Contact", appAuthHref],
+              ["Join the pilot", appAuthHref],
             ]}
           />
           <div>

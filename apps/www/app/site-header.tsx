@@ -21,7 +21,11 @@ export function Logo({ className }: { className?: string }) {
   );
 }
 
-export function SiteHeader() {
+type SiteHeaderProps = {
+  joinHref: string;
+};
+
+export function SiteHeader({ joinHref }: SiteHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -58,14 +62,14 @@ export function SiteHeader() {
             </a>
           ))}
           <a
-            href="/join"
+            href={joinHref}
             className="rounded-full bg-brand-field px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-field-light"
           >
             Join the pilot
           </a>
         </div>
 
-        <a href="/join" className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden">
+        <a href={joinHref} className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden">
           Join
         </a>
       </nav>
