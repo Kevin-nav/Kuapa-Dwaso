@@ -100,8 +100,9 @@ else
   echo "Infisical sync skipped; deploy expects runtime secrets to already exist in Kubernetes."
 fi
 
-tmp_overlay="$(mktemp -d)"
-cp -R "$KUSTOMIZE_OVERLAY_PATH/." "$tmp_overlay/"
+tmp_kustomize_workdir="$(mktemp -d)"
+cp -R deploy "$tmp_kustomize_workdir/deploy"
+tmp_overlay="$tmp_kustomize_workdir/$KUSTOMIZE_OVERLAY_PATH"
 
 pushd "$tmp_overlay" >/dev/null
 kustomize edit set image "${K8S_IMAGE_NAME_WWW:-kuapa-dwaso/www}=${IMAGE_REPOSITORY_PREFIX}/www:${IMAGE_TAG}"
@@ -112,4 +113,4 @@ kustomize edit set image "${K8S_IMAGE_NAME_API:-kuapa-dwaso/api}=${IMAGE_REPOSIT
 popd >/dev/null
 
 kubectl -n "$KUBE_NAMESPACE" apply -k "$tmp_overlay"
-rm -rf "$tmp_overlay"
+rm -rf "$tmp_kustomize_workdir"
