@@ -170,7 +170,7 @@ jobs:
           INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
           INFISICAL_SECRET_PATH: ${{ vars.INFISICAL_SECRET_PATH || '/' }}
           INFISICAL_SYNC_REQUIRED: ${{ vars.INFISICAL_SYNC_REQUIRED || 'false' }}
-          K8S_RUNTIME_SECRET_NAME: ${{ vars.K8S_RUNTIME_SECRET_NAME || 'kuapa-dwaso-runtime-env' }}
+          K8S_RUNTIME_SECRET_NAME: ${{ vars.K8S_RUNTIME_SECRET_NAME || 'kuapa-dwaso-runtime' }}
           K8S_IMAGE_NAME_WWW: ${{ vars.K8S_IMAGE_NAME_WWW || 'kuapa-dwaso/www' }}
           K8S_IMAGE_NAME_APP: ${{ vars.K8S_IMAGE_NAME_APP || 'kuapa-dwaso/app' }}
           K8S_IMAGE_NAME_ADMIN: ${{ vars.K8S_IMAGE_NAME_ADMIN || 'kuapa-dwaso/admin' }}

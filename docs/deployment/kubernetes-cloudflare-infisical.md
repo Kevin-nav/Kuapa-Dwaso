@@ -52,18 +52,22 @@ manifests use the recommended `v1beta1` `InfisicalConnection`,
 `InfisicalAuth`, and `InfisicalStaticSecret` resources. Infisical documents the
 operator as syncing secrets into Kubernetes and keeping managed Secrets updated.
 
-Create this bootstrap Secret in each namespace before applying workloads:
+The manifests use Infisical Universal Auth. Create this bootstrap Secret in
+each namespace before applying workloads, using the environment-scoped
+`INFISICAL_CLIENT_ID` and `INFISICAL_CLIENT_SECRET` values from `.env.github`
+or the matching GitHub Environment secrets:
 
 ```text
 kubectl create namespace kuapa-dwaso-staging
-kubectl -n kuapa-dwaso-staging create secret generic infisical-machine-identity --from-literal=identityId=<staging-machine-identity-id>
+kubectl -n kuapa-dwaso-staging create secret generic infisical-universal-auth --from-literal=clientId=<staging-client-id> --from-literal=clientSecret=<staging-client-secret>
 
 kubectl create namespace kuapa-dwaso-production
-kubectl -n kuapa-dwaso-production create secret generic infisical-machine-identity --from-literal=identityId=<production-machine-identity-id>
+kubectl -n kuapa-dwaso-production create secret generic infisical-universal-auth --from-literal=clientId=<production-client-id> --from-literal=clientSecret=<production-client-secret>
 ```
 
-The committed manifests do not contain machine identity IDs, Cloudflare Tunnel
-tokens, provider keys, Firebase Admin JSON, R2 credentials, or webhook secrets.
+The committed manifests do not contain Universal Auth client secrets,
+Cloudflare Tunnel tokens, provider keys, Firebase Admin JSON, R2 credentials,
+or webhook secrets.
 
 ## Infisical Setup
 
@@ -74,7 +78,9 @@ environment and `.env.example.prod` into production. Store
 `CLOUDFLARE_TUNNEL_TOKEN` as the Cloudflare dashboard tunnel token for that
 environment, as described in `docs/deployment/env-and-infisical.md`.
 
-Patch `<infisical-project-slug>` in:
+The `InfisicalStaticSecret` sources use the Infisical project ID. Keep the
+project ID in GitHub Environment variable `INFISICAL_PROJECT_ID` and in the
+manifest overlays when updating the deployment foundation:
 
 ```text
 deploy/k8s/overlays/staging/kustomization.yaml

@@ -9,7 +9,8 @@ This repo uses GitHub-hosted runners only.
 
 Runtime application secrets, Cloudflare Tunnel tokens, and build-time public
 client values stay in Infisical. GitHub stores only deployment/bootstrap
-credentials, the Infisical machine identity, and environment routing metadata.
+credentials, the Infisical Universal Auth client credentials, and environment
+routing metadata.
 
 Reference docs:
 
@@ -115,17 +116,20 @@ Override them with `K8S_IMAGE_NAME_WWW`, `K8S_IMAGE_NAME_APP`,
 `K8S_IMAGE_NAME_ADMIN`, `K8S_IMAGE_NAME_OPS`, and `K8S_IMAGE_NAME_API` if the
 manifests use different names.
 
-Kubernetes workloads should read runtime app secrets from an Infisical-backed
-Kubernetes Secret, default name:
+Kubernetes workloads read runtime app secrets from the Infisical Operator
+managed Kubernetes Secret:
 
 ```text
-kuapa-dwaso-runtime-env
+kuapa-dwaso-runtime
 ```
 
-The workflow can create/update that Secret with the Infisical CLI on the VPS
-when the deploy user has `infisical` installed and the Infisical variables below
-are configured. Otherwise, another controller or manual sync process must keep
-the runtime Secret current.
+The operator authenticates with a namespace-local bootstrap Secret named
+`infisical-universal-auth` containing `clientId` and `clientSecret`. The
+staging bootstrap Secret can be created from Kevin's local `.env.github`
+without writing the values to the VPS filesystem. The GitHub Actions deploy
+script can still export directly with the Infisical CLI as a fallback when the
+CLI is installed on the VPS and `INFISICAL_SYNC_REQUIRED` is enabled, but the
+preferred runtime sync path is the operator.
 
 ## GitHub Environments
 
@@ -172,7 +176,8 @@ for first setup but weaker because it trusts the key observed at deploy time.
 The SSH key should belong to a restricted VPS user that can run `kubectl` only
 for this deployment path. Do not use a personal admin SSH key.
 
-Do not store app runtime secrets in GitHub. These belong in Infisical:
+Do not store app runtime secrets or Cloudflare Tunnel tokens in GitHub. These
+belong in Infisical:
 
 - Build-time public browser values, including all `NEXT_PUBLIC_*` values below
 - Firebase Admin service account

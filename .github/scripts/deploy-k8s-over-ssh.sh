@@ -85,7 +85,7 @@ kubectl get namespace "$KUBE_NAMESPACE" >/dev/null
 if command -v infisical >/dev/null 2>&1 && [[ -n "${INFISICAL_PROJECT_ID:-}" && -n "${INFISICAL_CLIENT_ID:-}" && -n "${INFISICAL_CLIENT_SECRET:-}" ]]; then
   INFISICAL_ENVIRONMENT_SLUG="${INFISICAL_ENVIRONMENT_SLUG:-$DEPLOY_ENVIRONMENT}"
   INFISICAL_SECRET_PATH="${INFISICAL_SECRET_PATH:-/}"
-  K8S_RUNTIME_SECRET_NAME="${K8S_RUNTIME_SECRET_NAME:-kuapa-dwaso-runtime-env}"
+  K8S_RUNTIME_SECRET_NAME="${K8S_RUNTIME_SECRET_NAME:-kuapa-dwaso-runtime}"
   tmp_env="$(mktemp)"
   trap 'rm -f "$tmp_env"; cleanup' EXIT
 

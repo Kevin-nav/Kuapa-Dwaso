@@ -69,6 +69,12 @@ tunnel token in that environment's Infisical inventory as
 reads it without a `credentials.json` file. GitHub Secrets do not hold
 Cloudflare Tunnel tokens.
 
+Kubernetes bootstraps the Infisical Operator with Universal Auth credentials in
+the namespace-local `infisical-universal-auth` Secret. That Secret contains
+only `clientId` and `clientSecret`; application runtime values continue to live
+in Infisical and are synced into `kuapa-dwaso-runtime` and
+`cloudflare-tunnel-token`.
+
 ## Firebase Admin Base64
 
 Download the Firebase Admin service-account JSON from the Firebase console, then

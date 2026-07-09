@@ -6,7 +6,6 @@ namespace: kuapa-dwaso-production
 resources:
   - ../../base
   - namespace.yaml
-  - infisical-cluster-role-binding.yaml
 
 patches:
   - target:
@@ -19,10 +18,10 @@ patches:
         path: /spec/infisicalConnectionRef/namespace
         value: kuapa-dwaso-production
       - op: replace
-        path: /spec/kubernetes/identityIdRef/namespace
+        path: /spec/universal/clientIdRef/namespace
         value: kuapa-dwaso-production
       - op: replace
-        path: /spec/kubernetes/serviceAccountRef/namespace
+        path: /spec/universal/clientSecretRef/namespace
         value: kuapa-dwaso-production
   - target:
       group: secrets.infisical.com
@@ -34,8 +33,8 @@ patches:
         path: /spec/infisicalAuthRef/namespace
         value: kuapa-dwaso-production
       - op: replace
-        path: /spec/sources/0/projectSlug
-        value: <infisical-project-slug>
+        path: /spec/sources/0/projectId
+        value: 1b3b07fb-3a1e-472b-be1c-8a21557f77b9
       - op: replace
         path: /spec/sources/0/environmentSlug
         value: prod
