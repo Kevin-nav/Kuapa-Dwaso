@@ -107,15 +107,21 @@ cloudflared tunnel --no-autoupdate --metrics 0.0.0.0:2000 run --token <token>
 ```
 
 Configure public hostnames and service routes in the Cloudflare dashboard.
+For staging on Cloudflare Universal SSL, keep each public hostname at one
+subdomain level under the zone. Names such as `app.staging.<domain>` are valid
+DNS names, but the free Universal SSL certificate does not cover that
+multi-level hostname. Use flat staging names such as `app-staging.<domain>`,
+or enable Total TLS / Advanced Certificate Manager / a Custom Certificate that
+explicitly covers deeper staging hostnames.
 
 Expected hostname shape:
 
 ```text
 staging.<domain>          -> www
-app.staging.<domain>      -> app
-admin.staging.<domain>    -> admin
-ops.staging.<domain>      -> ops
-api.staging.<domain>      -> api
+app-staging.<domain>      -> app
+admin-staging.<domain>    -> admin
+ops-staging.<domain>      -> ops
+api-staging.<domain>      -> api
 
 <domain>                  -> www
 app.<domain>              -> app
