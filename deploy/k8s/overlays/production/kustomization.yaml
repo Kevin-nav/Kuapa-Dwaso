@@ -46,18 +46,18 @@ patches:
         value: kuapa-dwaso-production
 
 images:
-  - name: ghcr.io/kuapa-dwaso/www
-    newName: ghcr.io/kuapa-dwaso/www
+  - name: kuapa-dwaso/www
+    newName: kuapa-dwaso/www
     newTag: production
-  - name: ghcr.io/kuapa-dwaso/app
-    newName: ghcr.io/kuapa-dwaso/app
+  - name: kuapa-dwaso/app
+    newName: kuapa-dwaso/app
     newTag: production
-  - name: ghcr.io/kuapa-dwaso/admin
-    newName: ghcr.io/kuapa-dwaso/admin
+  - name: kuapa-dwaso/admin
+    newName: kuapa-dwaso/admin
     newTag: production
-  - name: ghcr.io/kuapa-dwaso/ops
-    newName: ghcr.io/kuapa-dwaso/ops
+  - name: kuapa-dwaso/ops
+    newName: kuapa-dwaso/ops
     newTag: production
-  - name: ghcr.io/kuapa-dwaso/api
-    newName: ghcr.io/kuapa-dwaso/api
+  - name: kuapa-dwaso/api
+    newName: kuapa-dwaso/api
     newTag: production

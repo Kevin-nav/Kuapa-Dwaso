@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: www
-          image: ghcr.io/kuapa-dwaso/www:latest
+          image: kuapa-dwaso/www:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -80,7 +80,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/kuapa-dwaso/app:latest
+          image: kuapa-dwaso/app:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -144,7 +144,7 @@ spec:
     spec:
       containers:
         - name: admin
-          image: ghcr.io/kuapa-dwaso/admin:latest
+          image: kuapa-dwaso/admin:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -208,7 +208,7 @@ spec:
     spec:
       containers:
         - name: ops
-          image: ghcr.io/kuapa-dwaso/ops:latest
+          image: kuapa-dwaso/ops:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -272,7 +272,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/kuapa-dwaso/api:latest
+          image: kuapa-dwaso/api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

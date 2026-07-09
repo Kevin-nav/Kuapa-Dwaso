@@ -13,13 +13,13 @@ labels:
       app.kubernetes.io/managed-by: kustomize
 
 images:
-  - name: ghcr.io/kuapa-dwaso/www
+  - name: kuapa-dwaso/www
     newTag: latest
-  - name: ghcr.io/kuapa-dwaso/app
+  - name: kuapa-dwaso/app
     newTag: latest
-  - name: ghcr.io/kuapa-dwaso/admin
+  - name: kuapa-dwaso/admin
     newTag: latest
-  - name: ghcr.io/kuapa-dwaso/ops
+  - name: kuapa-dwaso/ops
     newTag: latest
-  - name: ghcr.io/kuapa-dwaso/api
+  - name: kuapa-dwaso/api
     newTag: latest
