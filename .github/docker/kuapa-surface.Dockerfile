@@ -37,7 +37,6 @@ ENV NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 ENV START_COMMAND=$START_COMMAND
 
 RUN corepack pnpm --filter "$PACKAGE_NAME" build
-RUN corepack pnpm prune --prod
 
 FROM node:22-bookworm-slim AS runtime
 

@@ -18,6 +18,11 @@ spec:
         - name: www
           image: kuapa-dwaso/www:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - cd apps/www && corepack pnpm exec next start -H 0.0.0.0 -p ${PORT:-3000}
           ports:
             - name: http
               containerPort: 3000
@@ -82,6 +87,11 @@ spec:
         - name: app
           image: kuapa-dwaso/app:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - cd apps/app && corepack pnpm exec next start -H 0.0.0.0 -p ${PORT:-3000}
           ports:
             - name: http
               containerPort: 3000
@@ -146,6 +156,11 @@ spec:
         - name: admin
           image: kuapa-dwaso/admin:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - cd apps/admin && corepack pnpm exec next start -H 0.0.0.0 -p ${PORT:-3000}
           ports:
             - name: http
               containerPort: 3000
@@ -210,6 +225,11 @@ spec:
         - name: ops
           image: kuapa-dwaso/ops:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - cd apps/ops && corepack pnpm exec next start -H 0.0.0.0 -p ${PORT:-3000}
           ports:
             - name: http
               containerPort: 3000
@@ -274,6 +294,11 @@ spec:
         - name: api
           image: kuapa-dwaso/api:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+          args:
+            - node apps/api/dist/main.js
           ports:
             - name: http
               containerPort: 4000
