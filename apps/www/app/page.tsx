@@ -42,17 +42,15 @@ const audiences = [
 ] as const;
 
 function getAppAuthHref() {
-  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app-staging.kuapadwaso.com";
-  const flatStagingUrl = appUrl.replace(/^https:\/\/app\.staging\./, "https://app-staging.");
+  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.kuapadwaso.com";
 
-  return new URL("/signup", flatStagingUrl).toString();
+  return new URL("/signup", appUrl).toString();
 }
 
 function getAppLoginHref() {
-  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app-staging.kuapadwaso.com";
-  const flatStagingUrl = appUrl.replace(/^https:\/\/app\.staging\./, "https://app-staging.");
+  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.kuapadwaso.com";
 
-  return new URL("/", flatStagingUrl).toString();
+  return new URL("/", appUrl).toString();
 }
 
 export default function LandingPage() {

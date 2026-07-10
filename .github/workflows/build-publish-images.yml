@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 35
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'production' && 'production' || 'staging') }}
     env:
-      FIREBASE_AUTH_ORIGINS: ${{ ((github.event_name == 'workflow_dispatch' && inputs.environment == 'production') || github.ref_name == 'production') && 'https://app.kuapadwaso.com,https://ops.kuapadwaso.com,https://admin.kuapadwaso.com' || 'https://app-staging.kuapadwaso.com,https://ops-staging.kuapadwaso.com,https://admin-staging.kuapadwaso.com' }}
+      FIREBASE_AUTH_ORIGINS: https://app.kuapadwaso.com,https://ops.kuapadwaso.com,https://admin.kuapadwaso.com
 
     strategy:
       fail-fast: false
