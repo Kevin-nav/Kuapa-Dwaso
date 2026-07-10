@@ -17,7 +17,7 @@ const userStatus = v.union(
   v.literal("deactivated")
 );
 
-const authMethod = v.union(v.literal("phone"), v.literal("email_password"));
+const authMethod = v.union(v.literal("phone"), v.literal("email_password"), v.literal("google"));
 const mfaRequirement = v.union(
   v.literal("not_required"),
   v.literal("sms_required"),
@@ -148,6 +148,15 @@ const buyerType = v.union(
   v.literal("exporter"),
   v.literal("institution"),
   v.literal("other")
+);
+
+const enhancedVerificationStatus = v.union(
+  v.literal("not_required"),
+  v.literal("required"),
+  v.literal("pending_review"),
+  v.literal("verified"),
+  v.literal("changes_requested"),
+  v.literal("rejected")
 );
 
 const buyerOrderStatus = v.union(
@@ -637,8 +646,18 @@ export default defineSchema({
     phoneNumber: v.string(),
     buyerType,
     organizationName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    organizationRegistrationNumber: v.optional(v.string()),
+    contactRole: v.optional(v.string()),
+    registeredAddress: v.optional(v.string()),
     destinationMarket: v.optional(v.string()),
     verificationStatus,
+    enhancedVerificationStatus: v.optional(enhancedVerificationStatus),
+    enhancedVerificationSubmittedAt: v.optional(v.number()),
+    enhancedVerificationReviewedAt: v.optional(v.number()),
+    enhancedVerificationReviewedByUserId: v.optional(v.id("users")),
+    enhancedVerificationReason: v.optional(v.string()),
+    institutionWelcomeEmailSentAt: v.optional(v.number()),
     status: profileStatus,
     createdAt: v.number(),
     updatedAt: v.number()

@@ -1,6 +1,7 @@
 import { canCreateFarmerProfile, canVerifyFarmer } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   adminAccessHasPermissionForScope,
   adminScopeTarget,
@@ -47,6 +48,72 @@ async function makeUniqueFarmerCode(ctx: Parameters<typeof getActor>[0], communi
   throw new Error("Could not generate a unique farmer code.");
 }
 
+async function resolveAndValidatePreferredWarehouse(
+  ctx: any,
+  region: string | undefined,
+  preferredWarehouseId: any,
+  actor: any,
+): Promise<any> {
+  assertAllowed(
+    region !== undefined && region.trim().length > 0,
+    "Farmer region is required."
+  );
+
+  const activeWarehousesInRegion = await ctx.db
+    .query("warehouses")
+    .withIndex("by_region_status", (q: any) => q.eq("region", region).eq("status", "active"))
+    .collect();
+
+  assertAllowed(
+    activeWarehousesInRegion.length > 0,
+    "Restricted Region: Onboarding is only available in regions with active warehouses."
+  );
+
+  if (preferredWarehouseId !== undefined) {
+    const warehouse = await ctx.db.get(preferredWarehouseId);
+    assertAllowed(
+      warehouse !== null && warehouse.status === "active",
+      "Selected warehouse is invalid or inactive."
+    );
+    assertAllowed(
+      warehouse.region === region,
+      "A warehouse can only accept farmers from the same region."
+    );
+    return preferredWarehouseId;
+  }
+
+  if (actor.role === "warehouse_agent") {
+    const agentDoc = await ctx.db
+      .query("warehouseAgents")
+      .withIndex("by_user", (q: any) => q.eq("userId", actor._id))
+      .unique();
+    if (agentDoc !== null && agentDoc.assignedWarehouseIds.length > 0) {
+      for (const whId of agentDoc.assignedWarehouseIds) {
+        const wh = await ctx.db.get(whId);
+        if (wh !== null && wh.status === "active" && wh.region === region) {
+          return whId;
+        }
+      }
+    }
+    throw new Error("Warehouse agent is not assigned to any active warehouse in the farmer's region.");
+  }
+
+  const access = await getEffectiveAdminAccess(ctx, actor._id);
+
+  for (const wh of activeWarehousesInRegion) {
+    const hasPermission = adminAccessHasPermissionForScope(access, "farmers:manage", {
+      warehouseId: wh._id,
+      region: wh.region,
+      district: wh.community,
+    });
+    if (hasPermission) {
+      return wh._id;
+    }
+  }
+
+  throw new Error("You do not have permission to manage farmers in any active warehouse in this region.");
+}
+
 export const createProfile = mutation({
   args: {
     actorUserId: v.id("users"),
@@ -70,28 +137,35 @@ export const createProfile = mutation({
       .unique();
     assertAllowed(existingByPhone === null, "A farmer with this phone number already exists.");
 
+    const resolvedWarehouseId = await resolveAndValidatePreferredWarehouse(
+      ctx,
+      args.region,
+      args.preferredWarehouseId,
+      actor
+    );
+
     if (actor.role === "warehouse_agent") {
-      assertAllowed(args.preferredWarehouseId !== undefined, "Warehouse agents must choose a warehouse.");
-      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.preferredWarehouseId);
+      await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, resolvedWarehouseId);
     } else {
       assertAllowed(actor.role === "admin", "Only admins and warehouse agents can create farmer profiles.");
       await requireAdminPermission(ctx, actor._id, "farmers:manage", adminScopeTarget({
-        warehouseId: args.preferredWarehouseId,
+        warehouseId: resolvedWarehouseId,
         region: args.region,
         district: args.community,
       }));
     }
 
     const now = Date.now();
+    const farmerCode = await makeUniqueFarmerCode(ctx, args.community, args.phoneNumber, now);
     const farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
       userId: args.userId,
-      farmerCode: await makeUniqueFarmerCode(ctx, args.community, args.phoneNumber, now),
+      farmerCode,
       fullName: args.fullName,
       phoneNumber: args.phoneNumber,
       community: args.community,
       region: cleanOptionalText(args.region),
       householdPhoneOwnerName: cleanOptionalText(args.householdPhoneOwnerName),
-      preferredWarehouseId: args.preferredWarehouseId,
+      preferredWarehouseId: resolvedWarehouseId,
       registrationSource: args.registrationSource ?? (actor.role === "warehouse_agent" ? "agent_assisted" : "admin"),
       verificationStatus: "pending",
       status: "active",
@@ -106,6 +180,18 @@ export const createProfile = mutation({
       entityType: "farmer",
       entityId: farmerId,
       after: after === null ? undefined : auditSnapshot(after),
+    });
+    await insertNotificationRecord(ctx, {
+      recipientId: args.phoneNumber,
+      recipientUserId: args.userId,
+      recipientRole: "farmer",
+      channel: "sms",
+      title: "Welcome to Kuapa Dwaso",
+      message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Show this code when you bring produce to the warehouse.`,
+      messageKind: "transactional",
+      templateKey: "generic_notification",
+      relatedEntityType: "farmer",
+      relatedEntityId: farmerId,
     });
 
     return farmerId;
@@ -172,6 +258,27 @@ export const updateVerificationStatus = mutation({
       after: after === null ? undefined : auditSnapshot(after),
       metadata: args.reason === undefined ? undefined : { reason: args.reason },
     });
+    if (farmer.verificationStatus !== args.verificationStatus) {
+      const reason = cleanOptionalText(args.reason);
+      const message =
+        args.verificationStatus === "verified"
+          ? "Your account is ready. You can bring produce to the warehouse."
+          : args.verificationStatus === "rejected"
+            ? `We could not confirm your account.${reason === undefined ? " Please speak to your warehouse agent." : ` Reason: ${reason}`}`
+            : "We are checking your account. We will send you an update.";
+      await insertNotificationRecord(ctx, {
+        recipientId: farmer.phoneNumber,
+        recipientUserId: farmer.userId,
+        recipientRole: "farmer",
+        channel: "sms",
+        title: "Account update",
+        message,
+        messageKind: "transactional",
+        templateKey: "generic_notification",
+        relatedEntityType: "farmer",
+        relatedEntityId: args.farmerId,
+      });
+    }
 
     return args.farmerId;
   },
@@ -192,6 +299,15 @@ export const updatePreferredWarehouse = mutation({
     assertAllowed(farmer !== null, "Farmer was not found.");
     await requireAdminPermission(ctx, args.actorUserId, "farmers:manage", await farmerScopeTarget(ctx, farmer));
     if (args.preferredWarehouseId !== undefined) {
+      const warehouse = await ctx.db.get(args.preferredWarehouseId);
+      assertAllowed(
+        warehouse !== null && warehouse.status === "active",
+        "Selected warehouse is invalid or inactive."
+      );
+      assertAllowed(
+        warehouse.region === farmer.region,
+        "A warehouse can only accept farmers from the same region."
+      );
       await requireAdminPermission(
         ctx,
         args.actorUserId,

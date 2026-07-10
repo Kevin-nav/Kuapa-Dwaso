@@ -31,6 +31,7 @@ export type SmsDeliveryResult = {
   messageId: string;
   providerMessageId: string;
   recipients: string[];
+  recipientMessageIds: Record<string, string>;
   status: SmsDeliveryStatus;
   creditsUsed?: number;
   rawCode?: string;
@@ -66,11 +67,7 @@ type ArkeselSendResponse = {
   status?: string;
   code?: string | number;
   message?: string;
-  data?: {
-    id?: string;
-    message_id?: string;
-    credits_used?: number;
-  };
+  data?: unknown;
 };
 
 @Injectable()
@@ -232,6 +229,7 @@ function sendMockSms(input: NormalizedSmsInput): SmsDeliveryResult {
     messageId: providerMessageId,
     providerMessageId,
     recipients: input.recipients,
+    recipientMessageIds: Object.fromEntries(input.recipients.map((recipient) => [recipient, providerMessageId])),
     status: "sent",
     creditsUsed: input.segmentEstimate.credits * input.recipients.length,
     segmentEstimate: input.segmentEstimate,
@@ -271,8 +269,9 @@ async function sendArkeselSms(
     });
   }
 
-  const providerMessageId = body.data?.id ?? body.data?.message_id;
-  if (providerMessageId === undefined || providerMessageId.trim().length === 0) {
+  const receipts = extractArkeselSendReceipts(body.data, input.recipients);
+  const providerMessageId = receipts.recipientMessageIds[receipts.recipients[0] ?? ""];
+  if (providerMessageId === undefined) {
     throw new ServiceUnavailableException("Arkesel SMS response did not include a message id.");
   }
 
@@ -280,12 +279,14 @@ async function sendArkeselSms(
     provider: "arkesel",
     messageId: providerMessageId,
     providerMessageId,
-    recipients: input.recipients,
+    recipients: receipts.recipients,
+    recipientMessageIds: receipts.recipientMessageIds,
     status: "sent",
     segmentEstimate: input.segmentEstimate,
   };
-  if (body.data?.credits_used !== undefined) {
-    result.creditsUsed = body.data.credits_used;
+  const creditsUsed = extractArkeselCreditsUsed(body.data);
+  if (creditsUsed !== undefined) {
+    result.creditsUsed = creditsUsed;
   }
   if (body.code !== undefined) {
     result.rawCode = String(body.code);
@@ -294,6 +295,53 @@ async function sendArkeselSms(
     result.rawMessage = body.message;
   }
   return result;
+}
+
+function extractArkeselSendReceipts(
+  data: unknown,
+  requestedRecipients: readonly string[],
+): { recipients: string[]; recipientMessageIds: Record<string, string> } {
+  const entries = Array.isArray(data) ? data : [data];
+  const recipientMessageIds: Record<string, string> = {};
+  let sharedMessageId: string | undefined;
+
+  for (const entry of entries) {
+    if (!isRecord(entry)) {
+      continue;
+    }
+    const messageId = readString(entry, ["id", "message_id", "messageId", "ID"]);
+    if (messageId === undefined) {
+      continue;
+    }
+    const rawRecipient = readString(entry, ["recipient", "to", "number"]);
+    if (rawRecipient === undefined) {
+      sharedMessageId ??= messageId;
+      continue;
+    }
+    try {
+      recipientMessageIds[normalizeGhanaPhoneNumber(rawRecipient)] = messageId;
+    } catch {
+      // Ignore an unparseable provider recipient and avoid recording a mismatched delivery ID.
+    }
+  }
+
+  if (sharedMessageId !== undefined) {
+    for (const recipient of requestedRecipients) {
+      recipientMessageIds[recipient] ??= sharedMessageId;
+    }
+  }
+
+  const recipients = requestedRecipients.filter((recipient) => recipientMessageIds[recipient] !== undefined);
+  return { recipients, recipientMessageIds };
+}
+
+function extractArkeselCreditsUsed(data: unknown): number | undefined {
+  const entries = Array.isArray(data) ? data : [data];
+  const credits = entries
+    .filter(isRecord)
+    .map((entry) => readNumber(entry, ["credits_used", "creditsUsed"]))
+    .filter((value): value is number => value !== undefined);
+  return credits.length > 0 ? credits.reduce((total, value) => total + value, 0) : undefined;
 }
 
 function validateArkeselSender(sender: string | undefined): string {

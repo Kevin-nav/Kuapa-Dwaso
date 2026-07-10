@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   assertAllowed,
   auditSnapshot,
@@ -49,6 +50,16 @@ const mfaRequirement = v.union(
   v.literal("required"),
 );
 
+function authMethodsForIdentity(identity: {
+  email?: string | undefined;
+  signInProvider?: string | undefined;
+}): ("phone" | "email_password" | "google")[] {
+  if (identity.signInProvider === "google.com") {
+    return ["google"];
+  }
+  return identity.email !== undefined ? ["email_password"] : ["phone"];
+}
+
 function identityName(identity: {
   displayName?: string | undefined;
   email?: string | undefined;
@@ -94,6 +105,7 @@ async function upsertUserFromIdentity(
       displayName?: string;
       phoneVerified?: boolean;
       emailVerified?: boolean;
+      signInProvider?: string;
       mfaSatisfied?: boolean;
       mfaMethods?: string[];
     };
@@ -112,7 +124,10 @@ async function upsertUserFromIdentity(
     .query("users")
     .withIndex("by_auth_provider_id", (q) => q.eq("authProviderId", args.identity.authProviderId))
     .unique();
-  const authMethods = email !== undefined ? ["email_password" as const] : ["phone" as const];
+  const authMethods = authMethodsForIdentity({
+    email,
+    signInProvider: args.identity.signInProvider,
+  });
 
   if (existing !== null) {
     await ctx.db.patch(existing._id, omitUndefinedValues({
@@ -280,6 +295,7 @@ export const createSelfAppFarmerProfile = mutation({
       .unique();
     const now = Date.now();
     let farmerId: Id<"farmers">;
+    let farmerCode: string | undefined;
     if (existing !== null) {
       assertAllowed(existing.userId === undefined || existing.userId === userId, "Farmer phone is already linked.");
       farmerId = existing._id;
@@ -290,15 +306,44 @@ export const createSelfAppFarmerProfile = mutation({
         updatedAt: now,
       });
     } else {
+      const region = args.region?.trim();
+      assertAllowed(region !== undefined && region.length > 0, "Farmer region is required.");
+
+      const activeWarehousesInRegion = await ctx.db
+        .query("warehouses")
+        .withIndex("by_region_status", (q: any) => q.eq("region", region).eq("status", "active"))
+        .collect();
+
+      assertAllowed(
+        activeWarehousesInRegion.length > 0,
+        "Restricted Region: Onboarding is only available in regions with active warehouses."
+      );
+
+      let resolvedWarehouseId = args.preferredWarehouseId;
+      if (resolvedWarehouseId !== undefined) {
+        const warehouse = await ctx.db.get(resolvedWarehouseId);
+        assertAllowed(
+          warehouse !== null && warehouse.status === "active",
+          "Selected warehouse is invalid or inactive."
+        );
+        assertAllowed(
+          warehouse.region === region,
+          "A warehouse can only accept farmers from the same region."
+        );
+      } else {
+        resolvedWarehouseId = activeWarehousesInRegion[0]!._id;
+      }
+
+      farmerCode = await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now);
       farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
         userId,
-        farmerCode: await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now),
+        farmerCode,
         fullName: args.fullName.trim(),
         phoneNumber,
         community: args.community.trim(),
-        region: cleanOptionalText(args.region),
+        region,
         householdPhoneOwnerName: cleanOptionalText(args.householdPhoneOwnerName),
-        preferredWarehouseId: args.preferredWarehouseId,
+        preferredWarehouseId: resolvedWarehouseId,
         registrationSource: "self_app",
         verificationStatus: "verified",
         status: "active",
@@ -317,6 +362,20 @@ export const createSelfAppFarmerProfile = mutation({
       entityId: farmerId,
       after: farmer === null ? undefined : auditSnapshot(farmer),
     });
+    if (farmerCode !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientId: phoneNumber,
+        recipientUserId: userId,
+        recipientRole: "farmer",
+        channel: "sms",
+        title: "Welcome to Kuapa Dwaso",
+        message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Show this code when you bring produce to the warehouse.`,
+        messageKind: "transactional",
+        templateKey: "generic_notification",
+        relatedEntityType: "farmer",
+        relatedEntityId: farmerId,
+      });
+    }
     return { userId, farmerId };
   },
 });
@@ -369,6 +428,10 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
     displayName: v.optional(v.string()),
     buyerType,
     organizationName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    organizationRegistrationNumber: v.optional(v.string()),
+    contactRole: v.optional(v.string()),
+    registeredAddress: v.optional(v.string()),
     destinationMarket: v.optional(v.string()),
   },
   returns: v.object({ userId: v.string(), buyerId: v.string() }),
@@ -376,6 +439,15 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
     assertAllowed(args.identity.phoneVerified === true, "Buyer phone number must be verified by Firebase.");
     assertAllowed(args.identity.phoneNumber !== undefined, "Buyer phone number is required.");
     const phoneNumber = normalizePhoneNumber(args.identity.phoneNumber);
+    const isInstitution = args.buyerType === "institution";
+    const email = cleanOptionalText(args.email)?.toLowerCase();
+    if (isInstitution) {
+      assertAllowed(email !== undefined && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email), "A valid official email is required.");
+      assertAllowed(cleanOptionalText(args.organizationName) !== undefined, "Organization name is required.");
+      assertAllowed(cleanOptionalText(args.organizationRegistrationNumber) !== undefined, "Organization registration number is required.");
+      assertAllowed(cleanOptionalText(args.contactRole) !== undefined, "Contact role is required.");
+      assertAllowed(cleanOptionalText(args.registeredAddress) !== undefined, "Registered address is required.");
+    }
     const userId = await upsertUserFromIdentity(ctx, {
       identity: { ...args.identity, phoneNumber },
       role: "buyer",
@@ -396,7 +468,12 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
         displayName: cleanOptionalText(args.displayName),
         buyerType: args.buyerType,
         organizationName: cleanOptionalText(args.organizationName),
+        email,
+        organizationRegistrationNumber: cleanOptionalText(args.organizationRegistrationNumber),
+        contactRole: cleanOptionalText(args.contactRole),
+        registeredAddress: cleanOptionalText(args.registeredAddress),
         destinationMarket: cleanOptionalText(args.destinationMarket),
+        enhancedVerificationStatus: isInstitution ? "required" : (existing.enhancedVerificationStatus ?? "not_required"),
         updatedAt: now,
       }));
     } else {
@@ -407,8 +484,13 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
         phoneNumber,
         buyerType: args.buyerType,
         organizationName: cleanOptionalText(args.organizationName),
+        email,
+        organizationRegistrationNumber: cleanOptionalText(args.organizationRegistrationNumber),
+        contactRole: cleanOptionalText(args.contactRole),
+        registeredAddress: cleanOptionalText(args.registeredAddress),
         destinationMarket: cleanOptionalText(args.destinationMarket),
         verificationStatus: "pending",
+        enhancedVerificationStatus: isInstitution ? "required" : "not_required",
         status: "active",
         createdAt: now,
         updatedAt: now,

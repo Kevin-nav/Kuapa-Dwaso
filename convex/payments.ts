@@ -77,6 +77,10 @@ async function requirePaymentActorForOrder(
   const actor = await getActor(ctx, actorUserId);
   const buyer = await ctx.db.get(order.buyerId);
   assertAllowed(buyer !== null, "Buyer profile was not found.");
+  assertAllowed(buyer.verificationStatus === "verified", "Buyer verification is required before payment.");
+  if (buyer.buyerType === "institution") {
+    assertAllowed(buyer.enhancedVerificationStatus === "verified", "Enhanced institution verification is required before payment.");
+  }
   if (actor.role === "buyer") {
     assertAllowed(buyer.userId === actor._id, "Buyers can only pay for their own orders.");
     return actor;

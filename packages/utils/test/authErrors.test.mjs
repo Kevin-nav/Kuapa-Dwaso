@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getAuthErrorCode,
   getAuthErrorMessage,
+  shouldCreateInvitedEmailAccountAfterSignInFailure,
 } from "../src/index.ts";
 
 test("extracts Firebase error codes without depending on the Firebase SDK", () => {
@@ -58,6 +59,25 @@ test("maps throttling, network, account, and credential errors", () => {
   assert.equal(
     getAuthErrorMessage({ code: "auth/invalid-credential" }, "sign-in"),
     "The email or password is incorrect.",
+  );
+});
+
+test("creates an invited account after Firebase's ambiguous missing-user errors", () => {
+  assert.equal(
+    shouldCreateInvitedEmailAccountAfterSignInFailure({ code: "auth/invalid-credential" }),
+    true,
+  );
+  assert.equal(
+    shouldCreateInvitedEmailAccountAfterSignInFailure({ code: "auth/user-not-found" }),
+    true,
+  );
+  assert.equal(
+    shouldCreateInvitedEmailAccountAfterSignInFailure({ code: "auth/network-request-failed" }),
+    false,
+  );
+  assert.equal(
+    shouldCreateInvitedEmailAccountAfterSignInFailure({ code: "auth/too-many-requests" }),
+    false,
   );
 });
 

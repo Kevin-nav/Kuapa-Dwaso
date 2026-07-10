@@ -149,6 +149,13 @@ export default function BuyerProfilePage() {
         </div>
       </div>
 
+      {buyer?.buyerType === "institution" ? (
+        <button type="button" className="btn btn-primary btn-full" onClick={() => router.push("/buyer/verification")}>
+          <ShieldAlert size={18} />
+          <span>Enhanced verification</span>
+        </button>
+      ) : null}
+
       {/* Navigation Buttons */}
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
         <button

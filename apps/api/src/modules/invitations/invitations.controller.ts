@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import type { AdminRoleKey, AdminScopeType, InvitationChannel, MfaRequirement, PlatformInvitationType } from "@kuapa-dwaso/types";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
@@ -70,6 +70,10 @@ export class InvitationsController {
       );
     }
 
+    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.channel !== "email") {
+      throw new BadRequestException("Admin and warehouse-manager invitations must be delivered by email.");
+    }
+
     const token = this.tokens.createToken();
     const expiresAt = body.expiresAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
     const inviteUrl = this.templates.buildInviteUrl(token.rawToken);
@@ -134,7 +138,7 @@ export class InvitationsController {
         smsDelivery.recipients.map((recipient) => {
           const recordArgs: Parameters<ConvexPlatformProvider["recordSmsSend"]>[0] = {
             provider: smsDelivery.provider,
-            providerMessageId: smsDelivery.providerMessageId,
+            providerMessageId: smsDelivery.recipientMessageIds[recipient] ?? smsDelivery.providerMessageId,
             recipient,
             status: smsDelivery.status,
             messageKind: "invite",

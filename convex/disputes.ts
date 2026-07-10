@@ -1,6 +1,7 @@
 import { canCreateDispute, canManageDisputes } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   assertActorRoleMatchesUser,
   resolveRequestingRole,
@@ -130,6 +131,20 @@ export const create = mutation({
       metadata: args.metadata,
       createdAt: now,
     }));
+    const recipientUserId = args.openedByUserId ?? args.actorUserId;
+    if (recipientUserId !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientUserId,
+        recipientRole: args.actorRole,
+        channel: "sms",
+        title: "Issue received",
+        message: "We received your issue. We will look into it.",
+        messageKind: "dispute_update",
+        templateKey: "generic_notification",
+        relatedEntityType: "dispute",
+        relatedEntityId: disputeId,
+      });
+    }
 
     return disputeId;
   },
@@ -195,6 +210,27 @@ export const updateStatus = mutation({
       metadata: args.metadata,
       createdAt: now,
     }));
+    if (existing.openedByUserId !== undefined && existing.openedByRole !== undefined) {
+      const message =
+        args.status === "under_review"
+          ? "We are looking at your issue."
+          : args.status === "resolved"
+            ? `Your issue has been resolved. ${resolution}`
+            : args.status === "cancelled"
+              ? "Your issue has been closed."
+              : "Your issue has been updated.";
+      await insertNotificationRecord(ctx, {
+        recipientUserId: existing.openedByUserId,
+        recipientRole: existing.openedByRole,
+        channel: "sms",
+        title: "Issue update",
+        message,
+        messageKind: "dispute_update",
+        templateKey: "generic_notification",
+        relatedEntityType: "dispute",
+        relatedEntityId: args.disputeId,
+      });
+    }
 
     return args.disputeId;
   },

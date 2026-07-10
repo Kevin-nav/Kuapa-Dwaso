@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { AlertTriangle, CheckCircle2, Image as ImageIcon, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Image as ImageIcon, Upload, LogOut } from "lucide-react";
 import { useAuth } from "../../auth/AuthProvider";
 import { getSignedReadUrl, uploadPrivateEvidence } from "../../uploads/client";
 
@@ -25,7 +26,14 @@ function statusClass(status: string) {
 }
 
 export default function TransporterProfilePage() {
-  const { principal, firebaseUser } = useAuth();
+  const { principal, firebaseUser, signOut } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/");
+  };
+
   const [truckFile, setTruckFile] = useState<File | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -212,6 +220,18 @@ export default function TransporterProfilePage() {
             </div>
           ))
         )}
+      </div>
+
+      {/* Navigation Buttons */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
+        <button
+          type="button"
+          className="btn btn-danger btn-full"
+          onClick={() => { void handleSignOut(); }}
+        >
+          <LogOut size={18} />
+          <span>Sign Out</span>
+        </button>
       </div>
     </div>
   );

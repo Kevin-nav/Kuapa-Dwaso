@@ -163,6 +163,18 @@ function orderStatusForDispatchStatus(status: DispatchStatus): BuyerOrderStatus 
   }
 }
 
+function dispatchSmsMessage(destination: string, status: DispatchStatus, recipientRole: "farmer" | "buyer" | "transporter"): string {
+  if (status === "issue_reported") {
+    return recipientRole === "transporter"
+      ? `There is a problem on the trip to ${destination}. Please contact the warehouse.`
+      : `Delivery to ${destination} is delayed. We will send you an update.`;
+  }
+  if (status === "delivered") {
+    return `Delivery to ${destination} is complete.`;
+  }
+  return `Delivery to ${destination} is ${status.replaceAll("_", " ")}.`;
+}
+
 async function notifyDispatchParticipants(
   ctx: MutationCtx,
   dispatch: Doc<"dispatches">,
@@ -190,12 +202,14 @@ async function notifyDispatchParticipants(
   if (dispatch.transporterId !== undefined) {
     const transporter = await ctx.db.get(dispatch.transporterId);
     await insertNotificationRecord(ctx, {
-      recipientId: dispatch.transporterId,
+      recipientId: transporter?.phoneNumber,
       recipientUserId: transporter?.userId,
       recipientRole: "transporter",
       channel: "sms",
       title,
-      message,
+      message: dispatchSmsMessage(dispatch.destination, status, "transporter"),
+      messageKind: "dispatch_status_update",
+      templateKey: "generic_notification",
       ...related,
     });
   }
@@ -209,12 +223,14 @@ async function notifyDispatchParticipants(
     notifiedBuyers.add(order.buyerId);
     const buyer = await ctx.db.get(order.buyerId);
     await insertNotificationRecord(ctx, {
-      recipientId: order.buyerId,
+      recipientId: buyer?.phoneNumber,
       recipientUserId: buyer?.userId,
       recipientRole: "buyer",
       channel: "sms",
       title,
-      message: `Your order dispatch to ${dispatch.destination} is now ${status.replaceAll("_", " ")}.`,
+      message: dispatchSmsMessage(dispatch.destination, status, "buyer"),
+      messageKind: "dispatch_status_update",
+      templateKey: "generic_notification",
       ...related,
     });
   }
@@ -231,12 +247,14 @@ async function notifyDispatchParticipants(
     notifiedFarmers.add(sale.farmerId);
     const farmer = await ctx.db.get(sale.farmerId);
     await insertNotificationRecord(ctx, {
-      recipientId: sale.farmerId,
+      recipientId: farmer?.phoneNumber,
       recipientUserId: farmer?.userId,
       recipientRole: "farmer",
       channel: "sms",
       title,
-      message: `Produce from your sale is now ${status.replaceAll("_", " ")} for dispatch to ${dispatch.destination}.`,
+      message: dispatchSmsMessage(dispatch.destination, status, "farmer"),
+      messageKind: "dispatch_status_update",
+      templateKey: "generic_notification",
       ...related,
     });
   }
@@ -308,6 +326,11 @@ export const create = mutation({
     ).flat();
 
     for (const order of nonNullOrders) {
+      const buyer = await ctx.db.get(order.buyerId);
+      assertAllowed(buyer !== null && buyer.verificationStatus === "verified", "Every buyer must be verified before dispatch.");
+      if (buyer.buyerType === "institution") {
+        assertAllowed(buyer.enhancedVerificationStatus === "verified", "Institution buyers require enhanced verification before dispatch.");
+      }
       assertAllowed(
         orderStatusesEligibleForDispatch.has(order.status),
         "Buyer order is not ready for dispatch.",
@@ -527,12 +550,14 @@ export const assignTransporter = mutation({
     });
     if (after !== null) {
       await insertNotificationRecord(ctx, {
-        recipientId: args.transporterId,
+        recipientId: transporter.phoneNumber,
         recipientUserId: transporter.userId,
         recipientRole: "transporter",
         channel: "sms",
         title: "Dispatch assigned",
-        message: `You have been assigned to a dispatch to ${dispatch.destination}.`,
+        message: `You have a delivery to ${dispatch.destination}.`,
+        messageKind: "dispatch_assignment",
+        templateKey: "generic_notification",
         relatedEntityType: "dispatch",
         relatedEntityId: args.dispatchId,
       });
@@ -559,6 +584,8 @@ export const unassignTransporter = mutation({
       dispatch.status === "planned" || dispatch.status === "loading" || dispatch.status === "issue_reported",
       "Transporter can only be unassigned before departure or while resolving an issue.",
     );
+    const transporter =
+      dispatch.transporterId === undefined ? null : await ctx.db.get(dispatch.transporterId);
 
     await ctx.db.patch(args.dispatchId, {
       transporterId: undefined,
@@ -574,6 +601,21 @@ export const unassignTransporter = mutation({
       after: after === null ? undefined : auditSnapshot(after),
       metadata: args.reason === undefined ? undefined : { reason: args.reason },
     });
+    if (transporter !== null) {
+      const reason = cleanOptionalText(args.reason);
+      await insertNotificationRecord(ctx, {
+        recipientId: transporter.phoneNumber,
+        recipientUserId: transporter.userId,
+        recipientRole: "transporter",
+        channel: "sms",
+        title: "Delivery update",
+        message: `You are no longer assigned to the delivery to ${dispatch.destination}.${reason === undefined ? "" : ` Reason: ${reason}`}`,
+        messageKind: "dispatch_status_update",
+        templateKey: "generic_notification",
+        relatedEntityType: "dispatch",
+        relatedEntityId: args.dispatchId,
+      });
+    }
 
     return args.dispatchId;
   },

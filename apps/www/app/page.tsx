@@ -48,19 +48,27 @@ function getAppAuthHref() {
   return new URL("/signup", flatStagingUrl).toString();
 }
 
+function getAppLoginHref() {
+  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app-staging.kuapadwaso.com";
+  const flatStagingUrl = appUrl.replace(/^https:\/\/app\.staging\./, "https://app-staging.");
+
+  return new URL("/", flatStagingUrl).toString();
+}
+
 export default function LandingPage() {
   const appAuthHref = getAppAuthHref();
+  const appLoginHref = getAppLoginHref();
 
   return (
     <div className="min-h-screen bg-brand-surface text-brand-ink">
-      <SiteHeader joinHref={appAuthHref} />
+      <SiteHeader joinHref={appAuthHref} loginHref={appLoginHref} />
       <main>
-        <HeroSection appAuthHref={appAuthHref} />
+        <HeroSection appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
         <ProofBar />
         <WarehouseSection />
         <HowItWorks />
         <AudienceCards />
-        <FinalCta appAuthHref={appAuthHref} />
+        <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
     </div>
@@ -69,7 +77,7 @@ export default function LandingPage() {
 
 
 
-function HeroSection({ appAuthHref }: { appAuthHref: string }) {
+function HeroSection({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
@@ -103,6 +111,9 @@ function HeroSection({ appAuthHref }: { appAuthHref: string }) {
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <a href={appAuthHref} className="btn-primary">
               Join the pilot
+            </a>
+            <a href={appLoginHref} className="btn-ghost">
+              Log in
             </a>
             <a href="#buyers" className="btn-ghost">
               Source inventory
@@ -211,7 +222,7 @@ function AudienceCards() {
   );
 }
 
-function FinalCta({ appAuthHref }: { appAuthHref: string }) {
+function FinalCta({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
@@ -226,6 +237,9 @@ function FinalCta({ appAuthHref }: { appAuthHref: string }) {
         <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
           <a href={appAuthHref} className="btn-light">
             Join the pilot
+          </a>
+          <a href={appLoginHref} className="btn-ghost">
+            Log in
           </a>
           <a href="#buyers" className="btn-ghost">
             Explore roles

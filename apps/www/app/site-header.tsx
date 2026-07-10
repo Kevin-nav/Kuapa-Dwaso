@@ -23,9 +23,10 @@ export function Logo({ className }: { className?: string }) {
 
 type SiteHeaderProps = {
   joinHref: string;
+  loginHref: string;
 };
 
-export function SiteHeader({ joinHref }: SiteHeaderProps) {
+export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -55,12 +56,18 @@ export function SiteHeader({ joinHref }: SiteHeaderProps) {
           <span className="font-display text-lg font-bold text-brand-ink">Kuapa Dwaso</span>
         </a>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden items-center gap-6 md:flex">
           {navLinks.map(([label, href]) => (
             <a key={href} href={href} className="nav-link">
               {label}
             </a>
           ))}
+          <a
+            href={loginHref}
+            className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
+          >
+            Log in
+          </a>
           <a
             href={joinHref}
             className="rounded-full bg-brand-field px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-field-light"
@@ -69,9 +76,17 @@ export function SiteHeader({ joinHref }: SiteHeaderProps) {
           </a>
         </div>
 
-        <a href={joinHref} className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white md:hidden">
-          Join
-        </a>
+        <div className="flex items-center gap-4 md:hidden">
+          <a
+            href={loginHref}
+            className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
+          >
+            Log in
+          </a>
+          <a href={joinHref} className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white">
+            Join
+          </a>
+        </div>
       </nav>
     </header>
   );

@@ -1,6 +1,5 @@
 # Runnable Monorepo Foundation Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make the agriculture marketplace monorepo runnable with minimal independent frontend apps, a NestJS Fastify API, shared config, and working root commands.
 

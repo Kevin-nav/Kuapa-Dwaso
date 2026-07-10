@@ -7,7 +7,7 @@ describe("InviteTemplatesProvider", () => {
     process.env.PUBLIC_APP_URL = "https://app.example.test/";
     const provider = new InviteTemplatesProvider();
 
-    expect(provider.buildInviteUrl("raw token")).toBe("https://app.example.test/invite/accept?token=raw%20token");
+    expect(provider.buildInviteUrl("raw token")).toBe("https://app.example.test/invites/accept?token=raw%20token");
 
     if (originalPublicAppUrl === undefined) {
       delete process.env.PUBLIC_APP_URL;
@@ -23,7 +23,7 @@ describe("InviteTemplatesProvider", () => {
     expect(
       provider.inviteEmail({
         type: "admin_invite",
-        inviteUrl: "https://app.example.test/invite/accept?token=admin",
+        inviteUrl: "https://app.example.test/invites/accept?token=admin",
         expiresAt
       })
     ).toMatchObject({
@@ -33,7 +33,7 @@ describe("InviteTemplatesProvider", () => {
     expect(
       provider.inviteEmail({
         type: "warehouse_manager_invite",
-        inviteUrl: "https://app.example.test/invite/accept?token=manager",
+        inviteUrl: "https://app.example.test/invites/accept?token=manager",
         expiresAt
       })
     ).toMatchObject({
@@ -48,7 +48,7 @@ describe("InviteTemplatesProvider", () => {
     expect(
       provider.warehouseAgentSms({
         type: "warehouse_agent_invite",
-        inviteUrl: "https://app.example.test/invite/accept?token=sms",
+        inviteUrl: "https://app.example.test/invites/accept?token=sms",
         expiresAt: Date.UTC(2026, 6, 7, 12, 0, 0)
       })
     ).toContain("warehouse agent invite");

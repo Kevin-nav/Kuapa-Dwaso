@@ -31,6 +31,18 @@ SMOKE_RUN_ID=<run id> corepack pnpm smoke:backend:cleanup -- --confirm
 
 Add `--dry-run` to preview matched records without deleting them.
 
+## Staging SMS Smoke Test
+
+Send one live Arkesel SMS to the configured test number (`+233549037907`) using
+the root `.env.staging` credentials:
+
+```text
+corepack pnpm sms:staging -- --confirm
+```
+
+The explicit confirmation prevents an accidental live send. The script prints
+the provider message ID but never prints the API key.
+
 ## Provider Readiness Doctor
 
 Run the dry provider/config readiness check with:

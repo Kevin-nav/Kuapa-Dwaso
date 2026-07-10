@@ -1,6 +1,5 @@
 # Repo Foundation Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Initialize Git and create the stable Turborepo + pnpm monorepo foundation described in the approved repository design.
 

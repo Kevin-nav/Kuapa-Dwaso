@@ -1,6 +1,5 @@
 # Firebase Authentication Hardening Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make Firebase authentication failures recoverable and user-friendly across App, Ops, and Admin, while blocking builds whose deployed auth hosts are not authorized by Firebase.
 

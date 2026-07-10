@@ -30,6 +30,7 @@ browser but still need correct staging or production values at build/runtime.
 The code currently consumes deployment origins through:
 
 - `PUBLIC_APP_URL` for API invite links.
+- `PRODUCT_APP_URL` for buyer-facing account and verification links sent by the API.
 - `NEXT_PUBLIC_API_URL` for browser-to-API calls and provider doctor webhook
   URL output.
 - `PUBLIC_API_URL` only as a provider doctor fallback when `NEXT_PUBLIC_API_URL`

@@ -127,6 +127,16 @@ type ClaimPendingSmsDeliveriesArgs = {
   retryQueuedBefore?: number;
 };
 
+type InstitutionWelcomeContext = {
+  _id: string;
+  userId?: string;
+  fullName: string;
+  email: string;
+  organizationName?: string;
+  destinationMarket?: string;
+  institutionWelcomeEmailSentAt?: number;
+};
+
 type PrepareBuyerPaymentArgs = {
   actorUserId: string;
   buyerOrderId: string;
@@ -249,6 +259,18 @@ const claimPendingSmsDeliveries = makeFunctionReference<
   ClaimedSmsNotification[]
 >("notifications:claimPendingSmsDeliveries");
 
+const getInstitutionWelcomeEmailContext = makeFunctionReference<
+  "query",
+  { actorUserId: string; buyerId: string },
+  InstitutionWelcomeContext | null
+>("buyers:getInstitutionWelcomeEmailContext");
+
+const recordInstitutionWelcomeEmail = makeFunctionReference<
+  "mutation",
+  { actorUserId: string; buyerId: string; provider: string; messageId?: string },
+  string
+>("buyers:recordInstitutionWelcomeEmail");
+
 const prepareBuyerPayment = makeFunctionReference<
   "mutation",
   PrepareBuyerPaymentArgs,
@@ -310,6 +332,14 @@ export class ConvexPlatformProvider {
 
   async claimPendingSmsDeliveries(args: ClaimPendingSmsDeliveriesArgs): Promise<ClaimedSmsNotification[]> {
     return await this.getClient().mutation(claimPendingSmsDeliveries, args);
+  }
+
+  async getInstitutionWelcomeEmailContext(args: { actorUserId: string; buyerId: string }): Promise<InstitutionWelcomeContext | null> {
+    return await this.getClient().query(getInstitutionWelcomeEmailContext, args);
+  }
+
+  async recordInstitutionWelcomeEmail(args: { actorUserId: string; buyerId: string; provider: string; messageId?: string }): Promise<string> {
+    return await this.getClient().mutation(recordInstitutionWelcomeEmail, args);
   }
 
   async prepareBuyerPayment(args: PrepareBuyerPaymentArgs): Promise<PreparedBuyerPayment> {

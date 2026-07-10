@@ -164,10 +164,12 @@ export function useOperationalAdminData() {
   ) as Record<string, unknown> | undefined;
 
   const updateWarehouseStatusMutation = useMutation(api.warehouses.updateStatus);
+  const createWarehouseMutation = useMutation(api.warehouses.create);
   const updateAgentStatusMutation = useMutation(api.warehouseAgents.updateStatus);
   const assignWarehousesMutation = useMutation(api.warehouseAgents.assignWarehouses);
   const updateFarmerVerificationMutation = useMutation(api.farmers.updateVerificationStatus);
   const updateBuyerVerificationMutation = useMutation(api.buyers.updateVerificationStatus);
+  const updateBuyerEnhancedVerificationMutation = useMutation(api.buyers.updateEnhancedVerificationStatus);
   const updateDisputeStatusMutation = useMutation(api.disputes.updateStatus);
   const replaceFeeRuleMutation = useMutation(api.feeRules.replace);
   const reconcilePaymentMutation = useMutation(api.payments.adminReconcilePayment);
@@ -273,6 +275,7 @@ export function useOperationalAdminData() {
       canReadPayments,
       canReadPayouts,
       canManageWarehouses: hasPermission("warehouses:manage"),
+      canCreateWarehouses: hasPermission("warehouses:manage"),
       canManageAgents: hasPermission("warehouseAgents:manage"),
       canVerifyFarmers: hasPermission("farmers:verify"),
       canManageBuyers: hasPermission("buyers:manage"),
@@ -309,6 +312,25 @@ export function useOperationalAdminData() {
           status,
           ...(reason === undefined ? {} : { reason }),
         }),
+      createWarehouse: (args: {
+        code: string;
+        name: string;
+        community: string;
+        district?: string;
+        region?: string;
+        servedCommunities: string[];
+        supportedCrops: string[];
+        storageCapacity?: number;
+        capacityUnit?: string;
+        destinationMarketsServed: string[];
+        operatingDays: string[];
+        dispatchDays?: string[];
+        status?: "active" | "inactive" | "maintenance" | "closed";
+      }) =>
+        createWarehouseMutation({
+          actorUserId: requireActorUserId(),
+          ...args,
+        }),
       updateAgentStatus: (warehouseAgentId: string, status: "pending" | "approved" | "rejected" | "suspended" | "deactivated", reason?: string) =>
         updateAgentStatusMutation({
           actorUserId: requireActorUserId(),
@@ -334,6 +356,13 @@ export function useOperationalAdminData() {
           actorUserId: requireActorUserId(),
           buyerId: buyerId as Id<"buyers">,
           verificationStatus,
+          ...(reason === undefined ? {} : { reason }),
+        }),
+      updateBuyerEnhancedVerification: (buyerId: string, status: "not_required" | "required" | "pending_review" | "verified" | "changes_requested" | "rejected", reason?: string) =>
+        updateBuyerEnhancedVerificationMutation({
+          actorUserId: requireActorUserId(),
+          buyerId: buyerId as Id<"buyers">,
+          status,
           ...(reason === undefined ? {} : { reason }),
         }),
       resolveDispute: (disputeId: string, resolution: string) =>

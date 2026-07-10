@@ -1,6 +1,5 @@
 # Warehouse Pivot Domain Reset Implementation Plan
 
-> **For Claude / executing agent:** REQUIRED SUB-SKILL: Use executing-plans, or the closest available task-by-task implementation mode, to implement this plan task-by-task.
 
 **Goal:** Reorient the platform from the old SMS-first farmer marketplace into a smartphone-first warehouse produce aggregation system with separate public, product, operations, admin, API, and Convex boundaries.
 

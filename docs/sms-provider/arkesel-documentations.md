@@ -100,12 +100,14 @@ JSON
 HTTP/1.1 200 OK  
 Content-Type: application/json
 
-{  
-  "status": "success",  
-  "data": {  
-    "id": "msg\_9f8k2j785a90123b",  
-    "credits\_used": 1  
-  }  
+{
+  "status": "success",
+  "data": [
+    {
+      "recipient": "+233244000000",
+      "id": "msg_9f8k2j785a90123b"
+    }
+  ]
 }
 
 #### **Example Validation Error Response Payload**
@@ -196,7 +198,7 @@ When sending an SMS, the integration team specifies a delivery webhook action fl
 
 ### **Callback Message Tracking ID and Webhook Status Codes**
 
-When the platform submits a message request, the API returns a tracking ID (e.g., msg\_9f8k2j785a90123b) in the initial response1. This tracking ID can be mapped to database records to monitor the message's delivery status4. The platform should handle the following webhook status classifications:
+When the platform submits a message request, the API returns one tracking ID per accepted recipient (e.g., msg\_9f8k2j785a90123b) in the initial response1. Each tracking ID must be stored with its recipient so delivery reports update the correct database record4. The platform should handle the following webhook status classifications:
 
 | Webhook Status | System Mapping | Network Description | Action |
 | :---- | :---- | :---- | :---- |

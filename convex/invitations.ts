@@ -76,6 +76,35 @@ const pendingAdminRoleAssignment = v.object({
   expiresAt: v.optional(v.number()),
 });
 
+function authMethodsForIdentity(identity: {
+  email?: string | undefined;
+  signInProvider?: string | undefined;
+}): ("phone" | "email_password" | "google")[] {
+  if (identity.signInProvider === "google.com") {
+    return ["google"];
+  }
+  return identity.email !== undefined ? ["email_password"] : ["phone"];
+}
+
+function mfaMethodsSatisfyRequirement(
+  requirement: "not_required" | "sms_required" | "totp_required" | "required",
+  methods: string[] | undefined,
+): boolean {
+  if (requirement === "not_required") {
+    return true;
+  }
+  if (methods === undefined || methods.length === 0) {
+    return false;
+  }
+  if (requirement === "sms_required") {
+    return methods.includes("phone");
+  }
+  if (requirement === "totp_required") {
+    return methods.includes("totp");
+  }
+  return true;
+}
+
 function intendedRoleForType(type: "admin_invite" | "warehouse_manager_invite" | "warehouse_agent_invite" | "transporter_invite") {
   if (type === "warehouse_agent_invite") {
     return "warehouse_agent" as const;
@@ -106,6 +135,7 @@ async function upsertFirebaseUser(
       displayName?: string;
       phoneVerified?: boolean;
       emailVerified?: boolean;
+      signInProvider?: string;
       mfaSatisfied?: boolean;
       mfaMethods?: string[];
     };
@@ -136,7 +166,10 @@ async function upsertFirebaseUser(
       name: cleanOptionalText(args.identity.displayName) ?? existing.name,
       role: args.role,
       status: mfaStatus === "pending" && args.role === "admin" ? "pending" : "active",
-      authMethods: email !== undefined ? ["email_password"] : ["phone"],
+      authMethods: authMethodsForIdentity({
+        email,
+        signInProvider: args.identity.signInProvider,
+      }),
       phoneVerified: args.identity.phoneVerified,
       emailVerified: args.identity.emailVerified,
       mfaRequirement: args.mfaRequirement,
@@ -156,7 +189,10 @@ async function upsertFirebaseUser(
     name: cleanOptionalText(args.identity.displayName) ?? email ?? phoneNumber ?? "Invited user",
     role: args.role,
     status: mfaStatus === "pending" && args.role === "admin" ? "pending" : "active",
-    authMethods: email !== undefined ? ["email_password"] : ["phone"],
+    authMethods: authMethodsForIdentity({
+      email,
+      signInProvider: args.identity.signInProvider,
+    }),
     phoneVerified: args.identity.phoneVerified,
     emailVerified: args.identity.emailVerified,
     mfaRequirement: args.mfaRequirement,
@@ -241,7 +277,7 @@ export const create = mutation({
         args.mfaRequirement ??
         (args.type === "warehouse_agent_invite" || args.type === "transporter_invite"
           ? "not_required"
-          : "sms_required"),
+          : "totp_required"),
       invitedByUserId: args.actorUserId,
       expiresAt: args.expiresAt,
       messageId: cleanOptionalText(args.messageId),
@@ -294,7 +330,12 @@ export const accept = mutation({
     if (invitation.type === "admin_invite" || invitation.type === "warehouse_manager_invite") {
       assertAllowed(invitation.targetEmail !== undefined, "Privileged invitations must target an email address.");
       assertAllowed(args.identity.email !== undefined, "Privileged invite acceptance requires a Firebase email identity.");
-      assertAllowed(args.identity.signInProvider === undefined || args.identity.signInProvider === "password", "Privileged invite acceptance requires Firebase email/password sign-in.");
+      assertAllowed(
+        args.identity.signInProvider === undefined ||
+          args.identity.signInProvider === "password" ||
+          args.identity.signInProvider === "google.com",
+        "Privileged invite acceptance requires Firebase email/password or Google sign-in.",
+      );
     }
     if (invitation.targetEmail !== undefined) {
       assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
@@ -305,8 +346,12 @@ export const accept = mutation({
     const mfaRequired = invitation.mfaRequirement !== "not_required";
     assertAllowed(!mfaRequired || args.identity.mfaSatisfied === true, "Required MFA has not been satisfied.");
     assertAllowed(
-      !mfaRequired || (args.identity.mfaMethods !== undefined && args.identity.mfaMethods.length > 0),
-      "Required MFA method evidence is missing.",
+      mfaMethodsSatisfyRequirement(invitation.mfaRequirement, args.identity.mfaMethods),
+      invitation.mfaRequirement === "totp_required"
+        ? "Authenticator-app MFA has not been satisfied."
+        : invitation.mfaRequirement === "sms_required"
+          ? "SMS MFA has not been satisfied."
+          : "Required MFA method evidence is missing.",
     );
 
     const userId = await upsertFirebaseUser(ctx, {

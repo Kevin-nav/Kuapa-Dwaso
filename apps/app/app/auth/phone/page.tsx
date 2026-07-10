@@ -12,6 +12,7 @@ import { identityFromFirebaseUser } from "../identity";
 import { PhoneAuthPanel } from "../PhoneAuthPanel";
 import { useAuth } from "../AuthProvider";
 import type { User } from "firebase/auth";
+import { sendInstitutionWelcomeEmail } from "../../buyer/institutionEmailApi";
 import {
   Sprout,
   ShoppingCart,
@@ -58,6 +59,10 @@ export default function PhoneAuthPage() {
   const [claimExistingFarmer, setClaimExistingFarmer] = useState(false);
   const [buyerType, setBuyerType] = useState<BuyerType>("market_trader");
   const [organizationName, setOrganizationName] = useState("");
+  const [institutionEmail, setInstitutionEmail] = useState("");
+  const [organizationRegistrationNumber, setOrganizationRegistrationNumber] = useState("");
+  const [contactRole, setContactRole] = useState("");
+  const [registeredAddress, setRegisteredAddress] = useState("");
   const [destinationMarket, setDestinationMarket] = useState("");
   const [vehicleType, setVehicleType] = useState("");
   const [baseLocation, setBaseLocation] = useState("");
@@ -126,9 +131,20 @@ export default function PhoneAuthPage() {
         if (trimmedDestinationMarket.length > 0) {
           createBuyerArgs.destinationMarket = trimmedDestinationMarket;
         }
+        if (buyerType === "institution") {
+          createBuyerArgs.email = institutionEmail.trim();
+          createBuyerArgs.organizationRegistrationNumber = organizationRegistrationNumber.trim();
+          createBuyerArgs.contactRole = contactRole.trim();
+          createBuyerArgs.registeredAddress = registeredAddress.trim();
+        }
         const saved = await createBuyer(createBuyerArgs);
         setResult(`Buyer profile ready: ${saved.buyerId}`);
-        router.push("/buyer");
+        if (buyerType === "institution") {
+          await sendInstitutionWelcomeEmail(verifiedUser, saved.buyerId);
+          router.push("/buyer/verification");
+        } else {
+          router.push("/buyer");
+        }
       } else if (role === "transporter") {
         const saved = await createTransporter({
           identity,
@@ -410,14 +426,24 @@ export default function PhoneAuthPage() {
                         ))}
                       </select>
                     </div>
+                    {buyerType === "institution" ? (
+                      <div className="farmer-card" style={{ gap: "14px", background: "var(--color-info-bg)", borderColor: "var(--color-info-border)" }}>
+                        <div><p className="eyebrow">Institution dossier</p><p className="card-meta">Official details are required for enhanced verification.</p></div>
+                        <div className="field-stack"><label htmlFor="institutionEmail">Official email</label><input id="institutionEmail" type="email" value={institutionEmail} onChange={(event) => setInstitutionEmail(event.target.value)} required disabled={isSaving} /></div>
+                        <div className="field-stack"><label htmlFor="organizationRegistrationNumber">Registration number</label><input id="organizationRegistrationNumber" value={organizationRegistrationNumber} onChange={(event) => setOrganizationRegistrationNumber(event.target.value)} required disabled={isSaving} /></div>
+                        <div className="field-stack"><label htmlFor="contactRole">Your role</label><input id="contactRole" value={contactRole} onChange={(event) => setContactRole(event.target.value)} placeholder="Procurement Officer" required disabled={isSaving} /></div>
+                        <div className="field-stack"><label htmlFor="registeredAddress">Registered address</label><textarea id="registeredAddress" value={registeredAddress} onChange={(event) => setRegisteredAddress(event.target.value)} rows={3} required disabled={isSaving} /></div>
+                      </div>
+                    ) : null}
                     <div className="field-stack">
                       <label htmlFor="organizationName">Organization</label>
                       <input
                         id="organizationName"
                         value={organizationName}
                         onChange={(event) => setOrganizationName(event.target.value)}
-                        placeholder="Optional"
+                        placeholder={buyerType === "institution" ? "Registered organization name" : "Optional"}
                         disabled={isSaving}
+                        required={buyerType === "institution"}
                       />
                     </div>
                     <div className="field-stack">

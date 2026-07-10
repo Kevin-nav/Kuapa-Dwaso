@@ -56,7 +56,10 @@ describe("SmsInviteProvider", () => {
         status: 200,
         json: async () => ({
           status: "success",
-          data: { id: "msg_123", credits_used: 1 },
+          data: [
+            { recipient: "0500000000", id: "msg_123", credits_used: 1 },
+            { recipient: "+233240000000", id: "msg_456", credits_used: 1 },
+          ],
         }),
       }),
     );
@@ -74,7 +77,11 @@ describe("SmsInviteProvider", () => {
       providerMessageId: "msg_123",
       recipients: ["+233500000000", "+233240000000"],
       status: "sent",
-      creditsUsed: 1,
+      creditsUsed: 2,
+      recipientMessageIds: {
+        "+233500000000": "msg_123",
+        "+233240000000": "msg_456",
+      },
     });
     expect(fetch).toHaveBeenCalledWith(
       "https://sms.arkesel.com/api/v2/sms/send",
@@ -91,6 +98,39 @@ describe("SmsInviteProvider", () => {
         }),
       }),
     );
+  });
+
+  it("supports the legacy single-receipt response shape", async () => {
+    process.env.SMS_PROVIDER = "arkesel";
+    process.env.ARKESEL_SMS_API_KEY = "ark_test";
+    process.env.SMS_FROM_NAME = "KuapaDwaso";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "success",
+          data: { id: "msg_legacy", credits_used: 2 },
+        }),
+      }),
+    );
+
+    const provider = new SmsInviteProvider();
+
+    await expect(
+      provider.sendSms({
+        to: ["0500000000", "+233240000000"],
+        message: "Receipt REC-1 is ready",
+      }),
+    ).resolves.toMatchObject({
+      recipients: ["+233500000000", "+233240000000"],
+      recipientMessageIds: {
+        "+233500000000": "msg_legacy",
+        "+233240000000": "msg_legacy",
+      },
+      creditsUsed: 2,
+    });
   });
 
   it("validates Arkesel sender IDs before sending", async () => {
