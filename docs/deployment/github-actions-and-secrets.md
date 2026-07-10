@@ -67,10 +67,11 @@ enabling it.
 Before each image build, the workflow authenticates to Infisical with the
 environment-scoped machine identity, exports the selected Infisical environment,
 validates the required `NEXT_PUBLIC_*` values, and passes those values as Docker
-build arguments. Before publishing, it also compares `FIREBASE_AUTH_ORIGINS`
-with Firebase's live authorized-domain list. These values are public in browser
-bundles, but Infisical is still the source of truth so staging and production
-builds cannot drift from the runtime environment inventory.
+build arguments. Before publishing, it also compares the workflow's
+environment-specific `FIREBASE_AUTH_ORIGINS` with Firebase's live
+authorized-domain list. These values are public in browser bundles, but
+Infisical is still the source of truth for provider configuration so staging
+and production builds cannot drift from the runtime environment inventory.
 
 `.github/workflows/deploy.yml`
 
@@ -212,12 +213,14 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-FIREBASE_AUTH_ORIGINS
 ```
 
-Set `FIREBASE_AUTH_ORIGINS` to the comma-separated HTTPS origins of the App,
-Ops, and Admin surfaces for that environment. A missing Firebase authorization
-fails the image job before it can publish its image.
+The workflow defines `FIREBASE_AUTH_ORIGINS` from its selected environment:
+App, Ops, and Admin staging hosts for `main`, and their production hosts for
+`production`. A missing Firebase authorization fails each image job before it
+can publish. Keep those workflow values aligned with the deployed Cloudflare
+hostnames. The same variable remains in the environment templates for manual
+production-mode provider doctor runs.
 
 Optional environment variables:
 
