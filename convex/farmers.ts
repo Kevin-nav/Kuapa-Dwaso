@@ -460,3 +460,58 @@ export const list = query({
     return results;
   },
 });
+
+export const listByWarehouses = query({
+  args: {
+    actorUserId: v.id("users"),
+    warehouseIds: v.array(v.id("warehouses")),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    
+    const allowedWarehouseIds = [];
+    if (actor.role === "warehouse_agent") {
+      const warehouseAgent = await ctx.db
+        .query("warehouseAgents")
+        .withIndex("by_user", (q) => q.eq("userId", actor._id))
+        .unique();
+      if (warehouseAgent === null || warehouseAgent.status !== "approved") {
+        return [];
+      }
+      const assignedSet = new Set(warehouseAgent.assignedWarehouseIds);
+      for (const id of args.warehouseIds) {
+        if (assignedSet.has(id)) {
+          allowedWarehouseIds.push(id);
+        }
+      }
+    } else if (actor.role === "admin") {
+      const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+      for (const id of args.warehouseIds) {
+        if (adminAccessHasPermissionForScope(access, "farmers:read", await warehouseScopeTarget(ctx, id))) {
+          allowedWarehouseIds.push(id);
+        }
+      }
+    } else {
+      throw new Error("Only admins and warehouse agents can list farmers.");
+    }
+
+    if (allowedWarehouseIds.length === 0) {
+      return [];
+    }
+
+    const limit = Math.min(args.limit ?? 50, 100);
+    const results = [];
+    
+    for (const warehouseId of allowedWarehouseIds) {
+      const docs = await ctx.db
+        .query("farmers")
+        .withIndex("by_preferred_warehouse", (q) => q.eq("preferredWarehouseId", warehouseId))
+        .take(limit);
+      results.push(...docs);
+    }
+    
+    return results.slice(0, limit);
+  },
+});

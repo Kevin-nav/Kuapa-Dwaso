@@ -327,12 +327,12 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
     activeWarehouse.id === fallbackWarehouse.id ? undefined : (activeWarehouse.id as Id<"warehouses">);
 
   const farmerDocs = useQuery(
-    api.farmers.listByWarehouse,
-    typedActorUserId === undefined || typedActiveWarehouseId === undefined
+    api.farmers.listByWarehouses,
+    typedActorUserId === undefined || agent === undefined || agent === null
       ? "skip"
       : {
           actorUserId: typedActorUserId,
-          warehouseId: typedActiveWarehouseId,
+          warehouseIds: agent.assignedWarehouseIds,
           limit: 100,
         },
   ) as Doc<"farmers">[] | undefined;
