@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -55,13 +56,25 @@ const audienceConfig: Record<LoginAudience, AudienceConfig> = {
   },
 };
 
+function LogoIcon({ className, style }: { className?: string; style?: CSSProperties }) {
+  return (
+    <svg viewBox="0 0 120 120" className={className} style={style} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="22" cy="30" r="6" fill="currentColor" opacity="0.5" />
+      <circle cx="18" cy="60" r="6" fill="currentColor" opacity="0.65" />
+      <circle cx="22" cy="90" r="6" fill="currentColor" opacity="0.8" />
+      <circle cx="48" cy="45" r="8" fill="currentColor" opacity="0.85" />
+      <circle cx="48" cy="75" r="8" fill="currentColor" opacity="0.9" />
+      <circle cx="88" cy="60" r="22" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function AudienceLoginPage({ audience }: AudienceLoginPageProps) {
   const { firebaseUser, principal, isLoading } = useAuth();
   const [hasVerifiedInThisFlow, setHasVerifiedInThisFlow] = useState(false);
   const [status, setStatus] = useState<string | undefined>();
   const router = useRouter();
   const config = audienceConfig[audience];
-  const Icon = config.icon;
 
   const hasExpectedProfile = useMemo(() => {
     if (principal === null || principal === undefined) {
@@ -86,7 +99,7 @@ export function AudienceLoginPage({ audience }: AudienceLoginPageProps) {
       <aside className="auth-hero">
         <div className="brand-lockup">
           <span className="brand-mark">
-            <Icon size={22} />
+            <LogoIcon style={{ width: "24px", height: "24px" }} />
           </span>
           <span className="brand-name">KuapaDwaso</span>
         </div>
@@ -111,7 +124,7 @@ export function AudienceLoginPage({ audience }: AudienceLoginPageProps) {
         <div className="auth-inner">
           <div className="brand-lockup brand-lockup--mobile">
             <span className="brand-mark">
-              <Icon size={20} />
+              <LogoIcon style={{ width: "20px", height: "20px" }} />
             </span>
             <span className="brand-name">KuapaDwaso</span>
           </div>
