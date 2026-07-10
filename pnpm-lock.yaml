@@ -176,6 +176,9 @@ importers:
       '@kuapa-dwaso/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@kuapa-dwaso/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@next/env':
         specifier: ^16.2.9
         version: 16.2.9
@@ -228,6 +231,9 @@ importers:
       '@kuapa-dwaso/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@kuapa-dwaso/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@next/env':
         specifier: ^16.2.9
         version: 16.2.9

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { getAuthErrorCode, getAuthErrorMessage } from "@kuapa-dwaso/utils";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -25,6 +26,13 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
+
+  const clearVerifier = useCallback(() => {
+    recaptchaRef.current?.clear();
+    recaptchaRef.current = null;
+  }, []);
+
+  useEffect(() => clearVerifier, [clearVerifier]);
 
   const getVerifier = useCallback(() => {
     if (recaptchaRef.current !== null) {
@@ -54,11 +62,13 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
     try {
       const formattedPhone = formatGhanaPhoneNumber(phoneNumber);
       const result = await signInWithPhoneNumber(firebaseAuth, formattedPhone, getVerifier());
+      clearVerifier();
       setConfirmation(result);
       setStatus("OTP sent. Enter the code from SMS.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send OTP.");
-      setStatus("OTP send failed. Check the phone number and try again.");
+      clearVerifier();
+      setError(getAuthErrorMessage(err, "send-phone-code"));
+      setStatus("No code was sent. You can try again.");
     } finally {
       setIsSending(false);
     }
@@ -77,8 +87,16 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
       setStatus("Phone verified.");
       await onVerified(credential.user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not verify OTP.");
-      setStatus("Verification failed. Check the code and try again.");
+      const code = getAuthErrorCode(err);
+      if (code === "auth/code-expired" || code === "auth/session-expired") {
+        setConfirmation(null);
+        setOtp("");
+        clearVerifier();
+        setStatus("Request a new verification code to continue.");
+      } else {
+        setStatus("The code was not verified. Check it and try again.");
+      }
+      setError(getAuthErrorMessage(err, "verify-phone-code"));
     } finally {
       setIsVerifying(false);
     }
@@ -120,6 +138,8 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
                 style={{ background: "none", border: "none", color: "var(--color-primary)", fontSize: "13px", fontWeight: 600, cursor: "pointer", padding: 0 }}
                 onClick={() => {
                   setConfirmation(null);
+                  setOtp("");
+                  clearVerifier();
                   setStatus("Enter a phone number to receive an OTP.");
                 }}
               >

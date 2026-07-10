@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { getAuthErrorCode, getAuthErrorMessage } from "@kuapa-dwaso/utils";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -21,6 +22,13 @@ export default function OpsAuthPage() {
   const [isWorking, setIsWorking] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
 
+  const clearVerifier = useCallback(() => {
+    recaptchaRef.current?.clear();
+    recaptchaRef.current = null;
+  }, []);
+
+  useEffect(() => clearVerifier, [clearVerifier]);
+
   const verifier = () => {
     if (recaptchaRef.current !== null) {
       return recaptchaRef.current;
@@ -35,10 +43,13 @@ export default function OpsAuthPage() {
     setIsWorking(true);
     try {
       const result = await signInWithPhoneNumber(firebaseAuth, phoneNumber.trim(), verifier());
+      clearVerifier();
       setConfirmation(result);
       setStatus("OTP sent. Enter the SMS code to sign in.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send OTP.");
+      clearVerifier();
+      setError(getAuthErrorMessage(err, "send-phone-code"));
+      setStatus("No code was sent. You can try again.");
     } finally {
       setIsWorking(false);
     }
@@ -55,7 +66,16 @@ export default function OpsAuthPage() {
       await confirmation.confirm(otp.trim());
       setStatus("Signed in. The ops console will use your platform principal when it resolves.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not verify OTP.");
+      const code = getAuthErrorCode(err);
+      if (code === "auth/code-expired" || code === "auth/session-expired") {
+        setConfirmation(null);
+        setOtp("");
+        clearVerifier();
+        setStatus("Request a new verification code to continue.");
+      } else {
+        setStatus("The code was not verified. Check it and try again.");
+      }
+      setError(getAuthErrorMessage(err, "verify-phone-code"));
     } finally {
       setIsWorking(false);
     }
