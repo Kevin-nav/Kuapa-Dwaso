@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, IdCard, Truck } from "lucide-react";
+import { Home, IdCard, Truck, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 
 export default function TransporterLayout({ children }: { children: ReactNode }) {
@@ -53,7 +53,26 @@ export default function TransporterLayout({ children }: { children: ReactNode })
 
   return (
     <>
-      <main className="page-shell">{children}</main>
+      <header className="transporter-top-navbar">
+        <div className="transporter-navbar-container">
+          <Link href="/transporter" className="transporter-navbar-logo-area">
+            <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="transporter-navbar-logo" style={{ width: "28px", height: "28px" }} aria-hidden="true">
+              <circle cx="22" cy="30" r="6" fill="var(--color-primary)" opacity="0.5" />
+              <circle cx="18" cy="60" r="6" fill="var(--color-primary)" opacity="0.65" />
+              <circle cx="22" cy="90" r="6" fill="var(--color-primary)" opacity="0.8" />
+              <circle cx="48" cy="45" r="8" fill="var(--color-primary)" opacity="0.85" />
+              <circle cx="48" cy="75" r="8" fill="var(--color-primary)" opacity="0.9" />
+              <circle cx="88" cy="60" r="22" fill="var(--color-primary)" />
+            </svg>
+            <span className="transporter-navbar-brand">KuapaDwaso</span>
+          </Link>
+          <Link href="/transporter/profile" className="transporter-navbar-profile-button" aria-label="My Profile">
+            <User size={20} />
+          </Link>
+        </div>
+      </header>
+
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}</main>
       <nav className="bottom-nav">
         <Link href="/transporter" className={`nav-link ${isActive("/transporter") ? "nav-link-active" : ""}`}>
           <Home size={22} />

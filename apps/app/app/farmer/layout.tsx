@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Sprout, Receipt, Wallet } from "lucide-react";
+import { Home, Sprout, Receipt, Wallet, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 
 type FarmerLayoutProps = {
@@ -71,6 +71,9 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
               <circle cx="88" cy="60" r="22" fill="var(--color-primary)" />
             </svg>
             <span className="farmer-navbar-brand">KuapaDwaso</span>
+          </Link>
+          <Link href="/farmer/profile" className="farmer-navbar-profile-button" aria-label="My Profile">
+            <User size={20} />
           </Link>
         </div>
       </header>

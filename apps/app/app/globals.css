@@ -1289,8 +1289,10 @@ textarea.form-input {
   }
 }
 
-/* --- Farmer Top Navbar --- */
-.farmer-top-navbar {
+/* --- Top Navbar --- */
+.farmer-top-navbar,
+.buyer-top-navbar,
+.transporter-top-navbar {
   position: fixed;
   top: 0;
   left: 0;
@@ -1306,7 +1308,9 @@ textarea.form-input {
   align-items: center;
 }
 
-.farmer-navbar-container {
+.farmer-navbar-container,
+.buyer-navbar-container,
+.transporter-navbar-container {
   width: 100%;
   max-width: 600px;
   padding: 0 20px;
@@ -1315,7 +1319,9 @@ textarea.form-input {
   align-items: center;
 }
 
-.farmer-navbar-logo-area {
+.farmer-navbar-logo-area,
+.buyer-navbar-logo-area,
+.transporter-navbar-logo-area {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1324,11 +1330,15 @@ textarea.form-input {
   transition: opacity 0.2s ease;
 }
 
-.farmer-navbar-logo-area:hover {
+.farmer-navbar-logo-area:hover,
+.buyer-navbar-logo-area:hover,
+.transporter-navbar-logo-area:hover {
   opacity: 0.8;
 }
 
-.farmer-navbar-brand {
+.farmer-navbar-brand,
+.buyer-navbar-brand,
+.transporter-navbar-brand {
   font-family: var(--font-sans);
   font-size: 1.25rem;
   font-weight: 800;
@@ -1336,7 +1346,33 @@ textarea.form-input {
   color: var(--color-ink);
 }
 
-.farmer-navbar-logo {
+.farmer-navbar-logo,
+.buyer-navbar-logo,
+.transporter-navbar-logo {
   flex-shrink: 0;
 }
+
+.farmer-navbar-profile-button,
+.buyer-navbar-profile-button,
+.transporter-navbar-profile-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-ink);
+  background-color: rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+  border: 1px solid var(--color-line);
+}
+
+.farmer-navbar-profile-button:hover,
+.buyer-navbar-profile-button:hover,
+.transporter-navbar-profile-button:hover {
+  background-color: rgba(76, 175, 80, 0.1);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
 
