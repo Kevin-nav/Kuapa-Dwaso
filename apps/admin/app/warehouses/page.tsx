@@ -2,12 +2,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable, StatusBadge, ConfirmModal, useWarehouseFilter, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { GHANA_REGIONS } from "@kuapa-dwaso/types";
 import { Plus } from "lucide-react";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function WarehousesPage() {
+  const router = useRouter();
   const { selectedWarehouseId } = useWarehouseFilter();
   const { access, warehouses, agents, inventory, actions } = useOperationalAdminData();
   const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
@@ -94,7 +97,7 @@ export default function WarehousesPage() {
             opacity: access.canManageWarehouses ? 1 : 0.55,
             boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
           }}
-          onClick={() => alert("Creating a new warehouse requires multi-region mapping. This action is placeholder for MVP.")}
+          onClick={() => router.push("/warehouses/new")}
         >
           <Plus size={16} /> Create Warehouse
         </button>
@@ -121,11 +124,7 @@ export default function WarehousesPage() {
           {
             key: "region",
             label: "Filter Region",
-            options: [
-              { value: "Ashanti", label: "Ashanti" },
-              { value: "Bono", label: "Bono" },
-              { value: "Northern", label: "Northern" }
-            ]
+            options: GHANA_REGIONS.map(r => ({ value: r, label: r }))
           }
         ]}
         drawerTitle={(row) => row.name}

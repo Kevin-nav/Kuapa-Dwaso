@@ -164,6 +164,7 @@ export function useOperationalAdminData() {
   ) as Record<string, unknown> | undefined;
 
   const updateWarehouseStatusMutation = useMutation(api.warehouses.updateStatus);
+  const createWarehouseMutation = useMutation(api.warehouses.create);
   const updateAgentStatusMutation = useMutation(api.warehouseAgents.updateStatus);
   const assignWarehousesMutation = useMutation(api.warehouseAgents.assignWarehouses);
   const updateFarmerVerificationMutation = useMutation(api.farmers.updateVerificationStatus);
@@ -274,6 +275,7 @@ export function useOperationalAdminData() {
       canReadPayments,
       canReadPayouts,
       canManageWarehouses: hasPermission("warehouses:manage"),
+      canCreateWarehouses: hasPermission("warehouses:manage"),
       canManageAgents: hasPermission("warehouseAgents:manage"),
       canVerifyFarmers: hasPermission("farmers:verify"),
       canManageBuyers: hasPermission("buyers:manage"),
@@ -309,6 +311,25 @@ export function useOperationalAdminData() {
           warehouseId: warehouseId as Id<"warehouses">,
           status,
           ...(reason === undefined ? {} : { reason }),
+        }),
+      createWarehouse: (args: {
+        code: string;
+        name: string;
+        community: string;
+        district?: string;
+        region?: string;
+        servedCommunities: string[];
+        supportedCrops: string[];
+        storageCapacity?: number;
+        capacityUnit?: string;
+        destinationMarketsServed: string[];
+        operatingDays: string[];
+        dispatchDays?: string[];
+        status?: "active" | "inactive" | "maintenance" | "closed";
+      }) =>
+        createWarehouseMutation({
+          actorUserId: requireActorUserId(),
+          ...args,
         }),
       updateAgentStatus: (warehouseAgentId: string, status: "pending" | "approved" | "rejected" | "suspended" | "deactivated", reason?: string) =>
         updateAgentStatusMutation({

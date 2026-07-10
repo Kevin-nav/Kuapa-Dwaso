@@ -306,6 +306,34 @@ export const createSelfAppFarmerProfile = mutation({
         updatedAt: now,
       });
     } else {
+      const region = args.region?.trim();
+      assertAllowed(region !== undefined && region.length > 0, "Farmer region is required.");
+
+      const activeWarehousesInRegion = await ctx.db
+        .query("warehouses")
+        .withIndex("by_region_status", (q: any) => q.eq("region", region).eq("status", "active"))
+        .collect();
+
+      assertAllowed(
+        activeWarehousesInRegion.length > 0,
+        "Restricted Region: Onboarding is only available in regions with active warehouses."
+      );
+
+      let resolvedWarehouseId = args.preferredWarehouseId;
+      if (resolvedWarehouseId !== undefined) {
+        const warehouse = await ctx.db.get(resolvedWarehouseId);
+        assertAllowed(
+          warehouse !== null && warehouse.status === "active",
+          "Selected warehouse is invalid or inactive."
+        );
+        assertAllowed(
+          warehouse.region === region,
+          "A warehouse can only accept farmers from the same region."
+        );
+      } else {
+        resolvedWarehouseId = activeWarehousesInRegion[0]!._id;
+      }
+
       farmerCode = await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now);
       farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
         userId,
@@ -313,9 +341,9 @@ export const createSelfAppFarmerProfile = mutation({
         fullName: args.fullName.trim(),
         phoneNumber,
         community: args.community.trim(),
-        region: cleanOptionalText(args.region),
+        region,
         householdPhoneOwnerName: cleanOptionalText(args.householdPhoneOwnerName),
-        preferredWarehouseId: args.preferredWarehouseId,
+        preferredWarehouseId: resolvedWarehouseId,
         registrationSource: "self_app",
         verificationStatus: "verified",
         status: "active",

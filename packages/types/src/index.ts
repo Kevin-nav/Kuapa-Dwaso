@@ -1194,3 +1194,84 @@ export type CompleteUploadAssetInput = {
   sizeBytes: number;
   checksumSha256?: string;
 };
+
+// ---------------------------------------------------------------------------
+// Ghana geography constants
+// ---------------------------------------------------------------------------
+
+/** Ghana regions currently supported by the platform. */
+export const GHANA_REGIONS = [
+  "Ashanti",
+  "Bono",
+  "Northern",
+  "Western",
+  "Western North",
+] as const;
+export type GhanaRegion = (typeof GHANA_REGIONS)[number];
+
+/** Communities/towns by region — drives cascading selects in registration and warehouse forms. */
+export const COMMUNITIES_BY_REGION: Record<GhanaRegion, readonly string[]> = {
+  Ashanti: [
+    "Kumasi Central", "Bantama", "Adum", "Kejetia", "Bantama Farm Gate",
+    "Obuasi", "Mampong", "Ejisu", "Konongo", "Agogo",
+  ],
+  Bono: [
+    "Sunyani", "Fiapre", "Abesim", "Chiraa", "Sunyani South",
+    "Berekum", "Dormaa Ahenkro", "Nsoatre",
+  ],
+  Northern: [
+    "Tamale", "Tamale Industrial", "Savelugu", "Tolon", "Nyankpala",
+    "Yendi", "Damongo", "Bimbilla",
+  ],
+  Western: [
+    "Sekondi-Takoradi", "Tarkwa", "Prestea", "Axim", "Asankragua",
+    "Bogoso", "Daboase", "Shama", "Aboadze", "Busua",
+    "Elubo", "Half Assini", "Essiama", "Agona Nkwanta", "Dixcove",
+  ],
+  "Western North": [
+    "Sefwi Wiawso", "Bibiani", "Enchi", "Adabokrom", "Essam",
+    "Bodi", "Juaboso", "Akontombra", "Dadieso",
+  ],
+};
+
+/** Districts by region — used for warehouse creation forms and admin filters. */
+export const DISTRICTS_BY_REGION: Record<GhanaRegion, readonly string[]> = {
+  Ashanti: [
+    "Kumasi Metropolitan", "Asante Akim North", "Asante Akim South",
+    "Asante Akim Central", "Obuasi Municipal", "Mampong Municipal",
+    "Ejisu Municipal",
+  ],
+  Bono: [
+    "Sunyani Municipal", "Dormaa Municipal", "Berekum Municipal",
+    "Jaman South", "Tain",
+  ],
+  Northern: [
+    "Tamale Metropolitan", "Savelugu Municipal", "Tolon",
+    "Sagnarigu Municipal", "Yendi Municipal", "West Gonja",
+  ],
+  Western: [
+    "Sekondi-Takoradi Metropolitan", "Tarkwa-Nsuaem Municipal",
+    "Prestea-Huni Valley Municipal", "Nzema East Municipal",
+    "Amenfi West", "Amenfi East", "Amenfi Central",
+    "Wassa East", "Ahanta West", "Shama", "Jomoro", "Ellembelle",
+    "Effia-Kwesimintsim",
+  ],
+  "Western North": [
+    "Sefwi Wiawso Municipal", "Bibiani-Anhwiaso-Bekwai Municipal",
+    "Aowin Municipal", "Bia East", "Bia West",
+    "Bodi", "Juaboso", "Sefwi Akontombra", "Suaman",
+  ],
+};
+
+/** Crops supported across the platform — drives checkbox grids and intake selects. */
+export const SUPPORTED_CROPS = [
+  "Maize", "Cocoa", "Cassava", "Yam", "Tomato",
+  "Rice", "Sorghum", "Millet", "Soybeans", "Plantain",
+  "Cocoyam", "Oil Palm", "Cashew", "Shea Nuts", "Pepper",
+  "Okra", "Groundnut",
+] as const;
+export type SupportedCrop = (typeof SUPPORTED_CROPS)[number];
+
+/** Standard capacity units for warehouse storage. */
+export const CAPACITY_UNITS = ["tonnes", "bags", "crates"] as const;
+export type CapacityUnit = (typeof CAPACITY_UNITS)[number];

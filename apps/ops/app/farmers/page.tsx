@@ -9,6 +9,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../context/WarehouseContext";
+import { GHANA_REGIONS, COMMUNITIES_BY_REGION } from "@kuapa-dwaso/types";
+import type { GhanaRegion } from "@kuapa-dwaso/types";
 import { 
   UserSearch, 
   Plus, 
@@ -45,12 +47,20 @@ export default function FarmersPage() {
   const [isRegistering, setIsRegistering] = useState(false);
 
   // Registration Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    fullName: string;
+    phoneNumber: string;
+    belongsToOther: boolean;
+    ownerName: string;
+    region: string;
+    community: string;
+    preferredWarehouseId: string;
+  }>({
     fullName: "",
     phoneNumber: "",
     belongsToOther: false,
     ownerName: "",
-    region: "Ashanti",
+    region: GHANA_REGIONS[0],
     community: "",
     preferredWarehouseId: ""
   });
@@ -59,12 +69,7 @@ export default function FarmersPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Cascading location lookup lists
-  const communitiesByRegion: Record<string, string[]> = {
-    Ashanti: ["Bantama", "Adum", "Kejetia", "Bantama Farm Gate", "Kumasi Central"],
-    Bono: ["Fiapre", "Abesim", "Chiraa", "Sunyani South"],
-    Northern: ["Savelugu", "Tolon", "Nyankpala", "Tamale Industrial"]
-  };
+
 
   // Hydrate lookups from cache
   useEffect(() => {
@@ -78,12 +83,16 @@ export default function FarmersPage() {
 
   useEffect(() => {
     if (activeWarehouse.id !== "unassigned") {
+      const region = activeWarehouse.region || GHANA_REGIONS[0];
+      const defaultComm = (COMMUNITIES_BY_REGION[region as GhanaRegion] ?? [])[0] || "";
       setFormData(prev => ({
         ...prev,
-        preferredWarehouseId: prev.preferredWarehouseId || activeWarehouse.id
+        preferredWarehouseId: prev.preferredWarehouseId || activeWarehouse.id,
+        region,
+        community: prev.community || defaultComm
       }));
     }
-  }, [activeWarehouse.id]);
+  }, [activeWarehouse.id, activeWarehouse.region]);
 
   const backendLookup = useQuery(
     api.farmers.getByPhoneNumber,
@@ -167,7 +176,7 @@ export default function FarmersPage() {
   // Cascading select handlers
   const handleRegionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const region = e.target.value;
-    const defaultComm = communitiesByRegion[region]?.[0] || "";
+    const defaultComm = (COMMUNITIES_BY_REGION[region as GhanaRegion] ?? [])[0] || "";
     setFormData(prev => ({ ...prev, region, community: defaultComm }));
   };
 
@@ -260,13 +269,15 @@ export default function FarmersPage() {
         setSearchPhone(formData.phoneNumber);
         setSearchResult(newFarmer);
         setSearched(true);
+        const resetRegion = activeWarehouse?.region || GHANA_REGIONS[0];
+        const resetCommunity = (COMMUNITIES_BY_REGION[resetRegion as GhanaRegion] ?? [])[0] || "";
         setFormData({
           fullName: "",
           phoneNumber: "",
           belongsToOther: false,
           ownerName: "",
-          region: "Ashanti",
-          community: "",
+          region: resetRegion,
+          community: resetCommunity,
           preferredWarehouseId: activeWarehouse.id
         });
         setTouched({});
@@ -280,10 +291,12 @@ export default function FarmersPage() {
 
   const triggerRegisterMode = () => {
     setIsRegistering(true);
+    const initialRegion = activeWarehouse?.region || GHANA_REGIONS[0];
     setFormData(prev => ({
       ...prev,
       phoneNumber: searchPhone,
-      community: communitiesByRegion[prev.region]?.[0] || ""
+      region: initialRegion,
+      community: (COMMUNITIES_BY_REGION[initialRegion as GhanaRegion] ?? [])[0] || ""
     }));
   };
 
@@ -404,11 +417,12 @@ export default function FarmersPage() {
                 id="region"
                 className="form-select"
                 value={formData.region}
+                disabled={true}
                 onChange={handleRegionChange}
               >
-                <option value="Ashanti">Ashanti</option>
-                <option value="Bono">Bono</option>
-                <option value="Northern">Northern</option>
+                {GHANA_REGIONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
               </select>
             </div>
 
@@ -421,7 +435,7 @@ export default function FarmersPage() {
                 onChange={(e) => handleFormChange("community", e.target.value)}
                 onBlur={() => handleBlur("community")}
               >
-                {communitiesByRegion[formData.region]?.map(c => (
+                {(COMMUNITIES_BY_REGION[formData.region as GhanaRegion] ?? []).map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -556,7 +570,7 @@ export default function FarmersPage() {
               <div style={{ borderTop: "1px solid var(--color-line)", borderBottom: "1px solid var(--color-line)", padding: "12px 0", display: "flex", flexDirection: "column", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--gray-700)" }}>
                   <MapPin size={16} className="text-gray-500" />
-                  <span>{searchResult.community} · {searchResult.region || "Ashanti Region"}</span>
+                  <span>{searchResult.community} · {searchResult.region || GHANA_REGIONS[0]}</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--gray-700)" }}>
                   <User size={16} className="text-gray-500" />
