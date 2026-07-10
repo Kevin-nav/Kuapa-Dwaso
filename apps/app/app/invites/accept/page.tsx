@@ -1,9 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import type { FormEvent } from "react";
-import { CheckCircle2, MailCheck, ShieldCheck } from "lucide-react";
+import { CheckCircle2, MailCheck, ShieldCheck, Loader2 } from "lucide-react";
 import {
   getAuthErrorCode,
   getAuthErrorMessage,
@@ -13,6 +13,7 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithEmailAndPassword,
+  updateEmail,
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "../../auth/firebase";
@@ -20,30 +21,67 @@ import { PhoneAuthPanel } from "../../auth/PhoneAuthPanel";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
 
-type InviteMode = "admin_email" | "warehouse_manager_email" | "warehouse_agent_phone";
-
 function InviteAcceptContent() {
   const searchParams = useSearchParams();
-  const requestedMode = searchParams.get("mode");
-  const [mode, setMode] = useState<InviteMode>(
-    requestedMode === "warehouse_manager_email" || requestedMode === "warehouse_agent_phone"
-      ? requestedMode
-      : "admin_email",
-  );
+  const token = searchParams.get("token") ?? "";
+  
+  const [inviteDetails, setInviteDetails] = useState<{
+    type: string;
+    channel: string;
+    targetEmail?: string;
+    targetPhoneNumber?: string;
+    status: string;
+    expiresAt: number;
+  } | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(true);
+  const [inviteError, setInviteError] = useState<string | undefined>();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [status, setStatus] = useState<string>("Choose the invite type and sign in with the invited identity.");
+  const [status, setStatus] = useState<string>("");
   const [error, setError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState<string | undefined>();
 
-  const token = searchParams.get("token") ?? "";
-  const roleLabel = mode === "admin_email" ? "admin" : mode === "warehouse_manager_email" ? "warehouse manager" : "warehouse agent";
+  const [phoneUser, setPhoneUser] = useState<User | null>(null);
+  const [emailLinkingSent, setEmailLinkingSent] = useState(false);
+
+  useEffect(() => {
+    if (token.trim().length === 0) {
+      setLoadingInvite(false);
+      setInviteError("Invite token is missing from the URL.");
+      return;
+    }
+    const fetchInvite = async () => {
+      try {
+        if (apiBaseUrl === undefined || apiBaseUrl.trim().length === 0) {
+          throw new Error("NEXT_PUBLIC_API_URL is required to load invitations.");
+        }
+        const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/invitations/pending/${encodeURIComponent(token.trim())}`);
+        if (!response.ok) {
+          throw new Error("This invitation is invalid, has expired, or was already accepted.");
+        }
+        const data = await response.json();
+        setInviteDetails(data);
+        if (data.targetEmail) {
+          setEmail(data.targetEmail);
+        }
+      } catch (err) {
+        setInviteError(err instanceof Error ? err.message : "Could not load invitation details.");
+      } finally {
+        setLoadingInvite(false);
+      }
+    };
+    void fetchInvite();
+  }, [token]);
+
+  const roleLabel = inviteDetails
+    ? inviteDetails.type.replace("_invite", "").replace("_", " ")
+    : "user";
 
   const sendVerification = async (user: User) => {
     const continueUrl = new URL(window.location.href);
-    continueUrl.searchParams.set("mode", mode);
     await sendEmailVerification(user, {
       url: continueUrl.toString(),
       handleCodeInApp: false,
@@ -65,7 +103,7 @@ function InviteAcceptContent() {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        token,
+        token: token.trim(),
         displayName: displayName.trim() || undefined,
       }),
     });
@@ -77,7 +115,7 @@ function InviteAcceptContent() {
     setStatus(
       accepted.mfaRequired
         ? `Invite accepted for ${accepted.profileType}. MFA was satisfied by Firebase before acceptance.`
-        : `Invite accepted for ${accepted.profileType}. User ${accepted.userId} is linked.`,
+        : `Invite accepted for ${accepted.profileType}. User ${accepted.userId} is linked.`
     );
   };
 
@@ -137,40 +175,135 @@ function InviteAcceptContent() {
             ? getAuthErrorMessage(err, "sign-in")
             : err instanceof Error
               ? err.message
-              : "Could not resend the verification email.",
+              : "Could not resend the verification email."
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleLinkEmail = async () => {
+    if (phoneUser === null || inviteDetails === null || !inviteDetails.targetEmail) return;
+    setError(undefined);
+    setIsSubmitting(true);
+    try {
+      await updateEmail(phoneUser, inviteDetails.targetEmail.trim());
+      await sendEmailVerification(phoneUser);
+      setEmailLinkingSent(true);
+      setStatus(`A verification email was sent to ${inviteDetails.targetEmail}.`);
+    } catch (err) {
+      setError(getAuthErrorMessage(err, "sign-in"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAcceptWithLinkedEmail = async () => {
+    if (phoneUser === null) return;
+    setError(undefined);
+    setIsSubmitting(true);
+    try {
+      await phoneUser.reload();
+      if (!phoneUser.emailVerified) {
+        throw new Error("Email has not been verified yet. Check your inbox and click the verification link first.");
+      }
+      await acceptInvite(phoneUser);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loadingInvite) {
+    return (
+      <main className="page-shell auth-page">
+        <section className="auth-panel" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+          <Loader2 className="animate-spin" size={36} style={{ color: "var(--color-primary)" }} />
+          <p style={{ marginLeft: "12px" }}>Loading invitation details...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (inviteError !== undefined) {
+    return (
+      <main className="page-shell auth-page">
+        <section className="auth-panel">
+          <p className="eyebrow">Invite acceptance</p>
+          <h1>Invitation Error</h1>
+          <div className="auth-error-card" role="alert" style={{ marginTop: "20px" }}>
+            <span aria-hidden="true">!</span>
+            <p>{inviteError}</p>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const isPhoneAuthRequired = inviteDetails?.type === "warehouse_agent_invite" || inviteDetails?.type === "transporter_invite";
+  const needsEmailLinking = isPhoneAuthRequired && inviteDetails?.channel === "email";
+
   return (
     <main className="page-shell auth-page">
       <section className="auth-panel">
         <p className="eyebrow">Invite acceptance</p>
         <h1>Accept platform invite</h1>
-        <p>Choose the role named in your invitation. Your sign-in method and security steps will match that role.</p>
+        <p style={{ marginBottom: "24px" }}>
+          You have been invited to join Kuapa Dwaso as a <strong style={{ textTransform: "capitalize" }}>{roleLabel}</strong>.
+        </p>
 
-        <div className="role-grid">
-          {([
-            ["admin_email", "admin"],
-            ["warehouse_manager_email", "warehouse manager"],
-            ["warehouse_agent_phone", "warehouse agent"],
-          ] as const).map(([value, label]) => (
-            <button key={value} type="button" className={mode === value ? "selected" : ""} onClick={() => { setMode(value); setVerificationEmail(undefined); setError(undefined); }}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {mode === "warehouse_agent_phone" ? (
-          <PhoneAuthPanel
-            submitLabel="Accept invite"
-            onVerified={async (user) => {
-              setError(undefined);
-              await acceptInvite(user);
-            }}
-          />
+        {isPhoneAuthRequired ? (
+          phoneUser === null ? (
+            <PhoneAuthPanel
+              submitLabel="Verify Phone"
+              onVerified={async (user) => {
+                setError(undefined);
+                if (needsEmailLinking) {
+                  setPhoneUser(user);
+                  setStatus("Phone verified. Please link your invited email to complete setup.");
+                } else {
+                  try {
+                    await acceptInvite(user);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Accepting invite failed.");
+                  }
+                }
+              }}
+            />
+          ) : (
+            <div className="auth-card">
+              <div className="field-stack" style={{ marginBottom: "16px" }}>
+                <label htmlFor="displayName">Display name</label>
+                <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={isSubmitting} />
+              </div>
+              <div className="field-stack" style={{ marginBottom: "16px" }}>
+                <label htmlFor="linkedEmail">Invited Email Address</label>
+                <input id="linkedEmail" type="email" value={inviteDetails?.targetEmail ?? ""} disabled />
+                <span className="field-help" style={{ fontSize: "12px", color: "#6b7280" }}>
+                  This email must be linked to your account to accept the invitation.
+                </span>
+              </div>
+              
+              {!emailLinkingSent ? (
+                <button type="button" onClick={() => void handleLinkEmail()} disabled={isSubmitting}>
+                  Link and Verify Email
+                </button>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <p className="auth-status" style={{ color: "var(--color-primary)", fontWeight: 600 }}>
+                    Verification email sent. Please check your inbox and click the verification link.
+                  </p>
+                  <button type="button" onClick={() => void handleAcceptWithLinkedEmail()} disabled={isSubmitting}>
+                    I've verified my email — Accept invitation
+                  </button>
+                  <button type="button" className="verification-resend" onClick={() => void handleLinkEmail()} disabled={isSubmitting} style={{ background: "none", border: "none", color: "var(--color-primary)", cursor: "pointer", textDecoration: "underline" }}>
+                    Resend verification email
+                  </button>
+                </div>
+              )}
+            </div>
+          )
         ) : (
           <form
             className="auth-card"
@@ -180,18 +313,18 @@ function InviteAcceptContent() {
           >
             <div className="field-stack">
               <label htmlFor="displayName">Display name</label>
-              <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+              <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={isSubmitting} />
             </div>
             <div className="field-stack">
               <label htmlFor="email">Email</label>
-              <input id="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              <input id="email" type="email" autoComplete="email" value={email} disabled required />
             </div>
             <div className="field-stack">
               <label htmlFor="password">Password</label>
-              <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={isSubmitting} />
             </div>
             <p className="auth-status">
-              {mode === "warehouse_manager_email" ? "Warehouse manager invites require SMS MFA messaging." : "Admin invites require email verification and MFA."}
+              {inviteDetails?.type === "warehouse_manager_invite" ? "Warehouse manager invites require SMS MFA messaging." : "Admin invites require email verification and MFA."}
             </p>
             <button type="submit" disabled={isSubmitting}>
               {verificationEmail === undefined ? `Continue as ${roleLabel}` : `I've verified — sign in as ${roleLabel}`}

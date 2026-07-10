@@ -259,6 +259,19 @@ const claimPendingSmsDeliveries = makeFunctionReference<
   ClaimedSmsNotification[]
 >("notifications:claimPendingSmsDeliveries");
 
+const getPendingInvitationByTokenHash = makeFunctionReference<
+  "query",
+  { tokenHash: string },
+  {
+    type: string;
+    channel: string;
+    targetEmail?: string;
+    targetPhoneNumber?: string;
+    status: string;
+    expiresAt: number;
+  } | null
+>("invitations:getPendingByTokenHash");
+
 const getInstitutionWelcomeEmailContext = makeFunctionReference<
   "query",
   { actorUserId: string; buyerId: string },
@@ -305,6 +318,10 @@ export class ConvexPlatformProvider {
 
   async acceptInvitation(args: AcceptInvitationArgs): Promise<AcceptInvitationResult> {
     return await this.getClient().mutation(acceptInvitation, args);
+  }
+
+  async getPendingInvitationByTokenHash(tokenHash: string) {
+    return await this.getClient().query(getPendingInvitationByTokenHash, { tokenHash });
   }
 
   async createPendingUpload(args: CreatePendingUploadArgs): Promise<{

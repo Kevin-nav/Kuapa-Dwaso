@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards, UnauthorizedException, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpException, HttpStatus, Post, Get, Param, UseGuards, UnauthorizedException, BadRequestException, NotFoundException } from "@nestjs/common";
 import type { AdminRoleKey, AdminScopeType, InvitationChannel, MfaRequirement, PlatformInvitationType } from "@kuapa-dwaso/types";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
@@ -218,6 +218,19 @@ export class InvitationsController {
       tokenHash: this.tokens.hashToken(body.token),
       identity
     });
+  }
+
+  @Get("pending/:token")
+  async getPendingInvite(@Param("token") token: string) {
+    if (token.trim().length === 0) {
+      throw new BadRequestException("Token is required.");
+    }
+    const tokenHash = this.tokens.hashToken(token.trim());
+    const invite = await this.convex.getPendingInvitationByTokenHash(tokenHash);
+    if (invite === null) {
+      throw new NotFoundException("Invitation not found.");
+    }
+    return invite;
   }
 }
 

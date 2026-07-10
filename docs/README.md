@@ -5,6 +5,7 @@ This is the entry point for the project documentation. It separates the current 
 ## Start here
 
 - [Product guide](product/overview.md) — a non-technical explanation of the product, user journeys, features, and operating rules.
+- [Solution concept](product/solution-concept.md) — a comprehensive overview of how market research and the technical stack align to solve real-world trade bottlenecks.
 - [Technical overview](technical/architecture.md) — the current system architecture, application boundaries, data ownership, integrations, and security posture.
 - [Root README](../README.md) — project summary and local quick start.
 

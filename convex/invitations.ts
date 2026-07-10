@@ -3,6 +3,7 @@ import {
   assertInviteTargetMatchesIdentity,
   normalizeEmailAddress,
   normalizePhoneNumber,
+  phoneNumbersMatch,
 } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -367,7 +368,7 @@ export const accept = mutation({
       const warehouseAgent = await ctx.db.get(warehouseAgentId);
       assertAllowed(warehouseAgent !== null, "Linked warehouse agent profile was not found.");
       assertAllowed(
-        normalizePhoneNumber(warehouseAgent.phoneNumber) === normalizePhoneNumber(args.identity.phoneNumber ?? ""),
+        phoneNumbersMatch(warehouseAgent.phoneNumber, args.identity.phoneNumber ?? ""),
         "Warehouse agent invite phone does not match the linked profile.",
       );
       await ctx.db.patch(warehouseAgentId, {
@@ -525,5 +526,39 @@ export const list = query({
     return candidates
       .filter((invitation) => args.status === undefined || invitation.status === args.status)
       .slice(0, limit);
+  },
+});
+
+export const getPendingByTokenHash = query({
+  args: {
+    tokenHash: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      type: invitationType,
+      channel: invitationChannel,
+      targetEmail: v.optional(v.string()),
+      targetPhoneNumber: v.optional(v.string()),
+      status: invitationStatus,
+      expiresAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const invitation = await ctx.db
+      .query("platformInvitations")
+      .withIndex("by_token_hash", (q) => q.eq("tokenHash", args.tokenHash))
+      .unique();
+    if (invitation === null || invitation.status !== "pending") {
+      return null;
+    }
+    return omitUndefinedValues({
+      type: invitation.type,
+      channel: invitation.channel,
+      targetEmail: invitation.targetEmail,
+      targetPhoneNumber: invitation.targetPhoneNumber,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    }) as any;
   },
 });

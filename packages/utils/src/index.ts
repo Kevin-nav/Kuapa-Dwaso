@@ -784,6 +784,22 @@ export function normalizeGhanaPhoneNumber(phoneNumber: string): string {
   return normalized;
 }
 
+export function phoneNumbersMatch(num1: string, num2: string): boolean {
+  let norm1: string;
+  let norm2: string;
+  try {
+    norm1 = normalizeE164PhoneNumber(num1);
+  } catch {
+    norm1 = normalizePhoneNumber(num1);
+  }
+  try {
+    norm2 = normalizeE164PhoneNumber(num2);
+  } catch {
+    norm2 = normalizePhoneNumber(num2);
+  }
+  return norm1 === norm2;
+}
+
 export function assertInviteTargetMatchesIdentity(input: {
   targetEmail?: string;
   targetPhoneNumber?: string;
@@ -797,7 +813,7 @@ export function assertInviteTargetMatchesIdentity(input: {
     return;
   }
   if (input.targetPhoneNumber !== undefined) {
-    if (input.identityPhoneNumber === undefined || normalizePhoneNumber(input.targetPhoneNumber) !== normalizePhoneNumber(input.identityPhoneNumber)) {
+    if (input.identityPhoneNumber === undefined || !phoneNumbersMatch(input.targetPhoneNumber, input.identityPhoneNumber)) {
       throw new Error("Invitation phone number does not match the verified identity.");
     }
     return;
