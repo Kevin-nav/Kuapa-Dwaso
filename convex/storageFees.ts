@@ -1,6 +1,7 @@
 import { calculateFeeAmountFromSnapshot } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   adminAccessHasPermissionForScope,
   assertAllowed,
@@ -74,6 +75,24 @@ export const accrueForBatch = mutation({
       entityId: ledgerId,
       after: after === null ? undefined : auditSnapshot(after),
     });
+    if (days >= 7) {
+      const farmer = await ctx.db.get(batch.farmerId);
+      if (farmer !== null) {
+        const totalFee = batch.storageFeeAccrued + amount;
+        await insertNotificationRecord(ctx, {
+          recipientId: farmer.phoneNumber,
+          recipientUserId: farmer.userId,
+          recipientRole: "farmer",
+          channel: "sms",
+          title: "Storage fee update",
+          message: `Your storage fee for ${batch.cropType} is now GHS ${totalFee.toFixed(2)}. Receipt ${batch.receiptCode}.`,
+          messageKind: "storage_fee_reminder",
+          templateKey: "generic_notification",
+          relatedEntityType: "storage_fee_ledger",
+          relatedEntityId: ledgerId,
+        });
+      }
+    }
 
     return ledgerId;
   },

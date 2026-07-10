@@ -1,6 +1,7 @@
 import { canCreateFarmerProfile, canVerifyFarmer } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   adminAccessHasPermissionForScope,
   adminScopeTarget,
@@ -83,9 +84,10 @@ export const createProfile = mutation({
     }
 
     const now = Date.now();
+    const farmerCode = await makeUniqueFarmerCode(ctx, args.community, args.phoneNumber, now);
     const farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
       userId: args.userId,
-      farmerCode: await makeUniqueFarmerCode(ctx, args.community, args.phoneNumber, now),
+      farmerCode,
       fullName: args.fullName,
       phoneNumber: args.phoneNumber,
       community: args.community,
@@ -106,6 +108,18 @@ export const createProfile = mutation({
       entityType: "farmer",
       entityId: farmerId,
       after: after === null ? undefined : auditSnapshot(after),
+    });
+    await insertNotificationRecord(ctx, {
+      recipientId: args.phoneNumber,
+      recipientUserId: args.userId,
+      recipientRole: "farmer",
+      channel: "sms",
+      title: "Welcome to Kuapa Dwaso",
+      message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Show this code when you bring produce to the warehouse.`,
+      messageKind: "transactional",
+      templateKey: "generic_notification",
+      relatedEntityType: "farmer",
+      relatedEntityId: farmerId,
     });
 
     return farmerId;
@@ -172,6 +186,27 @@ export const updateVerificationStatus = mutation({
       after: after === null ? undefined : auditSnapshot(after),
       metadata: args.reason === undefined ? undefined : { reason: args.reason },
     });
+    if (farmer.verificationStatus !== args.verificationStatus) {
+      const reason = cleanOptionalText(args.reason);
+      const message =
+        args.verificationStatus === "verified"
+          ? "Your account is ready. You can bring produce to the warehouse."
+          : args.verificationStatus === "rejected"
+            ? `We could not confirm your account.${reason === undefined ? " Please speak to your warehouse agent." : ` Reason: ${reason}`}`
+            : "We are checking your account. We will send you an update.";
+      await insertNotificationRecord(ctx, {
+        recipientId: farmer.phoneNumber,
+        recipientUserId: farmer.userId,
+        recipientRole: "farmer",
+        channel: "sms",
+        title: "Account update",
+        message,
+        messageKind: "transactional",
+        templateKey: "generic_notification",
+        relatedEntityType: "farmer",
+        relatedEntityId: args.farmerId,
+      });
+    }
 
     return args.farmerId;
   },

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   assertAllowed,
   auditSnapshot,
@@ -294,6 +295,7 @@ export const createSelfAppFarmerProfile = mutation({
       .unique();
     const now = Date.now();
     let farmerId: Id<"farmers">;
+    let farmerCode: string | undefined;
     if (existing !== null) {
       assertAllowed(existing.userId === undefined || existing.userId === userId, "Farmer phone is already linked.");
       farmerId = existing._id;
@@ -304,9 +306,10 @@ export const createSelfAppFarmerProfile = mutation({
         updatedAt: now,
       });
     } else {
+      farmerCode = await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now);
       farmerId = await ctx.db.insert("farmers", omitUndefinedValues({
         userId,
-        farmerCode: await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now),
+        farmerCode,
         fullName: args.fullName.trim(),
         phoneNumber,
         community: args.community.trim(),
@@ -331,6 +334,20 @@ export const createSelfAppFarmerProfile = mutation({
       entityId: farmerId,
       after: farmer === null ? undefined : auditSnapshot(farmer),
     });
+    if (farmerCode !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientId: phoneNumber,
+        recipientUserId: userId,
+        recipientRole: "farmer",
+        channel: "sms",
+        title: "Welcome to Kuapa Dwaso",
+        message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Show this code when you bring produce to the warehouse.`,
+        messageKind: "transactional",
+        templateKey: "generic_notification",
+        relatedEntityType: "farmer",
+        relatedEntityId: farmerId,
+      });
+    }
     return { userId, farmerId };
   },
 });

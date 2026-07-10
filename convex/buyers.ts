@@ -202,6 +202,20 @@ export const createOrUpdateProfile = mutation({
     }
 
     await auditBuyerChange(ctx, actor, "buyer.profile_created", buyerId, null, after);
+    await insertNotificationRecord(ctx, {
+      recipientId: after.phoneNumber,
+      recipientUserId: after.userId,
+      recipientRole: "buyer",
+      channel: "sms",
+      title: "Welcome to Kuapa Dwaso",
+      message: after.verificationStatus === "verified"
+        ? "Welcome to Kuapa Dwaso. Your buyer account is ready. You can place orders."
+        : "Welcome to Kuapa Dwaso. We have received your details. We will send you a message when your account is ready.",
+      messageKind: "transactional",
+      templateKey: "generic_notification",
+      relatedEntityType: "buyer",
+      relatedEntityId: buyerId,
+    });
     return buyerId;
   },
 });
@@ -262,10 +276,10 @@ export const updateVerificationStatus = mutation({
             : "Buyer profile under review";
       const message =
         args.verificationStatus === "verified"
-          ? "Your buyer profile has been approved. You can continue using your buyer account."
+          ? "Your buyer account is ready. You can place orders."
           : args.verificationStatus === "rejected"
-            ? `Your buyer profile was not approved. Reason: ${reason}. Update your details and resubmit for review.`
-            : "Your buyer profile has been returned to the review queue.";
+            ? `We could not confirm your buyer account. Reason: ${reason}. Please update your details.`
+            : "We are checking your buyer account. We will send you an update.";
 
       await insertNotificationRecord(ctx, {
         recipientId: buyer.phoneNumber,
@@ -388,10 +402,14 @@ export const updateEnhancedVerificationStatus = mutation({
       metadata: reason === undefined ? { status: args.status } : { status: args.status, reason },
     });
 
-    const title = args.status === "verified" ? "Enhanced verification approved" : args.status === "changes_requested" ? "Verification changes requested" : "Enhanced verification updated";
+    const title = "Account update";
     const message = args.status === "verified"
-      ? "Your organization has passed enhanced verification and can proceed to payment and dispatch."
-      : `Your enhanced verification status is now ${args.status.replaceAll("_", " ")}.${reason ? ` Reason: ${reason}` : ""}`;
+      ? "Your buyer account is ready. You can place orders and pay for deliveries."
+      : args.status === "changes_requested"
+        ? `Please update your buyer details.${reason ? ` Reason: ${reason}` : ""}`
+        : args.status === "rejected"
+          ? `We could not confirm your buyer account.${reason ? ` Reason: ${reason}` : ""}`
+          : "We are checking your buyer account. We will send you an update.";
     await insertNotificationRecord(ctx, {
       recipientId: buyer.phoneNumber,
       recipientUserId: buyer.userId,
