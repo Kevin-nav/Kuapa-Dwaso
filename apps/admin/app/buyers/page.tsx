@@ -1,12 +1,16 @@
 // apps/admin/app/buyers/page.tsx
 "use client";
 
-import { DataTable, StatusBadge, gray, palette } from "@kuapa-dwaso/dashboard-ui";
+import { useState } from "react";
+import { DataTable, StatusBadge, ConfirmModal, gray, palette, status } from "@kuapa-dwaso/dashboard-ui";
+import { AlertTriangle, Check } from "lucide-react";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function BuyersPage() {
-  const { access, buyers, orders } = useOperationalAdminData();
+  const { access, buyers, orders, actions } = useOperationalAdminData();
+  const [selectedBuyer, setSelectedBuyer] = useState<any>(null);
+  const [verificationType, setVerificationType] = useState<"verify" | "reject" | null>(null);
 
   const columns = [
     { key: "fullName", header: "Full Name", type: "text" as const },
@@ -25,6 +29,23 @@ export default function BuyersPage() {
       render: (row: any) => <StatusBadge status={row.status} />
     }
   ];
+
+  const handleVerificationClick = (type: "verify" | "reject") => {
+    setVerificationType(type);
+  };
+
+  const handleVerificationConfirm = (reason?: string) => {
+    if (!selectedBuyer || !verificationType) return;
+
+    const newStatus = verificationType === "verify" ? "verified" : "rejected";
+    void actions.updateBuyerVerification(selectedBuyer.id, newStatus, reason);
+    setSelectedBuyer((prev: any) => ({
+      ...prev,
+      verificationStatus: newStatus
+    }));
+
+    setVerificationType(null);
+  };
 
   return (
     <OperationalAccessGate
@@ -74,7 +95,12 @@ export default function BuyersPage() {
         ]}
         drawerTitle={(row) => row.fullName}
         drawerContent={(row) => {
+          if (!selectedBuyer || selectedBuyer.id !== row.id) {
+            setSelectedBuyer(row);
+          }
+
           const buyerOrders = orders.filter((order) => order.buyerId === row.id);
+          const currentVerifyStatus = selectedBuyer?.id === row.id ? selectedBuyer.verificationStatus : row.verificationStatus;
 
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -82,7 +108,7 @@ export default function BuyersPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <strong style={{ color: gray[900], fontSize: "1rem" }}>Buyer Profile</strong>
                   <div style={{ display: "flex", gap: "6px" }}>
-                    <StatusBadge status={String(row.verificationStatus)} />
+                    <StatusBadge status={String(currentVerifyStatus)} />
                     <StatusBadge status={String(row.status)} />
                   </div>
                 </div>
@@ -105,6 +131,66 @@ export default function BuyersPage() {
                   </div>
                 </div>
               </section>
+
+              {/* Admin Override Section */}
+              {access.canManageBuyers && currentVerifyStatus === "pending" && (
+                <section style={{ 
+                  border: `1px solid ${status.warningBorder}`, 
+                  borderRadius: "8px", 
+                  background: status.warningBg, 
+                  padding: "16px", 
+                  display: "flex", 
+                  flexDirection: "column", 
+                  gap: "10px" 
+                }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <strong style={{ color: status.warning, fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <AlertTriangle size={16} /> Admin Verification Override
+                    </strong>
+                    <span style={{ color: gray[700], fontSize: "0.75rem", lineHeight: 1.4 }}>
+                      Standard buyers are automatically verified during the standard registration flow. Use these controls to manually override and force-verify this buyer.
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                    <button
+                      onClick={() => handleVerificationClick("verify")}
+                      style={{ 
+                        fontSize: "0.75rem", 
+                        fontWeight: 700, 
+                        padding: "6px 12px", 
+                        border: 0, 
+                        backgroundColor: palette.field, 
+                        color: "white", 
+                        borderRadius: "4px", 
+                        cursor: "pointer" 
+                      }}
+                    >
+                      Verify Buyer
+                    </button>
+                    <button
+                      onClick={() => handleVerificationClick("reject")}
+                      style={{ 
+                        fontSize: "0.75rem", 
+                        fontWeight: 700, 
+                        padding: "6px 12px", 
+                        border: `1px solid ${status.dangerBorder}`, 
+                        backgroundColor: "white", 
+                        color: status.danger, 
+                        borderRadius: "4px", 
+                        cursor: "pointer" 
+                      }}
+                    >
+                      Reject Profile
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {currentVerifyStatus === "verified" && (
+                <section style={{ border: `1px solid ${status.successBorder}`, borderRadius: "8px", background: status.successBg, padding: "12px", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.8125rem", color: status.success, fontWeight: 700 }}>
+                  <Check size={16} /> Profile Credentials Verified (Admin Override)
+                </section>
+              )}
 
               <section style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <span style={{ color: gray[500], fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>Linked Orders ({buyerOrders.length})</span>
@@ -131,6 +217,23 @@ export default function BuyersPage() {
           );
         }}
       />
+
+      {/* Verification Modals */}
+      {verificationType && selectedBuyer && (
+        <ConfirmModal
+          isOpen={verificationType !== null}
+          title={verificationType === "verify" ? "Confirm Admin Override: Verify Buyer" : "Confirm Admin Override: Reject Buyer"}
+          impactMessage={verificationType === "verify"
+            ? `OVERRIDE ACTION: Manually verifying the profile for ${selectedBuyer.fullName} will force-approve their account. Use this action only to bypass standard verification flows and immediately activate the buyer.`
+            : `OVERRIDE ACTION: Rejecting the verification for ${selectedBuyer.fullName} will force-deactivate their account. They will not be permitted to place orders or receive dispatches.`
+          }
+          confirmText={verificationType === "verify" ? "Force Verify Buyer" : "Force Reject Profile"}
+          onConfirm={handleVerificationConfirm}
+          onCancel={() => setVerificationType(null)}
+          requireReason={verificationType === "reject"}
+          reasonPlaceholder="Specify the manual override/rejection reason..."
+        />
+      )}
     </div>
     </OperationalAccessGate>
   );
