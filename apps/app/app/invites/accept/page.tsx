@@ -105,7 +105,7 @@ function InviteAcceptContent() {
     if (token.trim().length === 0) {
       throw new Error("Invite token is missing from the URL.");
     }
-    const idToken = await user.getIdToken();
+    const idToken = await user.getIdToken(true);
     const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/invitations/accept`, {
       method: "POST",
       headers: {

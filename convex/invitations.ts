@@ -338,10 +338,21 @@ export const accept = mutation({
         "Privileged invite acceptance requires Firebase email/password or Google sign-in.",
       );
     }
-    if (invitation.targetEmail !== undefined && args.identity.phoneNumber === undefined) {
+    // Phone-primary invite types (warehouse_agent_invite, transporter_invite) use phone auth
+    // even when the invite was delivered via email. Skip email verification when a verified
+    // phone identity is present for these types.
+    const isPhonePrimaryInvite =
+      invitation.type === "warehouse_agent_invite" || invitation.type === "transporter_invite";
+    if (!isPhonePrimaryInvite && invitation.targetEmail !== undefined && args.identity.phoneNumber === undefined) {
       assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
     }
-    if (invitation.targetPhoneNumber !== undefined) {
+    if (isPhonePrimaryInvite) {
+      // Phone-primary invites always require a verified phone, regardless of delivery channel.
+      assertAllowed(
+        args.identity.phoneNumber !== undefined && args.identity.phoneVerified === true,
+        "Phone number must be verified to accept this invitation.",
+      );
+    } else if (invitation.targetPhoneNumber !== undefined) {
       assertAllowed(args.identity.phoneVerified === true, "Invitation phone number must be verified.");
     }
     const mfaRequired = invitation.mfaRequirement !== "not_required";
