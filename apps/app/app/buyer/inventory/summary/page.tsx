@@ -5,9 +5,10 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, MapPin, HelpCircle, ChevronDown, ChevronUp, Package } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
+import { getSignedReadUrl } from "@/app/uploads/client";
 
 type WarehouseSummary = {
   _id: string;
@@ -26,12 +27,75 @@ type InventoryBatchSummary = {
   availableQuantity: number;
   askingPricePerUnit?: number;
   sellByDate?: number;
+  photos?: string[];
+  status?: string;
 };
+
+function ProduceImage({ photoId, user }: { photoId: string | undefined; user: any }) {
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (!photoId || !user) return;
+    getSignedReadUrl(user, photoId)
+      .then((url) => setImgUrl(url))
+      .catch(() => setError(true));
+  }, [photoId, user]);
+
+  if (error || !photoId) return null;
+  if (!imgUrl) {
+    return (
+      <div style={{
+        width: "72px",
+        height: "72px",
+        borderRadius: "8px",
+        backgroundColor: "var(--color-surface-raised)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>...</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imgUrl}
+      alt="Produce"
+      style={{
+        width: "72px",
+        height: "72px",
+        borderRadius: "8px",
+        objectFit: "cover",
+        border: "1px solid var(--color-line)",
+      }}
+    />
+  );
+}
+
+function BatchImageFallback() {
+  return (
+    <div style={{
+      width: "72px",
+      height: "72px",
+      borderRadius: "8px",
+      backgroundColor: "var(--color-surface-raised)",
+      border: "1px solid var(--color-line)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "var(--color-text-muted)",
+    }}>
+      <Package size={28} style={{ opacity: 0.5 }} />
+    </div>
+  );
+}
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function InventorySummaryContent() {
-  const { principal } = useAuth();
+  const { principal, firebaseUser } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [renderedAt] = useState(() => Date.now());
@@ -216,27 +280,34 @@ function InventorySummaryContent() {
                 borderRadius: "12px",
                 padding: "14px",
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
+                gap: "16px",
               }}
             >
-              <div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-                  BATCH #{batch.inventoryBatchId.substring(0, 8).toUpperCase()}
-                </div>
-                <div style={{ fontWeight: "700", color: "var(--color-ink)", marginTop: "2px" }}>
-                  {batch.availableQuantity} {unit}
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div className="card-math" style={{ fontSize: "1rem" }}>
-                  GHS {batch.askingPricePerUnit} / {unit}
-                </div>
-                {batch.sellByDate && (
-                  <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "2px" }}>
-                    Sell-by: {new Date(batch.sellByDate).toLocaleDateString()}
+              {batch.photos && batch.photos.length > 0 ? (
+                <ProduceImage photoId={batch.photos[0]} user={firebaseUser} />
+              ) : (
+                <BatchImageFallback />
+              )}
+              <div style={{ flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
+                    BATCH #{batch.inventoryBatchId.substring(0, 8).toUpperCase()}
                   </div>
-                )}
+                  <div style={{ fontWeight: "700", color: "var(--color-ink)", marginTop: "2px" }}>
+                    {batch.availableQuantity} {unit}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="card-math" style={{ fontSize: "1rem" }}>
+                    GHS {batch.askingPricePerUnit} / {unit}
+                  </div>
+                  {batch.sellByDate && (
+                    <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "2px" }}>
+                      Sell-by: {new Date(batch.sellByDate).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}

@@ -421,7 +421,7 @@ export function canCompleteOwnUpload(role: MarketplaceRole): boolean {
 export const allowedInventoryBatchStatusTransitions: Readonly<
   Record<InventoryBatchStatus, readonly InventoryBatchStatus[]>
 > = {
-  received: ["verified", "withdrawn", "spoiled", "disputed"],
+  received: ["verified", "available", "withdrawn", "spoiled", "disputed"],
   verified: ["available", "withdrawn", "spoiled", "disputed"],
   available: [
     "partially_reserved",

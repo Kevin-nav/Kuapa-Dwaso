@@ -459,6 +459,24 @@ function InventoryContent() {
 
           {/* Actions Tray */}
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            {(activeBatch.status === "received" || activeBatch.status === "verified") && (
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ flex: 1.5, height: "46px", fontSize: "14px", backgroundColor: "var(--color-success)", borderColor: "var(--color-success)" }}
+                onClick={() => {
+                  setIsMutating(true);
+                  setMutationError("");
+                  void updateBatchStatus(activeBatch.id, "available", "Listed for sale by agent")
+                    .catch((err: unknown) => {
+                      setMutationError(err instanceof Error ? err.message : "Could not list for sale.");
+                    })
+                    .finally(() => setIsMutating(false));
+                }}
+              >
+                List for Sale
+              </button>
+            )}
             <button 
               type="button" 
               className="btn btn-outline" 

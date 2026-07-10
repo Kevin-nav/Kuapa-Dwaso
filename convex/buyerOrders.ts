@@ -97,6 +97,7 @@ function buyerInventoryProjection(batch: ReservableBatch) {
     sellByDate: batch.sellByDate,
     expectedShelfLifeDays: batch.expectedShelfLifeDays,
     status: batch.status,
+    photos: batch.photos,
   };
 }
 
