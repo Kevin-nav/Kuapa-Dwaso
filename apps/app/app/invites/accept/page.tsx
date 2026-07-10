@@ -13,7 +13,6 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithEmailAndPassword,
-  updateEmail,
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "../../auth/firebase";
@@ -43,9 +42,6 @@ function InviteAcceptContent() {
   const [error, setError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState<string | undefined>();
-
-  const [phoneUser, setPhoneUser] = useState<User | null>(null);
-  const [emailLinkingSent, setEmailLinkingSent] = useState(false);
 
   useEffect(() => {
     if (token.trim().length === 0) {
@@ -80,6 +76,20 @@ function InviteAcceptContent() {
     ? inviteDetails.type.replace("_invite", "").replace("_", " ")
     : "user";
 
+  const getOpsRedirectUrl = () => {
+    if (typeof window !== "undefined") {
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://localhost:3003/";
+      }
+      if (hostname.includes("staging")) {
+        return "https://ops.staging.kuapadwaso.com/";
+      }
+      return "https://ops.kuapadwaso.com/";
+    }
+    return "https://ops.kuapadwaso.com/";
+  };
+
   const sendVerification = async (user: User) => {
     const continueUrl = new URL(window.location.href);
     await sendEmailVerification(user, {
@@ -113,10 +123,15 @@ function InviteAcceptContent() {
     }
     const accepted = (await response.json()) as { profileType: string; userId: string; mfaRequired: boolean };
     setStatus(
-      accepted.mfaRequired
-        ? `Invite accepted for ${accepted.profileType}. MFA was satisfied by Firebase before acceptance.`
-        : `Invite accepted for ${accepted.profileType}. User ${accepted.userId} is linked.`
+      `Invite accepted! Redirecting you to the portal...`
     );
+    setTimeout(() => {
+      if (accepted.profileType === "warehouse_agent") {
+        window.location.href = getOpsRedirectUrl();
+      } else {
+        window.location.href = "/";
+      }
+    }, 1500);
   };
 
   const submitEmail = async (event: FormEvent) => {
@@ -182,39 +197,6 @@ function InviteAcceptContent() {
     }
   };
 
-  const handleLinkEmail = async () => {
-    if (phoneUser === null || inviteDetails === null || !inviteDetails.targetEmail) return;
-    setError(undefined);
-    setIsSubmitting(true);
-    try {
-      await updateEmail(phoneUser, inviteDetails.targetEmail.trim());
-      await sendEmailVerification(phoneUser);
-      setEmailLinkingSent(true);
-      setStatus(`A verification email was sent to ${inviteDetails.targetEmail}.`);
-    } catch (err) {
-      setError(getAuthErrorMessage(err, "sign-in"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAcceptWithLinkedEmail = async () => {
-    if (phoneUser === null) return;
-    setError(undefined);
-    setIsSubmitting(true);
-    try {
-      await phoneUser.reload();
-      if (!phoneUser.emailVerified) {
-        throw new Error("Email has not been verified yet. Check your inbox and click the verification link first.");
-      }
-      await acceptInvite(phoneUser);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Verification failed.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   if (loadingInvite) {
     return (
       <main className="page-shell auth-page">
@@ -242,7 +224,6 @@ function InviteAcceptContent() {
   }
 
   const isPhoneAuthRequired = inviteDetails?.type === "warehouse_agent_invite" || inviteDetails?.type === "transporter_invite";
-  const needsEmailLinking = isPhoneAuthRequired && inviteDetails?.channel === "email";
 
   return (
     <main className="page-shell auth-page">
@@ -253,57 +234,38 @@ function InviteAcceptContent() {
           You have been invited to join Kuapa Dwaso as a <strong style={{ textTransform: "capitalize" }}>{roleLabel}</strong>.
         </p>
 
-        {isPhoneAuthRequired ? (
-          phoneUser === null ? (
-            <PhoneAuthPanel
-              submitLabel="Verify Phone"
-              onVerified={async (user) => {
-                setError(undefined);
-                if (needsEmailLinking) {
-                  setPhoneUser(user);
-                  setStatus("Phone verified. Please link your invited email to complete setup.");
-                } else {
-                  try {
-                    await acceptInvite(user);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Accepting invite failed.");
-                  }
-                }
-              }}
-            />
-          ) : (
-            <div className="auth-card">
-              <div className="field-stack" style={{ marginBottom: "16px" }}>
-                <label htmlFor="displayName">Display name</label>
-                <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={isSubmitting} />
-              </div>
-              <div className="field-stack" style={{ marginBottom: "16px" }}>
-                <label htmlFor="linkedEmail">Invited Email Address</label>
-                <input id="linkedEmail" type="email" value={inviteDetails?.targetEmail ?? ""} disabled />
-                <span className="field-help" style={{ fontSize: "12px", color: "#6b7280" }}>
-                  This email must be linked to your account to accept the invitation.
-                </span>
-              </div>
-              
-              {!emailLinkingSent ? (
-                <button type="button" onClick={() => void handleLinkEmail()} disabled={isSubmitting}>
-                  Link and Verify Email
-                </button>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                  <p className="auth-status" style={{ color: "var(--color-primary)", fontWeight: 600 }}>
-                    Verification email sent. Please check your inbox and click the verification link.
-                  </p>
-                  <button type="button" onClick={() => void handleAcceptWithLinkedEmail()} disabled={isSubmitting}>
-                    I've verified my email — Accept invitation
-                  </button>
-                  <button type="button" className="verification-resend" onClick={() => void handleLinkEmail()} disabled={isSubmitting} style={{ background: "none", border: "none", color: "var(--color-primary)", cursor: "pointer", textDecoration: "underline" }}>
-                    Resend verification email
-                  </button>
-                </div>
-              )}
+        <div className="field-stack" style={{ marginBottom: "16px" }}>
+          <label htmlFor="displayName">Display name</label>
+          <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Enter your display name" disabled={isSubmitting} />
+        </div>
+
+        {inviteDetails?.targetEmail && (
+          <div className="field-stack" style={{ marginBottom: "20px" }}>
+            <label>Invited Email Address</label>
+            <div style={{ padding: "10px 14px", background: "var(--color-neutral-bg, #f3f4f6)", borderRadius: "8px", border: "1px solid var(--color-border, #e5e7eb)", fontSize: "15px", fontWeight: 500 }}>
+              {inviteDetails.targetEmail}
             </div>
-          )
+            <span className="field-help" style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
+              This is the email address that received the invitation.
+            </span>
+          </div>
+        )}
+
+        {isPhoneAuthRequired ? (
+          <PhoneAuthPanel
+            submitLabel="Verify Phone"
+            onVerified={async (user) => {
+              setError(undefined);
+              setIsSubmitting(true);
+              try {
+                await acceptInvite(user);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Accepting invite failed.");
+              } finally {
+                setIsSubmitting(false);
+              }
+            }}
+          />
         ) : (
           <form
             className="auth-card"
@@ -311,10 +273,6 @@ function InviteAcceptContent() {
               void submitEmail(event);
             }}
           >
-            <div className="field-stack">
-              <label htmlFor="displayName">Display name</label>
-              <input id="displayName" value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={isSubmitting} />
-            </div>
             <div className="field-stack">
               <label htmlFor="email">Email</label>
               <input id="email" type="email" autoComplete="email" value={email} disabled required />

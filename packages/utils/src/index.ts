@@ -806,15 +806,19 @@ export function assertInviteTargetMatchesIdentity(input: {
   identityEmail?: string;
   identityPhoneNumber?: string;
 }): void {
-  if (input.targetEmail !== undefined) {
-    if (input.identityEmail === undefined || normalizeEmailAddress(input.targetEmail) !== normalizeEmailAddress(input.identityEmail)) {
-      throw new Error("Invitation email does not match the verified identity.");
+  if (input.identityPhoneNumber !== undefined) {
+    if (input.targetPhoneNumber !== undefined) {
+      if (!phoneNumbersMatch(input.targetPhoneNumber, input.identityPhoneNumber)) {
+        throw new Error("Invitation phone number does not match the verified identity.");
+      }
     }
     return;
   }
-  if (input.targetPhoneNumber !== undefined) {
-    if (input.identityPhoneNumber === undefined || !phoneNumbersMatch(input.targetPhoneNumber, input.identityPhoneNumber)) {
-      throw new Error("Invitation phone number does not match the verified identity.");
+  if (input.identityEmail !== undefined) {
+    if (input.targetEmail !== undefined) {
+      if (normalizeEmailAddress(input.targetEmail) !== normalizeEmailAddress(input.identityEmail)) {
+        throw new Error("Invitation email does not match the verified identity.");
+      }
     }
     return;
   }
