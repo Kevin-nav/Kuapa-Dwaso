@@ -49,6 +49,16 @@ const mfaRequirement = v.union(
   v.literal("required"),
 );
 
+function authMethodsForIdentity(identity: {
+  email?: string | undefined;
+  signInProvider?: string | undefined;
+}): ("phone" | "email_password" | "google")[] {
+  if (identity.signInProvider === "google.com") {
+    return ["google"];
+  }
+  return identity.email !== undefined ? ["email_password"] : ["phone"];
+}
+
 function identityName(identity: {
   displayName?: string | undefined;
   email?: string | undefined;
@@ -94,6 +104,7 @@ async function upsertUserFromIdentity(
       displayName?: string;
       phoneVerified?: boolean;
       emailVerified?: boolean;
+      signInProvider?: string;
       mfaSatisfied?: boolean;
       mfaMethods?: string[];
     };
@@ -112,7 +123,10 @@ async function upsertUserFromIdentity(
     .query("users")
     .withIndex("by_auth_provider_id", (q) => q.eq("authProviderId", args.identity.authProviderId))
     .unique();
-  const authMethods = email !== undefined ? ["email_password" as const] : ["phone" as const];
+  const authMethods = authMethodsForIdentity({
+    email,
+    signInProvider: args.identity.signInProvider,
+  });
 
   if (existing !== null) {
     await ctx.db.patch(existing._id, omitUndefinedValues({

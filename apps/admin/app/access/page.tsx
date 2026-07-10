@@ -199,7 +199,7 @@ export default function AccessManagementPage() {
       <AdminAccessState
         variant="denied"
         title="Admin sign-in required"
-        message="Access management requires an email/password Firebase admin or warehouse-manager identity."
+        message="Access management requires a Google or email/password Firebase admin or warehouse-manager identity."
         detail="Use the Admin sign in page. Phone auth remains reserved for farmer, buyer, transporter, and warehouse-agent self-service flows outside this slice."
       />
     );
@@ -364,7 +364,7 @@ function InvitesPanel({
   const [roleKey, setRoleKey] = useState<AdminRoleKey>("admin_viewer");
   const [scopeType, setScopeType] = useState<AdminScopeType>("global");
   const [scopeValue, setScopeValue] = useState("");
-  const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("sms_required");
+  const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("totp_required");
   const [isWorking, setIsWorking] = useState(false);
 
   async function submit(event: FormEvent) {

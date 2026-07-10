@@ -435,6 +435,9 @@ importers:
       convex:
         specifier: 1.41.0
         version: 1.41.0(react@19.2.7)
+      firebase-admin:
+        specifier: ^14.0.0
+        version: 14.0.0
 
   packages/types:
     devDependencies:

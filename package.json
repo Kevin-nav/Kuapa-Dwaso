@@ -14,6 +14,8 @@
     "convex:deploy": "convex deploy",
     "env:check-next-public": "pnpm --filter @kuapa-dwaso/test-utils env:check-next-public",
     "provider:doctor": "pnpm --filter @kuapa-dwaso/test-utils provider:doctor",
+    "firebase:totp": "pnpm --filter @kuapa-dwaso/test-utils firebase:totp",
+    "seed:staging:platform-owner": "pnpm --filter @kuapa-dwaso/test-utils seed:staging:platform-owner",
     "smoke:backend": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend",
     "smoke:backend:cleanup": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend:cleanup",
     "build": "turbo build",

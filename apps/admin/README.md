@@ -4,9 +4,9 @@ This app is for the admin console served from a subdomain such as `admin.domain.
 
 It may contain heavier operational UI such as dashboards, tables, audit logs, dispute management, and hotspot analysis. Admin-only code must remain isolated from the public site and normal user app.
 
-`/auth` provides the Firebase email/password entry path for admins and warehouse managers. Configure `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_CONVEX_URL`, and `NEXT_PUBLIC_API_URL` in the repo root `.env.local` for local development. The app scripts load root `.env.local`, then root `.env`, then app-local env files as optional overrides.
+`/auth` provides Firebase Google and email/password entry paths for admins and warehouse managers. Configure `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_CONVEX_URL`, and `NEXT_PUBLIC_API_URL` in the repo root `.env.local` for local development. The app scripts load root `.env.local`, then root `.env`, then app-local env files as optional overrides.
 
-`/auth` can also accept admin and warehouse-manager invite tokens through the API `POST /invitations/accept` path after the invited user signs in, verifies email, and satisfies the configured Firebase MFA requirement. The page shows explicit MFA enrollment/challenge states, but full Firebase MFA completion still requires project-level MFA enablement plus the app verifier/challenge wiring.
+`/auth` can also accept admin and warehouse-manager invite tokens through the API `POST /invitations/accept` path after the invited user signs in, verifies email, and satisfies the configured Firebase MFA requirement. The page supports authenticator-app (TOTP) and SMS enrollment/challenge states. TOTP requires Firebase Authentication with Identity Platform and project-level TOTP enablement; SMS requires project-level SMS MFA enablement, allowed regions, and the deployed admin hostname authorized for reCAPTCHA.
 
 `/access` exposes the admin access-control foundation:
 

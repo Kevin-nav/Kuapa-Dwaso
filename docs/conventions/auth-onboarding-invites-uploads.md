@@ -14,7 +14,7 @@ Warehouse agents do not receive operational access from phone verification
 alone. Their warehouse-agent profile must exist and be approved, and invite
 acceptance only links the Firebase identity to that profile.
 
-Admins and warehouse managers use Firebase email/password identities. Their
+Admins and warehouse managers use verified Firebase Google or email/password identities. Their
 invitations record the MFA requirement and acceptance requires verified email
 plus satisfied MFA when the invite requires it.
 
@@ -58,7 +58,11 @@ state.
 
 ## Provider and Deployment Setup
 
-Firebase browser/client config belongs only in frontend app env files. Firebase
+Firebase browser/client config belongs only in frontend app env files. Enable
+Google as a Firebase sign-in provider for admin identities. Authenticator-app
+MFA uses Firebase TOTP and requires Firebase Authentication with Identity
+Platform plus project-level TOTP enablement. SMS MFA may remain available as a
+fallback and requires allowed SMS regions and authorized admin origins. Firebase
 Admin config belongs only in `apps/api` runtime env. The API verifies Firebase
 ID tokens with Firebase Admin credentials and then resolves the Convex user
 profile before RBAC checks. Follow the Firebase Admin ID-token verification
@@ -210,18 +214,59 @@ only token hashes.
 
 ## Privileged MFA Setup
 
-Admin and warehouse-manager users sign in with Firebase email/password. Invite
+Admin and warehouse-manager users sign in with Firebase Google or email/password. Invite
 acceptance fails closed unless the Firebase ID token has the invited verified
 email and, when required, Firebase second-factor evidence. Convex admin RBAC
-also requires active admin status, email/password auth, verified email, and
+also requires active admin status, Google or email/password auth, verified email, and
 verified MFA before granting privileged permissions.
 
-The admin app implements Firebase SMS MFA enrollment and sign-in challenge
-state with the Firebase Web SDK. Production projects still need Firebase Auth
-email/password enabled, email verification templates configured, multi-factor
-authentication enabled in the Firebase console, allowed domains configured for
-the deployed admin origin, and reCAPTCHA allowed to run on that origin.
+The admin app implements Firebase TOTP and SMS MFA enrollment and sign-in
+challenge state with the Firebase Web SDK. Production projects still need
+Firebase Auth Google and/or email/password enabled, email verification
+templates configured, multi-factor authentication enabled, TOTP enabled through
+the Firebase Admin SDK or project configuration API, allowed domains configured
+for the deployed admin origin, and reCAPTCHA allowed to run on that origin for
+SMS MFA.
 Arkesel is not used for privileged auth OTP in this slice.
+
+Inspect the current Firebase MFA configuration without changing it:
+
+```text
+corepack pnpm firebase:totp
+```
+
+Enable TOTP with one adjacent interval on the Firebase project configured by
+the local staging environment:
+
+```text
+corepack pnpm firebase:totp -- --confirm --adjacent-intervals=1
+```
+
+The command loads the ignored root `.env.staging` file when present, prints no
+credentials, and only updates the TOTP provider configuration. Firebase MFA is
+project-wide, so when staging and production share a Firebase project this
+provider setting is available to both environments; enrollment and application
+policy still determine which users must use it.
+
+## First Staging Platform Owner
+
+The permanent first staging owner must complete Firebase sign-in, verified
+email, and TOTP enrollment before receiving Convex access. After those steps,
+run the guarded seed command with the staging environment injected:
+
+```powershell
+$env:PLATFORM_OWNER_EMAIL="owner@example.com"
+$env:PLATFORM_OWNER_NAME="Platform Owner"
+$env:PLATFORM_OWNER_PHONE_NUMBER="+233..."
+corepack pnpm seed:staging:platform-owner -- --confirm
+```
+
+The command resolves the Firebase UID by email, verifies that Google or
+email/password authentication and a TOTP factor are present, creates or updates
+the active Convex admin profile, and bootstraps a global `platform_owner`
+assignment with no expiry. It fails closed if the identity is unverified or
+TOTP is missing. The bootstrap mutation will not create a second global owner
+when an active one already exists.
 
 ## Rate Limits and Abuse Guards
 
@@ -276,8 +321,8 @@ doctor does not call paid provider APIs.
 
 Production console and provider checklist:
 
-- Firebase Auth: enable email/password for admins and warehouse managers,
-  phone auth for farmer/buyer/transporter entry, MFA for privileged users,
+- Firebase Auth: enable Google and email/password for admins and warehouse managers,
+  phone auth for farmer/buyer/transporter entry, TOTP and optional SMS MFA for privileged users,
   reCAPTCHA on deployed origins, email verification templates, and allowed
   domains for all deployed frontend origins.
 - Arkesel: configure delivery reports to `POST /sms/webhooks/arkesel/delivery`,

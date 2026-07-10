@@ -174,8 +174,8 @@ export async function requireActiveAdmin(
   assertAllowed(actor.status === "active", "Admin user must be active.");
   assertAllowed(actor.emailVerified === true, "Admin email must be verified.");
   assertAllowed(
-    actor.authMethods?.includes("email_password") === true,
-    "Admin must use Firebase email/password authentication.",
+    actor.authMethods?.some((method) => method === "email_password" || method === "google") === true,
+    "Admin must use Firebase email/password or Google authentication.",
   );
   assertAllowed(
     actor.mfaRequirement === undefined ||

@@ -17,7 +17,7 @@ const userStatus = v.union(
   v.literal("deactivated")
 );
 
-const authMethod = v.union(v.literal("phone"), v.literal("email_password"));
+const authMethod = v.union(v.literal("phone"), v.literal("email_password"), v.literal("google"));
 const mfaRequirement = v.union(
   v.literal("not_required"),
   v.literal("sms_required"),

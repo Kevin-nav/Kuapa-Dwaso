@@ -926,7 +926,7 @@ export type BuyerOrderInput = {
 export const authProviders = ["firebase"] as const;
 export type AuthProvider = (typeof authProviders)[number];
 
-export const authMethods = ["phone", "email_password"] as const;
+export const authMethods = ["phone", "email_password", "google"] as const;
 export type AuthMethod = (typeof authMethods)[number];
 
 export const mfaRequirements = ["not_required", "sms_required", "totp_required", "required"] as const;
