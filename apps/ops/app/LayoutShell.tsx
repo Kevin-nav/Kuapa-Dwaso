@@ -26,7 +26,7 @@ import {
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isOffline, setIsOffline, syncQueue, activeWarehouse, activeAgent } = useWarehouse();
+  const { isOffline, setIsOffline, syncQueue, activeWarehouse, assignedWarehouses, activeAgent, setActiveWarehouseId } = useWarehouse();
   const { signOut, firebaseUser, principal, isLoading: isAuthLoading } = useOpsAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -94,7 +94,40 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       {/* Top Bar Navigation */}
       <header className="topbar">
         <div className="topbar-left">
-          <div className="topbar-title">{activeWarehouse.name}</div>
+          {assignedWarehouses.length > 1 ? (
+            <select
+              value={activeWarehouse.id}
+              onChange={(e) => setActiveWarehouseId(e.target.value)}
+              className="topbar-select"
+              aria-label="Active Warehouse Select"
+              style={{
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "var(--color-ink)",
+                background: "transparent",
+                border: "none",
+                padding: "4px 28px 4px 4px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                outline: "none",
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: "right 4px center",
+                backgroundSize: "20px 20px",
+                backgroundRepeat: "no-repeat",
+                appearance: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+              }}
+            >
+              {assignedWarehouses.map((w) => (
+                <option key={w.id} value={w.id} style={{ color: "var(--color-ink, black)", backgroundColor: "var(--color-surface, white)" }}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="topbar-title">{activeWarehouse.name}</div>
+          )}
         </div>
         
         <div className="topbar-right" style={{ position: "relative" }}>

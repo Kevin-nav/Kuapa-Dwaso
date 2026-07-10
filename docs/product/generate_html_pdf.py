@@ -140,77 +140,77 @@ content_html_content = """<!DOCTYPE html>
   <style>
     @page {
       size: letter;
-      margin: 80px 54px 80px 54px;
+      margin: 70px 54px 70px 54px;
     }
     body {
       font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
       color: #0f1f14; /* ink */
       background: #ffffff;
-      font-size: 11.5pt; /* Increased font size as requested */
-      line-height: 1.6;
+      font-size: 11pt; /* Professional body size */
+      line-height: 1.5;
       margin: 0;
       padding: 0;
     }
     h1 {
       font-family: 'Outfit', sans-serif;
-      font-size: 24pt;
+      font-size: 22pt;
       font-weight: 700;
       color: #2d8a4e; /* field green */
       margin-top: 0;
-      margin-bottom: 18px;
+      margin-bottom: 12px;
       border-bottom: 2px solid #dde3d5;
-      padding-bottom: 8px;
+      padding-bottom: 6px;
     }
     h2 {
       font-family: 'Outfit', sans-serif;
-      font-size: 15pt;
+      font-size: 14pt;
       font-weight: 700;
       color: #0f1f14;
-      margin-top: 28px;
-      margin-bottom: 12px;
+      margin-top: 22px;
+      margin-bottom: 10px;
       page-break-after: avoid;
     }
     h3 {
       font-family: 'Outfit', sans-serif;
-      font-size: 12.5pt;
+      font-size: 12pt;
       font-weight: 700;
       color: #2d8a4e;
-      margin-top: 22px;
-      margin-bottom: 8px;
+      margin-top: 18px;
+      margin-bottom: 6px;
       page-break-after: avoid;
     }
     p {
       margin-top: 0;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     /* Cohesive card styling for problem/solution */
     .card {
       background: #f5f7f0; /* Cohesive brand surface */
       border-left: 4px solid #2d8a4e; /* Primary green border */
-      padding: 18px 22px;
-      margin-bottom: 18px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
       border-radius: 0 6px 6px 0;
     }
     .card-title {
       font-family: 'Outfit', sans-serif;
       font-weight: 700;
-      font-size: 12.5pt;
+      font-size: 12pt;
       color: #0f1f14;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     
     /* Tables */
     .grid-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 15px;
-      margin-bottom: 15px;
+      margin-top: 12px;
+      margin-bottom: 12px;
     }
     .grid-table td {
-      padding: 10px 12px;
+      padding: 8px 10px;
       vertical-align: top;
       border-bottom: 1px solid #dde3d5;
-      font-size: 11pt;
+      font-size: 10.5pt;
     }
     .grid-table tr:last-child td {
       border-bottom: none;
@@ -218,46 +218,46 @@ content_html_content = """<!DOCTYPE html>
     .grid-title {
       font-weight: 700;
       color: #2d8a4e;
-      width: 160px;
+      width: 150px;
     }
     
     /* Timeline */
     .timeline-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 15px;
-      margin-bottom: 15px;
+      margin-top: 12px;
+      margin-bottom: 12px;
     }
     .timeline-table th {
       background: #f5f7f0;
       color: #0f1f14;
       font-family: 'Outfit', sans-serif;
       font-weight: 700;
-      font-size: 10.5pt;
+      font-size: 10pt;
       text-align: left;
-      padding: 8px 12px;
+      padding: 8px 10px;
       border-bottom: 2px solid #2d8a4e;
     }
     .timeline-table td {
-      padding: 9px 12px;
+      padding: 8px 10px;
       vertical-align: top;
       border-bottom: 1px solid #dde3d5;
-      font-size: 10.5pt;
+      font-size: 10pt;
     }
     .timeline-step {
       color: #d4a843; /* Gold */
       font-weight: 700;
-      width: 60px;
+      width: 55px;
     }
     .timeline-action {
       font-weight: 700;
-      width: 140px;
+      width: 130px;
     }
     
     /* Capabilities */
     .cap-item {
       display: flex;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
       page-break-inside: avoid;
     }
     .cap-badge {
@@ -265,9 +265,9 @@ content_html_content = """<!DOCTYPE html>
       color: #ffffff;
       font-family: 'Outfit', sans-serif;
       font-weight: 700;
-      font-size: 12pt;
-      width: 28px;
-      height: 28px;
+      font-size: 11pt;
+      width: 26px;
+      height: 26px;
       border-radius: 4px;
       display: flex;
       align-items: center;
@@ -281,30 +281,30 @@ content_html_content = """<!DOCTYPE html>
     .cap-title {
       font-weight: 700;
       color: #2d8a4e;
-      margin-bottom: 4px;
-      font-size: 12pt;
+      margin-bottom: 2px;
+      font-size: 11.5pt;
     }
     
     /* Tech stack */
     .tech-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 15px;
-      margin-bottom: 15px;
+      margin-top: 12px;
+      margin-bottom: 12px;
     }
     .tech-table tr:nth-child(even) {
       background: #f5f7f0;
     }
     .tech-table td {
-      padding: 10px 12px;
+      padding: 8px 10px;
       vertical-align: top;
       border-bottom: 1px solid #dde3d5;
-      font-size: 10.5pt;
+      font-size: 10pt;
     }
     .tech-name {
       font-weight: 700;
       color: #0f1f14;
-      width: 160px;
+      width: 150px;
     }
     
     .page-break {
@@ -314,7 +314,7 @@ content_html_content = """<!DOCTYPE html>
 </head>
 <body>
 
-  <!-- PAGE 1 CONTENT (Follows Cover) -->
+  <!-- PAGE 1 CONTENT -->
   <h1>Kuapa Dwaso: Product Description</h1>
   
   <p>Kuapa Dwaso (&ldquo;Farmer's Market&rdquo; in Akan) is a warehouse-based platform for produce aggregation, inventory, sales, and dispatch. Built around the realities of agricultural trade in regions like Tarkwa, it replaces risky, speculative farm-to-city transport with a secure, demand-driven local warehouse model.</p>
@@ -511,12 +511,12 @@ content_html_content = """<!DOCTYPE html>
     </tr>
   </table>
 
-  <div class="card" style="margin-top: 25px; border-left-color: #0e7490; background: #e3f2f4;">
-    <div class="card-title" style="color: #0e7490; font-size: 13pt;">Engineering for Real-World Conditions</div>
-    <p style="margin-bottom: 8px;">&bull; <b>Low bandwidth:</b> The public site and farmer portal use server-side rendering and minimal dependencies to load fast on poor connections.</p>
-    <p style="margin-bottom: 8px;">&bull; <b>Privacy boundaries:</b> Buyers browse aggregated inventory without access to farmer identities, enforced in <code>packages/permissions</code>.</p>
-    <p style="margin-bottom: 8px;">&bull; <b>Immutable audit logs:</b> All changes to quantities, grades, or pricing (spoilage, shrinkage, disputes) are logged for accountability.</p>
-    <p style="margin-bottom: 0;">&bull; <b>Financial separation:</b> Order payments, storage fees, and farmer payouts run in separate state machines, letting admins audit and authorize payouts independently of payment gateways.</p>
+  <div class="card" style="margin-top: 20px; border-left-color: #0e7490; background: #e3f2f4; padding: 12px 18px;">
+    <div class="card-title" style="color: #0e7490; font-size: 12pt;">Engineering for Real-World Conditions</div>
+    <p style="margin-bottom: 6px; font-size: 10pt;">&bull; <b>Low bandwidth:</b> The public site and farmer portal use server-side rendering and minimal dependencies to load fast on poor connections.</p>
+    <p style="margin-bottom: 6px; font-size: 10pt;">&bull; <b>Privacy boundaries:</b> Buyers browse aggregated inventory without access to farmer identities, enforced in <code>packages/permissions</code>.</p>
+    <p style="margin-bottom: 6px; font-size: 10pt;">&bull; <b>Immutable audit logs:</b> All changes to quantities, grades, or pricing (spoilage, shrinkage, disputes) are logged for accountability.</p>
+    <p style="margin-bottom: 0; font-size: 10pt;">&bull; <b>Financial separation:</b> Order payments, storage fees, and farmer payouts run in separate state machines, letting admins audit and authorize payouts independently of payment gateways.</p>
   </div>
 
 </body>

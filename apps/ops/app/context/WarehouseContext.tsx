@@ -98,6 +98,7 @@ type WarehouseContextType = {
   activeWarehouse: Warehouse;
   assignedWarehouses: Warehouse[];
   activeAgent: WarehouseAgent;
+  setActiveWarehouseId: (id: string) => void;
   draftIntake: any;
   setDraftIntake: (draft: any) => void;
   draftRegistration: any;
@@ -678,6 +679,9 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       activeWarehouse,
       assignedWarehouses,
       activeAgent,
+      setActiveWarehouseId: (id: string) => {
+        setActiveWarehouseId(id);
+      },
       draftIntake,
       setDraftIntake,
       draftRegistration,

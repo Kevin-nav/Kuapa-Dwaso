@@ -137,7 +137,7 @@ export default function FarmersPage() {
     if (rawVal.length > 3 && rawVal.length <= 6) {
       formattedVal = `${rawVal.slice(0, 3)} ${rawVal.slice(3)}`;
     } else if (rawVal.length > 6) {
-      formattedVal = `${rawVal.slice(0, 3)} ${rawVal.slice(3, 6)} ${rawVal.slice(6, 10)}`;
+      formattedVal = `${rawVal.slice(0, 3)} ${rawVal.slice(3, 6)} ${rawVal.slice(6)}`;
     }
     setSearchPhone(formattedVal);
     setSearched(false);
