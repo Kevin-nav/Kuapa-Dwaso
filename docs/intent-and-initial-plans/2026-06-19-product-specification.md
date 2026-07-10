@@ -1,3 +1,5 @@
+> **Historical planning document.** This document records the original marketplace concept from June 2026. The product is now warehouse-based. For the current public product description and scope, use the [product guide](../product/overview.md). Accepted ADRs and current implementation take precedence where this document differs.
+
 # Farmer-to-Buyer Digital Marketplace Platform
 
 ## Product Specification Document

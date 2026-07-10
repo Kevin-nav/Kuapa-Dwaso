@@ -1,3 +1,5 @@
+> **Historical planning document.** This document predates the warehouse-domain reset and contains retired marketplace and two-way-SMS concepts. For the current architecture, use the [technical overview](../technical/architecture.md) and accepted ADRs.
+
 # Farmer-to-Buyer Digital Marketplace Platform
 
 ## Technical Specification Document
