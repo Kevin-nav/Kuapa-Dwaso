@@ -326,7 +326,7 @@ export default function PhoneAuthPage() {
                 </p>
               </header>
 
-              <div className="auth-card" style={{ marginBottom: "20px", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderLeft: "4px solid var(--color-success)" }}>
+              <div className="auth-card" style={{ marginBottom: "20px", display: "flex", flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <p style={{ margin: 0, fontWeight: 700, color: "var(--color-ink)", fontSize: "14px" }}>
                     Phone Verified
