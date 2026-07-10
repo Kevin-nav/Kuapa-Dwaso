@@ -180,11 +180,11 @@ export function getApiEnvironment(): ApiEnvironment {
   const allowedOrigins = rawAllowedOrigins
     ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
     : [
-        "https://staging.kuapadwaso.com",
-        "https://app-staging.kuapadwaso.com",
-        "https://admin-staging.kuapadwaso.com",
-        "https://ops-staging.kuapadwaso.com",
-        "https://api-staging.kuapadwaso.com"
+        "https://kuapadwaso.com",
+        "https://app.kuapadwaso.com",
+        "https://admin.kuapadwaso.com",
+        "https://ops.kuapadwaso.com",
+        "https://api.kuapadwaso.com"
       ];
 
   if (publicAppUrl && !allowedOrigins.includes(publicAppUrl)) {

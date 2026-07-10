@@ -23,7 +23,7 @@ describe("getApiEnvironment", () => {
     expect(getApiEnvironment().auth.firebaseServiceAccountJson).toBe(serviceAccountJson);
   });
 
-  it("defaults CORS allowed origins to staging domains when API_CORS_ALLOWED_ORIGINS is not set", () => {
+  it("defaults CORS allowed origins to the deployed domains when API_CORS_ALLOWED_ORIGINS is not set", () => {
     process.env = {
       ...originalEnv,
       NODE_ENV: "production"
@@ -33,11 +33,11 @@ describe("getApiEnvironment", () => {
 
     const env = getApiEnvironment();
     expect(env.cors.allowedOrigins).toEqual([
-      "https://staging.kuapadwaso.com",
-      "https://app-staging.kuapadwaso.com",
-      "https://admin-staging.kuapadwaso.com",
-      "https://ops-staging.kuapadwaso.com",
-      "https://api-staging.kuapadwaso.com"
+      "https://kuapadwaso.com",
+      "https://app.kuapadwaso.com",
+      "https://admin.kuapadwaso.com",
+      "https://ops.kuapadwaso.com",
+      "https://api.kuapadwaso.com"
     ]);
   });
 
