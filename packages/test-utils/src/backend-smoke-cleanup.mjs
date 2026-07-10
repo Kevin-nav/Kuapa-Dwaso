@@ -13,7 +13,7 @@ if (convexUrl === undefined || convexUrl.trim().length === 0) {
 
 const options = parseArgs(process.argv.slice(2));
 const runId = options.runId ?? process.env.SMOKE_RUN_ID ?? process.env.SMOKE_CLEANUP_RUN_ID;
-if (runId === undefined || runId.trim().length === 0) {
+if (!options.all && (runId === undefined || runId.trim().length === 0)) {
   throw new Error("Smoke cleanup requires --run-id=<id> or SMOKE_RUN_ID.");
 }
 if (!options.confirm) {
@@ -21,11 +21,16 @@ if (!options.confirm) {
 }
 
 const client = new ConvexHttpClient(convexUrl);
-const result = await client.mutation(api.smokeCleanup.cleanupBackendRun, {
-  runId,
-  confirm: "DELETE_SMOKE_BACKEND_RECORDS",
-  dryRun: options.dryRun,
-});
+const result = options.all
+  ? await client.mutation(api.smokeCleanup.cleanupAllBackendSmokeRecords, {
+      confirm: "DELETE_SMOKE_BACKEND_RECORDS",
+      dryRun: options.dryRun,
+    })
+  : await client.mutation(api.smokeCleanup.cleanupBackendRun, {
+      runId,
+      confirm: "DELETE_SMOKE_BACKEND_RECORDS",
+      dryRun: options.dryRun,
+    });
 
 console.log(JSON.stringify(result, null, 2));
 
@@ -33,6 +38,7 @@ function parseArgs(args) {
   const options = {
     confirm: false,
     dryRun: false,
+    all: false,
     runId: undefined,
   };
   for (const arg of args) {
@@ -40,6 +46,8 @@ function parseArgs(args) {
       options.confirm = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--all") {
+      options.all = true;
     } else if (arg.startsWith("--run-id=")) {
       options.runId = arg.slice("--run-id=".length);
     }

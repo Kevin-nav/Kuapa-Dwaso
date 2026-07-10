@@ -315,6 +315,222 @@ export const cleanupBackendRun = mutation({
   },
 });
 
+export const cleanupAllBackendSmokeRecords = mutation({
+  args: {
+    confirm: v.string(),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    assertAllowed(args.confirm === confirmationToken, "Smoke cleanup confirmation token is required.");
+    const dryRun = args.dryRun ?? false;
+    const smokeAdmin = await ctx.db
+      .query("users")
+      .withIndex("by_auth_provider_id", (q) => q.eq("authProviderId", "smoke-backend-admin"))
+      .unique();
+    const auditLogs = new Set<Id<"auditLogs">>();
+    const buyerOrderCharges = new Set<Id<"buyerOrderCharges">>();
+    const adminRoleAssignments = new Set<Id<"adminRoleAssignments">>();
+    const inventoryBatches = new Set<Id<"inventoryBatches">>();
+    const inventoryReservations = new Set<Id<"inventoryReservations">>();
+    const buyerOrders = new Set<Id<"buyerOrders">>();
+    const storageFeeLedger = new Set<Id<"storageFeeLedger">>();
+    const storageRateRules = new Set<Id<"storageRateRules">>();
+    const paymentTransactions = new Set<Id<"paymentTransactions">>();
+    const payoutLedger = new Set<Id<"payoutLedger">>();
+    const notifications = new Set<Id<"notifications">>();
+    const smsDeliveries = new Set<Id<"smsDeliveries">>();
+    let repairedAssignments = 0;
+
+    for (const log of await ctx.db.query("auditLogs").collect()) {
+      if (
+        containsExplicitSmokeMarker(log) ||
+        (smokeAdmin !== null && log.actorId === smokeAdmin._id)
+      ) {
+        auditLogs.add(log._id);
+      }
+    }
+    for (const charge of await ctx.db.query("buyerOrderCharges").collect()) {
+      if (containsExplicitSmokeMarker(charge)) {
+        buyerOrderCharges.add(charge._id);
+      }
+    }
+    for (const batch of await ctx.db.query("inventoryBatches").collect()) {
+      if (containsExplicitSmokeMarker(batch)) {
+        inventoryBatches.add(batch._id);
+      }
+    }
+    for (const order of await ctx.db.query("buyerOrders").collect()) {
+      if (containsExplicitSmokeMarker(order)) {
+        buyerOrders.add(order._id);
+      }
+    }
+    for (const fee of await ctx.db.query("storageFeeLedger").collect()) {
+      if (containsExplicitSmokeMarker(fee) || inventoryBatches.has(fee.inventoryBatchId)) {
+        storageFeeLedger.add(fee._id);
+      }
+    }
+    for (const rule of await ctx.db.query("storageRateRules").collect()) {
+      if (containsExplicitSmokeMarker(rule)) {
+        storageRateRules.add(rule._id);
+      }
+    }
+    for (const reservation of await ctx.db.query("inventoryReservations").collect()) {
+      if (
+        containsExplicitSmokeMarker(reservation) ||
+        inventoryBatches.has(reservation.inventoryBatchId) ||
+        (reservation.buyerOrderId !== undefined && buyerOrders.has(reservation.buyerOrderId))
+      ) {
+        inventoryReservations.add(reservation._id);
+      }
+    }
+    for (const payment of await ctx.db.query("paymentTransactions").collect()) {
+      if (containsExplicitSmokeMarker(payment)) {
+        paymentTransactions.add(payment._id);
+      }
+    }
+    for (const payout of await ctx.db.query("payoutLedger").collect()) {
+      if (
+        containsExplicitSmokeMarker(payout) ||
+        (payout.sourcePaymentTransactionId !== undefined &&
+          paymentTransactions.has(payout.sourcePaymentTransactionId))
+      ) {
+        payoutLedger.add(payout._id);
+      }
+    }
+    const relatedSmokeIds = new Set<string>([
+      ...inventoryBatches,
+      ...inventoryReservations,
+      ...buyerOrders,
+      ...paymentTransactions,
+      ...payoutLedger,
+    ]);
+    for (const notification of await ctx.db.query("notifications").collect()) {
+      if (
+        containsExplicitSmokeMarker(notification) ||
+        (notification.relatedEntityId !== undefined && relatedSmokeIds.has(notification.relatedEntityId))
+      ) {
+        notifications.add(notification._id);
+      }
+    }
+    for (const delivery of await ctx.db.query("smsDeliveries").collect()) {
+      const notificationMissing =
+        delivery.notificationId !== undefined &&
+        !notifications.has(delivery.notificationId) &&
+        (await ctx.db.get(delivery.notificationId)) === null;
+      if (
+        containsExplicitSmokeMarker(delivery) ||
+        (delivery.notificationId !== undefined && notifications.has(delivery.notificationId)) ||
+        (delivery.relatedEntityId !== undefined && relatedSmokeIds.has(delivery.relatedEntityId)) ||
+        notificationMissing
+      ) {
+        smsDeliveries.add(delivery._id);
+      }
+    }
+    if (smokeAdmin !== null) {
+      for (const status of adminRoleAssignmentStatuses) {
+        for (const assignment of await ctx.db
+          .query("adminRoleAssignments")
+          .withIndex("by_admin_user_status", (q) => q.eq("adminUserId", smokeAdmin._id).eq("status", status))
+          .collect()) {
+          adminRoleAssignments.add(assignment._id);
+        }
+      }
+      for (const assignment of await ctx.db.query("adminRoleAssignments").collect()) {
+        if (assignment.assignedBy === smokeAdmin._id && assignment.adminUserId !== smokeAdmin._id) {
+          repairedAssignments += 1;
+          if (!dryRun) {
+            await ctx.db.patch(assignment._id, { assignedBy: assignment.adminUserId });
+          }
+        }
+      }
+    }
+
+    const matched = {
+      auditLogs: auditLogs.size,
+      buyerOrderCharges: buyerOrderCharges.size,
+      inventoryBatches: inventoryBatches.size,
+      inventoryReservations: inventoryReservations.size,
+      buyerOrders: buyerOrders.size,
+      storageFeeLedger: storageFeeLedger.size,
+      storageRateRules: storageRateRules.size,
+      paymentTransactions: paymentTransactions.size,
+      payoutLedger: payoutLedger.size,
+      notifications: notifications.size,
+      smsDeliveries: smsDeliveries.size,
+      adminRoleAssignments: adminRoleAssignments.size,
+      users: smokeAdmin === null ? 0 : 1,
+      repairedAssignments,
+    };
+    if (!dryRun) {
+      for (const id of auditLogs) {
+        await ctx.db.delete(id);
+      }
+      for (const id of buyerOrderCharges) {
+        await ctx.db.delete(id);
+      }
+      for (const id of smsDeliveries) {
+        await ctx.db.delete(id);
+      }
+      for (const id of notifications) {
+        await ctx.db.delete(id);
+      }
+      for (const id of inventoryReservations) {
+        await ctx.db.delete(id);
+      }
+      for (const id of payoutLedger) {
+        await ctx.db.delete(id);
+      }
+      for (const id of paymentTransactions) {
+        await ctx.db.delete(id);
+      }
+      for (const id of storageFeeLedger) {
+        await ctx.db.delete(id);
+      }
+      for (const id of inventoryBatches) {
+        await ctx.db.delete(id);
+      }
+      for (const id of storageRateRules) {
+        await ctx.db.delete(id);
+      }
+      for (const id of buyerOrders) {
+        await ctx.db.delete(id);
+      }
+      for (const id of adminRoleAssignments) {
+        await ctx.db.delete(id);
+      }
+      if (smokeAdmin !== null) {
+        await ctx.db.delete(smokeAdmin._id);
+      }
+    }
+    return {
+      dryRun,
+      matched,
+      deleted: dryRun
+        ? Object.fromEntries(Object.keys(matched).filter((key) => key !== "repairedAssignments").map((key) => [key, 0]))
+        : {
+            auditLogs: auditLogs.size,
+            buyerOrderCharges: buyerOrderCharges.size,
+            inventoryBatches: inventoryBatches.size,
+            inventoryReservations: inventoryReservations.size,
+            buyerOrders: buyerOrders.size,
+            storageFeeLedger: storageFeeLedger.size,
+            storageRateRules: storageRateRules.size,
+            paymentTransactions: paymentTransactions.size,
+            payoutLedger: payoutLedger.size,
+            notifications: notifications.size,
+            smsDeliveries: smsDeliveries.size,
+            adminRoleAssignments: adminRoleAssignments.size,
+            users: smokeAdmin === null ? 0 : 1,
+          },
+    };
+  },
+});
+
+function containsExplicitSmokeMarker(value: unknown): boolean {
+  return /smoke|backend-smoke|example\.test/i.test(JSON.stringify(value));
+}
+
 function cleanRunId(runId: string): string {
   return runId.replace(/[^0-9A-Za-z]+/g, "").slice(0, 32);
 }
