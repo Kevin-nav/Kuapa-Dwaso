@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpException, HttpStatus, Post, UseGuards, UnauthorizedException, BadRequestException } from "@nestjs/common";
 import type { AdminRoleKey, AdminScopeType, InvitationChannel, MfaRequirement, PlatformInvitationType } from "@kuapa-dwaso/types";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
@@ -68,6 +68,10 @@ export class InvitationsController {
         "Too many invitation send attempts. Try again after the rate-limit window resets.",
         HttpStatus.TOO_MANY_REQUESTS
       );
+    }
+
+    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.channel !== "email") {
+      throw new BadRequestException("Admin and warehouse-manager invitations must be delivered by email.");
     }
 
     const token = this.tokens.createToken();

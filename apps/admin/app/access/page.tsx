@@ -43,7 +43,6 @@ const inviteTypes: PlatformInvitationType[] = [
   "warehouse_agent_invite",
   "transporter_invite",
 ];
-const inviteChannels: InvitationChannel[] = ["email", "sms"];
 const mfaRequirements: MfaRequirement[] = ["not_required", "sms_required", "totp_required", "required"];
 const tabs = ["Invites", "Admin Users", "Groups", "Permission Preview"] as const;
 
@@ -77,10 +76,26 @@ function scopeText(input: { scopeType: string; scopeId?: string; scopeValue?: st
   return `${formatLabel(input.scopeType)}: ${input.scopeValue ?? input.scopeId ?? "unscoped"}`;
 }
 
-function messageColor(tone: Message["tone"]) {
-  if (tone === "success") return status.success;
-  if (tone === "warning") return status.warning;
-  return status.danger;
+function messageStyle(tone: Message["tone"]) {
+  if (tone === "success") {
+    return {
+      background: "#ecfdf5",
+      border: "1px solid #10b981",
+      color: "#065f46",
+    };
+  }
+  if (tone === "warning") {
+    return {
+      background: "#fffbeb",
+      border: "1px solid #f59e0b",
+      color: "#92400e",
+    };
+  }
+  return {
+    background: "#fef2f2",
+    border: "1px solid #ef4444",
+    color: "#991b1b",
+  };
 }
 
 function Field({
@@ -218,8 +233,42 @@ export default function AccessManagementPage() {
 
   const activePrincipal = principal;
 
+  const getErrorMessage = (err: unknown): string => {
+    let rawMessage = "Action failed.";
+    if (err instanceof Error) {
+      rawMessage = err.message;
+    } else if (typeof err === "string") {
+      rawMessage = err;
+    } else if (err && typeof err === "object" && "message" in err) {
+      rawMessage = String((err as { message: unknown }).message);
+    }
+
+    if (rawMessage.startsWith("{") && rawMessage.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(rawMessage);
+        if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed.message)) {
+            return parsed.message.join(", ");
+          }
+          if (typeof parsed.message === "string") {
+            return parsed.message;
+          }
+        }
+      } catch {
+        // Ignore and use rawMessage
+      }
+    }
+
+    const match = rawMessage.match(/(?:Uncaught Error|ConvexError):\s*([^\n]+)/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+
+    return rawMessage;
+  };
+
   const setSuccess = (text: string) => setMessage({ tone: "success", text });
-  const setFailure = (err: unknown) => setMessage({ tone: "danger", text: err instanceof Error ? err.message : "Action failed." });
+  const setFailure = (err: unknown) => setMessage({ tone: "danger", text: getErrorMessage(err) });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -247,7 +296,7 @@ export default function AccessManagementPage() {
       )}
 
       {message !== undefined && (
-        <div style={{ background: gray[0], border: `1px solid ${gray[100]}`, borderLeft: `4px solid ${messageColor(message.tone)}`, borderRadius: "8px", color: gray[800], fontWeight: 700, padding: "12px 14px" }}>
+        <div style={{ borderRadius: "8px", fontWeight: 700, padding: "12px 14px", fontSize: "0.875rem", ...messageStyle(message.tone) }}>
           {message.text}
         </div>
       )}
@@ -367,6 +416,13 @@ function InvitesPanel({
   const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("totp_required");
   const [isWorking, setIsWorking] = useState(false);
 
+  const allowedChannels = useMemo<InvitationChannel[]>(() => {
+    if (type === "admin_invite" || type === "warehouse_manager_invite") {
+      return ["email"];
+    }
+    return ["email", "sms"];
+  }, [type]);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setIsWorking(true);
@@ -405,9 +461,9 @@ function InvitesPanel({
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      const result = (await response.json()) as { deliveryProvider: string; messageId?: string };
+      await response.json();
       setTarget("");
-      onCreateSuccess(`Invitation sent through ${result.deliveryProvider}${result.messageId === undefined ? "." : ` (${result.messageId}).`}`);
+      onCreateSuccess(`Invitation successfully sent to ${target.trim()} via ${channel === "email" ? "email" : "SMS"}.`);
     } catch (err) {
       onFailure(err);
     } finally {
@@ -422,13 +478,23 @@ function InvitesPanel({
       <form onSubmit={(event) => void submit(event)} style={{ background: gray[0], border: `1px solid ${gray[100]}`, borderRadius: "8px", display: "flex", flexDirection: "column", gap: "14px", padding: "18px" }}>
         <h2 style={{ color: gray[900], fontSize: "1rem", fontWeight: 800, margin: 0 }}>Create invitation</h2>
         <Field label="Invite type">
-          <select value={type} onChange={(event) => setType(event.target.value as PlatformInvitationType)} style={inputStyle}>
+          <select
+            value={type}
+            onChange={(event) => {
+              const val = event.target.value as PlatformInvitationType;
+              setType(val);
+              if (val === "admin_invite" || val === "warehouse_manager_invite") {
+                setChannel("email");
+              }
+            }}
+            style={inputStyle}
+          >
             {inviteTypes.map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}
           </select>
         </Field>
         <Field label="Delivery channel">
           <select value={channel} onChange={(event) => setChannel(event.target.value as InvitationChannel)} style={inputStyle}>
-            {inviteChannels.map((item) => <option key={item} value={item}>{item}</option>)}
+            {allowedChannels.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </Field>
         <Field label={channel === "email" ? "Target email" : "Target phone number"}>

@@ -291,7 +291,32 @@ export default function AdminAuthPage() {
       );
       setInviteToken("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not accept invite.");
+      let rawMessage = "Could not accept invite.";
+      if (err instanceof Error) {
+        rawMessage = err.message;
+      } else if (typeof err === "string") {
+        rawMessage = err;
+      }
+
+      if (rawMessage.startsWith("{") && rawMessage.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(rawMessage);
+          if (parsed && typeof parsed === "object" && typeof parsed.message === "string") {
+            rawMessage = parsed.message;
+          } else if (parsed && typeof parsed === "object" && Array.isArray(parsed.message)) {
+            rawMessage = parsed.message.join(", ");
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      const match = rawMessage.match(/(?:Uncaught Error|ConvexError):\s*([^\n]+)/);
+      if (match && match[1]) {
+        rawMessage = match[1].trim();
+      }
+
+      setError(rawMessage);
     } finally {
       setIsWorking(false);
     }
