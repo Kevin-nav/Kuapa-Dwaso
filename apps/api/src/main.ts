@@ -10,6 +10,17 @@ async function bootstrap(): Promise<void> {
     logger: ["error", "warn", "log"]
   });
 
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin || env.cors.allowedOrigins.includes(origin) || env.cors.allowedOrigins.includes("*")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"), false);
+      }
+    },
+    credentials: true,
+  });
+
   await app.listen({ host: "0.0.0.0", port: env.port });
 }
 

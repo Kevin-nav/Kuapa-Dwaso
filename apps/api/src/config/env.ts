@@ -13,6 +13,9 @@ export type ApiEnvironment = {
     disabled: boolean;
   };
   publicAppUrl?: string;
+  cors: {
+    allowedOrigins: string[];
+  };
   email: {
     resendApiKey?: string;
     fromEmail?: string;
@@ -171,10 +174,28 @@ export function getApiEnvironment(): ApiEnvironment {
     notifications.deliverySecret = process.env.NOTIFICATION_DELIVERY_SECRET;
   }
 
+  const rawAllowedOrigins = process.env.API_CORS_ALLOWED_ORIGINS;
+  const allowedOrigins = rawAllowedOrigins
+    ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+    : [
+        "https://staging.kuapadwaso.com",
+        "https://app-staging.kuapadwaso.com",
+        "https://admin-staging.kuapadwaso.com",
+        "https://ops-staging.kuapadwaso.com",
+        "https://api-staging.kuapadwaso.com"
+      ];
+
+  if (publicAppUrl && !allowedOrigins.includes(publicAppUrl)) {
+    allowedOrigins.push(publicAppUrl);
+  }
+
   const environment: ApiEnvironment = {
     nodeEnv,
     port: parsePort(process.env.PORT),
     auth,
+    cors: {
+      allowedOrigins
+    },
     email,
     sms,
     payments,
