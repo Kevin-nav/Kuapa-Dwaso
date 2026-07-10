@@ -59,7 +59,23 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
 
   return (
     <>
-      <main className="page-shell">{children}</main>
+      <header className="farmer-top-navbar">
+        <div className="farmer-navbar-container">
+          <Link href="/farmer" className="farmer-navbar-logo-area">
+            <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="farmer-navbar-logo" style={{ width: "28px", height: "28px" }} aria-hidden="true">
+              <circle cx="22" cy="30" r="6" fill="var(--color-primary)" opacity="0.5" />
+              <circle cx="18" cy="60" r="6" fill="var(--color-primary)" opacity="0.65" />
+              <circle cx="22" cy="90" r="6" fill="var(--color-primary)" opacity="0.8" />
+              <circle cx="48" cy="45" r="8" fill="var(--color-primary)" opacity="0.85" />
+              <circle cx="48" cy="75" r="8" fill="var(--color-primary)" opacity="0.9" />
+              <circle cx="88" cy="60" r="22" fill="var(--color-primary)" />
+            </svg>
+            <span className="farmer-navbar-brand">KuapaDwaso</span>
+          </Link>
+        </div>
+      </header>
+
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}</main>
 
       <nav className="bottom-nav">
         <Link href="/farmer" className={`nav-link ${isActive("/farmer") ? "nav-link-active" : ""}`}>
