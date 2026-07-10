@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { getAuthErrorCode, getAuthErrorMessage } from "@kuapa-dwaso/utils";
+import { ArrowRight, CheckCircle2, KeyRound, PackageCheck, ShieldCheck, Smartphone, Warehouse } from "lucide-react";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -21,6 +23,7 @@ export default function OpsAuthPage() {
   const [error, setError] = useState<string | undefined>();
   const [isWorking, setIsWorking] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
+  const router = useRouter();
 
   const clearVerifier = useCallback(() => {
     recaptchaRef.current?.clear();
@@ -28,6 +31,12 @@ export default function OpsAuthPage() {
   }, []);
 
   useEffect(() => clearVerifier, [clearVerifier]);
+
+  useEffect(() => {
+    if (principal?.role === "warehouse_agent") {
+      router.replace("/");
+    }
+  }, [principal?.role, router]);
 
   const verifier = () => {
     if (recaptchaRef.current !== null) {
@@ -82,66 +91,56 @@ export default function OpsAuthPage() {
   };
 
   return (
-    <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div>
-        <h1 style={{ fontSize: "24px", marginBottom: "4px" }}>Ops sign in</h1>
-        <p style={{ color: "var(--gray-600)" }}>Use the phone identity accepted from a warehouse-agent invite.</p>
-      </div>
-
-      {firebaseUser !== null && (
-        <div className="offline-banner" style={{ margin: 0 }}>
-          Signed in as {firebaseUser.phoneNumber ?? firebaseUser.uid}. Principal: {principal?.role ?? "not linked yet"}.
-        </div>
-      )}
-
-      <form
-        className="step-container"
-        onSubmit={(event) => {
-          void (confirmation === null ? sendOtp(event) : verifyOtp(event));
-        }}
-      >
-        <div className="form-group">
-          <label className="form-label" htmlFor="opsPhone">Phone number</label>
-          <input
-            id="opsPhone"
-            className="form-input"
-            type="tel"
-            autoComplete="tel"
-            value={phoneNumber}
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            disabled={confirmation !== null || isWorking}
-            required
-          />
-        </div>
-        {confirmation !== null && (
-          <div className="form-group">
-            <label className="form-label" htmlFor="opsOtp">OTP code</label>
-            <input
-              id="opsOtp"
-              className="form-input"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]*"
-              value={otp}
-              onChange={(event) => setOtp(event.target.value)}
-              required
-            />
+    <main className="ops-auth-layout">
+      <aside className="ops-auth-story">
+        <div className="ops-auth-brand"><span className="ops-auth-brand-mark"><Warehouse size={22} /></span><span>KuapaDwaso Ops</span></div>
+        <div className="ops-auth-story-copy">
+          <p className="ops-auth-kicker">Warehouse operations</p>
+          <h1>Every bag received.<br />Every movement accounted for.</h1>
+          <p>Secure access for approved warehouse agents handling produce intake, receipts, inventory condition, and dispatch.</p>
+          <div className="ops-auth-trust-grid">
+            <span><PackageCheck size={18} /> Verified intake records</span>
+            <span><ShieldCheck size={18} /> Invite-linked access</span>
+            <span><CheckCircle2 size={18} /> Low-bandwidth sync</span>
           </div>
-        )}
-        <div id="ops-phone-recaptcha" />
-        <p style={{ color: "var(--gray-600)" }}>{status}</p>
-        {error !== undefined && <p className="form-error">{error}</p>}
-        <div className="sticky-actions-bar">
-          <button className="btn btn-primary" type="submit" disabled={isWorking}>
-            {confirmation === null ? "Send OTP" : "Verify OTP"}
-          </button>
-          {firebaseUser !== null && (
-            <button className="btn btn-outline" type="button" onClick={() => void signOut()}>
-              Sign out
-            </button>
-          )}
         </div>
-      </form>
-    </div>
+        <p className="ops-auth-story-foot">Built for the warehouse floor, not the office desk.</p>
+      </aside>
+
+      <section className="ops-auth-main">
+        <div className="ops-auth-card-wrap">
+          <div className="ops-auth-mobile-brand"><span className="ops-auth-brand-mark"><Warehouse size={20} /></span><strong>KuapaDwaso Ops</strong></div>
+          <header className="ops-auth-head">
+            <p className="ops-auth-kicker">Agent sign in</p>
+            <h2>{confirmation === null ? "Open your warehouse console" : "Enter the code we sent"}</h2>
+            <p>{confirmation === null ? "Use the phone number linked to your approved warehouse-agent invitation." : `A one-time code was sent to ${phoneNumber}.`}</p>
+          </header>
+
+          {firebaseUser !== null && principal?.role !== "warehouse_agent" ? (
+            <div className="ops-auth-notice" role="alert"><ShieldCheck size={20} /><div><strong>Account not linked for warehouse access</strong><p>Sign out and use the phone number that accepted the warehouse-agent invitation.</p></div></div>
+          ) : null}
+
+          <form className="ops-auth-card" onSubmit={(event) => void (confirmation === null ? sendOtp(event) : verifyOtp(event))}>
+            <div className="ops-auth-field">
+              <label htmlFor="opsPhone">Warehouse-agent phone</label>
+              <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" autoComplete="tel" placeholder="+233 00 000 0000" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
+            </div>
+            {confirmation !== null ? (
+              <div className="ops-auth-field">
+                <label htmlFor="opsOtp">Six-digit verification code</label>
+                <div className="ops-auth-input-wrap"><KeyRound size={19} /><input id="opsOtp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value)} required /></div>
+              </div>
+            ) : null}
+            <div id="ops-phone-recaptcha" />
+            <p className="ops-auth-status">{status}</p>
+            {error !== undefined ? <div className="ops-auth-error" role="alert"><span>!</span><p>{error}</p></div> : null}
+            <button className="ops-auth-submit" type="submit" disabled={isWorking}>{isWorking ? "Please wait…" : confirmation === null ? <>Send secure code <ArrowRight size={18} /></> : <>Verify and enter console <ArrowRight size={18} /></>}</button>
+            {confirmation !== null ? <button className="ops-auth-secondary" type="button" disabled={isWorking} onClick={() => { setConfirmation(null); setOtp(""); setError(undefined); }}>Use a different number</button> : null}
+            {firebaseUser !== null ? <button className="ops-auth-secondary" type="button" onClick={() => void signOut()}>Sign out current account</button> : null}
+          </form>
+          <p className="ops-auth-help">No invitation or warehouse assignment? Contact your platform administrator.</p>
+        </div>
+      </section>
+    </main>
   );
 }

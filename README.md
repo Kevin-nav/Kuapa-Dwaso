@@ -96,10 +96,6 @@ corepack pnpm test
 
 For environment and deployment instructions, see the [deployment runbook](docs/deployment/kubernetes-cloudflare-infisical.md) and the [API README](apps/api/README.md).
 
-## Project status
-
-Kuapa Dwaso is under active development. The repository contains the core warehouse workflow and supporting product surfaces; provider integrations can operate in mock mode for local development. See [current scope and boundaries](docs/product/overview.md#current-scope-and-boundaries) before relying on a capability in production.
-
 ## Contributing and security
 
 Before opening a contribution, read the repository conventions in [AGENTS.md](AGENTS.md) and the [documentation index](docs/README.md). Please do not include credentials, farmer data, or other production data in issues, commits, or screenshots.

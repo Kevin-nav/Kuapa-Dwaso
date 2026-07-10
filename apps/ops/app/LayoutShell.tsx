@@ -3,9 +3,9 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
 import { useWarehouse } from "./context/WarehouseContext";
 import { 
@@ -25,10 +25,32 @@ import {
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isOffline, setIsOffline, syncQueue, activeWarehouse, activeAgent } = useWarehouse();
-  const { signOut } = useOpsAuth();
+  const { signOut, firebaseUser, principal, isLoading: isAuthLoading } = useOpsAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const isAuthRoute = pathname === "/auth";
+  const hasWarehouseAccess = firebaseUser !== null && principal?.role === "warehouse_agent";
+
+  useEffect(() => {
+    if (!isAuthRoute && !isAuthLoading && !hasWarehouseAccess) {
+      router.replace("/auth");
+    }
+  }, [hasWarehouseAccess, isAuthLoading, isAuthRoute, router]);
+
+  if (isAuthRoute) {
+    return <>{children}</>;
+  }
+
+  if (isAuthLoading || !hasWarehouseAccess) {
+    return (
+      <main className="ops-auth-gate" aria-live="polite">
+        <div className="ops-auth-gate-mark" />
+        <p>{isAuthLoading ? "Checking warehouse access…" : "Taking you to secure sign in…"}</p>
+      </main>
+    );
+  }
 
   // Determine sync status representation
   const getSyncStatus = () => {

@@ -1152,6 +1152,97 @@ textarea.form-input {
   font-weight: 600;
 }
 
+.verification-callout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  padding: 20px;
+  border: 1.5px solid var(--color-success-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(145deg, #f7fcf8, var(--color-success-bg));
+  box-shadow: 0 12px 32px rgba(21, 128, 61, 0.08);
+}
+
+.verification-callout-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: #fff;
+  color: var(--color-success);
+  box-shadow: 0 6px 18px rgba(21, 128, 61, 0.12);
+}
+
+.verification-callout-body h2 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.verification-callout-body > p:not(.eyebrow) {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.verification-steps {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+  color: var(--color-success);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.verification-steps span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verification-resend {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.auth-error-card {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #fff8f8, var(--color-danger-bg));
+  color: var(--color-danger);
+  box-shadow: 0 8px 22px rgba(185, 28, 28, 0.07);
+}
+
+.auth-error-card > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--color-danger);
+  color: #fff;
+  font-weight: 900;
+}
+
+.auth-error-card p {
+  margin: 3px 0 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1375,5 +1466,4 @@ textarea.form-input {
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
-
 

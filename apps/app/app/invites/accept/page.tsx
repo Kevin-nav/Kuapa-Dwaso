@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import type { FormEvent } from "react";
+import { CheckCircle2, MailCheck, ShieldCheck } from "lucide-react";
 import {
   getAuthErrorCode,
   getAuthErrorMessage,
@@ -23,15 +24,31 @@ type InviteMode = "admin_email" | "warehouse_manager_email" | "warehouse_agent_p
 
 function InviteAcceptContent() {
   const searchParams = useSearchParams();
-  const [mode, setMode] = useState<InviteMode>("admin_email");
+  const requestedMode = searchParams.get("mode");
+  const [mode, setMode] = useState<InviteMode>(
+    requestedMode === "warehouse_manager_email" || requestedMode === "warehouse_agent_phone"
+      ? requestedMode
+      : "admin_email",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState<string>("Choose the invite type and sign in with the invited identity.");
   const [error, setError] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState<string | undefined>();
 
   const token = searchParams.get("token") ?? "";
+  const roleLabel = mode === "admin_email" ? "admin" : mode === "warehouse_manager_email" ? "warehouse manager" : "warehouse agent";
+
+  const sendVerification = async (user: User) => {
+    const continueUrl = new URL(window.location.href);
+    continueUrl.searchParams.set("mode", mode);
+    await sendEmailVerification(user, {
+      url: continueUrl.toString(),
+      handleCodeInApp: false,
+    });
+  };
 
   const acceptInvite = async (user: User) => {
     if (apiBaseUrl === undefined || apiBaseUrl.trim().length === 0) {
@@ -75,15 +92,16 @@ function InviteAcceptContent() {
       } catch (signInError) {
         if (shouldCreateInvitedEmailAccountAfterSignInFailure(signInError)) {
           credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-          await sendEmailVerification(credential.user);
-          setStatus("Account created. Verify the email, then return to accept this invite.");
+          setVerificationEmail(credential.user.email ?? email.trim());
+          await sendVerification(credential.user);
+          setStatus("Your account is ready. Open the verification email before signing in to continue.");
           return;
         }
         throw signInError;
       }
       if (!credential.user.emailVerified) {
-        await sendEmailVerification(credential.user);
-        setStatus("Email verification is required. A verification email was sent.");
+        setVerificationEmail(credential.user.email ?? email.trim());
+        setStatus("Your email still needs verification. Check your inbox or resend the email below.");
         return;
       }
       await acceptInvite(credential.user);
@@ -100,12 +118,38 @@ function InviteAcceptContent() {
     }
   };
 
+  const resendVerification = async () => {
+    setError(undefined);
+    setIsSubmitting(true);
+    try {
+      const user = firebaseAuth.currentUser;
+      if (user === null || user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+        throw new Error(`Sign in with the invited ${roleLabel} email before resending verification.`);
+      }
+      await sendVerification(user);
+      setVerificationEmail(user.email ?? email.trim());
+      setStatus("A fresh verification email was sent. Check your inbox and spam or junk folder.");
+    } catch (err) {
+      setError(
+        getAuthErrorCode(err) === "auth/too-many-requests"
+          ? "Firebase has temporarily limited verification emails. Check your inbox and spam folder first, then wait a few minutes before resending."
+          : getAuthErrorCode(err) !== undefined
+            ? getAuthErrorMessage(err, "sign-in")
+            : err instanceof Error
+              ? err.message
+              : "Could not resend the verification email.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <main className="page-shell auth-page">
       <section className="auth-panel">
         <p className="eyebrow">Invite acceptance</p>
         <h1>Accept platform invite</h1>
-        <p>Admin and warehouse manager invites use email/password plus MFA. Warehouse agent invites use phone verification.</p>
+        <p>Choose the role named in your invitation. Your sign-in method and security steps will match that role.</p>
 
         <div className="role-grid">
           {([
@@ -113,7 +157,7 @@ function InviteAcceptContent() {
             ["warehouse_manager_email", "warehouse manager"],
             ["warehouse_agent_phone", "warehouse agent"],
           ] as const).map(([value, label]) => (
-            <button key={value} type="button" className={mode === value ? "selected" : ""} onClick={() => setMode(value)}>
+            <button key={value} type="button" className={mode === value ? "selected" : ""} onClick={() => { setMode(value); setVerificationEmail(undefined); setError(undefined); }}>
               {label}
             </button>
           ))}
@@ -150,13 +194,29 @@ function InviteAcceptContent() {
               {mode === "warehouse_manager_email" ? "Warehouse manager invites require SMS MFA messaging." : "Admin invites require email verification and MFA."}
             </p>
             <button type="submit" disabled={isSubmitting}>
-              Accept invite
+              {verificationEmail === undefined ? `Continue as ${roleLabel}` : `I've verified — sign in as ${roleLabel}`}
             </button>
           </form>
         )}
 
-        <p className="auth-status">{status}</p>
-        {error !== undefined && <p className="auth-error">{error}</p>}
+        {verificationEmail !== undefined ? (
+          <section className="verification-callout" aria-live="polite">
+            <div className="verification-callout-icon"><MailCheck size={24} /></div>
+            <div className="verification-callout-body">
+              <p className="eyebrow">Check your email</p>
+              <h2>Verify {verificationEmail}</h2>
+              <p>Open the message from KuapaDwaso and select the verification link. If it is not in your inbox, check your spam, junk, or promotions folder.</p>
+              <div className="verification-steps">
+                <span><CheckCircle2 size={16} /> Verify your email</span>
+                <span><ShieldCheck size={16} /> Return here and sign in as {roleLabel}</span>
+              </div>
+              <button type="button" className="verification-resend" disabled={isSubmitting} onClick={() => void resendVerification()}>
+                Resend verification email
+              </button>
+            </div>
+          </section>
+        ) : <p className="auth-status">{status}</p>}
+        {error !== undefined && <div className="auth-error-card" role="alert"><span aria-hidden="true">!</span><p>{error}</p></div>}
       </section>
     </main>
   );

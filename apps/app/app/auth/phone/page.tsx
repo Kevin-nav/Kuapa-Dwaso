@@ -21,10 +21,16 @@ import {
   KeyRound,
   Smartphone,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 
 type PhoneRole = Extract<MarketplaceRole, "farmer" | "buyer" | "transporter">;
 type OnboardingStep = "role" | "phone_verify" | "profile_setup";
+
+const GHANA_REGIONS = [
+  "Ahafo", "Ashanti", "Bono", "Bono East", "Central", "Eastern", "Greater Accra", "North East",
+  "Northern", "Oti", "Savannah", "Upper East", "Upper West", "Volta", "Western", "Western North",
+] as const;
 
 function LogoIcon({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
@@ -56,6 +62,7 @@ export default function PhoneAuthPage() {
   const [verifiedUser, setVerifiedUser] = useState<User | null>(null);
   const [fullName, setFullName] = useState("");
   const [community, setCommunity] = useState("");
+  const [region, setRegion] = useState("");
   const [claimExistingFarmer, setClaimExistingFarmer] = useState(false);
   const [buyerType, setBuyerType] = useState<BuyerType>("market_trader");
   const [organizationName, setOrganizationName] = useState("");
@@ -114,6 +121,7 @@ export default function PhoneAuthPage() {
               identity,
               fullName,
               community,
+              region,
             });
         setResult(`Farmer profile ready: ${saved.farmerId}`);
         router.push("/farmer");
@@ -158,7 +166,7 @@ export default function PhoneAuthPage() {
         router.push("/");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save profile.");
+      setError(getOnboardingErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -394,17 +402,27 @@ export default function PhoneAuthPage() {
                       Claim an agent-created farmer profile
                     </label>
                     {!claimExistingFarmer && (
-                      <div className="field-stack">
-                        <label htmlFor="community">Community</label>
-                        <input
-                          id="community"
-                          value={community}
-                          onChange={(event) => setCommunity(event.target.value)}
-                          placeholder="e.g. Ejura"
-                          required
-                          disabled={isSaving}
-                        />
-                      </div>
+                      <>
+                        <div className="field-stack">
+                          <label htmlFor="region">Region</label>
+                          <select id="region" value={region} onChange={(event) => setRegion(event.target.value)} required disabled={isSaving}>
+                            <option value="">Choose your region</option>
+                            {GHANA_REGIONS.map((item) => <option key={item} value={item}>{item}</option>)}
+                          </select>
+                          <span className="field-help">Onboarding is available where KuapaDwaso has an active warehouse.</span>
+                        </div>
+                        <div className="field-stack">
+                          <label htmlFor="community">Community</label>
+                          <input
+                            id="community"
+                            value={community}
+                            onChange={(event) => setCommunity(event.target.value)}
+                            placeholder="e.g. Ejura"
+                            required
+                            disabled={isSaving}
+                          />
+                        </div>
+                      </>
                     )}
                   </>
                 )}
@@ -515,7 +533,7 @@ export default function PhoneAuthPage() {
           )}
 
           {result !== undefined && <p className="auth-success" style={{ marginTop: "12px" }}>{result}</p>}
-          {error !== undefined && <p className="auth-error" style={{ marginTop: "12px" }}>{error}</p>}
+          {error !== undefined && <div className="auth-error-card" role="alert" style={{ marginTop: "14px" }}><span><AlertTriangle size={16} /></span><p>{error}</p></div>}
 
           <p className="auth-legal">
             By continuing you agree to our{" "}
@@ -526,4 +544,16 @@ export default function PhoneAuthPage() {
       </main>
     </div>
   );
+}
+
+function getOnboardingErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "Could not save your profile.";
+  if (message.includes("Restricted Region")) {
+    return "KuapaDwaso onboarding is not open in that region yet. Choose a region with an active warehouse or contact support for help.";
+  }
+  return message
+    .replace(/\[CONVEX[^\]]*\]\s*/g, "")
+    .replace(/(?:Uncaught Error|ConvexError):\s*/g, "")
+    .split("\n")[0]
+    ?.trim() || "Could not save your profile. Please review the details and try again.";
 }
