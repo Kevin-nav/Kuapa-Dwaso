@@ -1227,10 +1227,11 @@ textarea.form-input {
     justify-content: space-between;
     padding: 48px;
     background: linear-gradient(
-      160deg,
-      var(--color-ink) 0%,
-      #123a22 100%
-    );
+        160deg,
+        rgba(15, 31, 20, 0.85) 0%,
+        rgba(18, 58, 34, 0.85) 100%
+      ),
+      url("/auth-bg.png") center/cover no-repeat;
     color: #fff;
     min-height: 100vh;
     position: sticky;
