@@ -1288,3 +1288,55 @@ textarea.form-input {
     min-height: 100vh;
   }
 }
+
+/* --- Farmer Top Navbar --- */
+.farmer-top-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background-color: rgba(245, 247, 240, 0.85); /* matching --color-bg with opacity for glassmorphism */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-line);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.farmer-navbar-container {
+  width: 100%;
+  max-width: 600px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.farmer-navbar-logo-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--color-ink);
+  transition: opacity 0.2s ease;
+}
+
+.farmer-navbar-logo-area:hover {
+  opacity: 0.8;
+}
+
+.farmer-navbar-brand {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+.farmer-navbar-logo {
+  flex-shrink: 0;
+}
+
