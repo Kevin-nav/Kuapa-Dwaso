@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { getAuthErrorMessage } from "@kuapa-dwaso/utils";
 import type { MultiFactorError, MultiFactorResolver } from "firebase/auth";
 import {
   getMultiFactorResolver,
@@ -34,6 +35,13 @@ export default function AdminAuthPage() {
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
 
+  const clearRecaptchaVerifier = useCallback(() => {
+    recaptchaVerifierRef.current?.clear();
+    recaptchaVerifierRef.current = null;
+  }, []);
+
+  useEffect(() => clearRecaptchaVerifier, [clearRecaptchaVerifier]);
+
   const getRecaptchaVerifier = () => {
     if (recaptchaVerifierRef.current === null) {
       recaptchaVerifierRef.current = new RecaptchaVerifier(firebaseAuth, "admin-mfa-recaptcha", {
@@ -65,7 +73,7 @@ export default function AdminAuthPage() {
         setMfaResolver(getMultiFactorResolver(firebaseAuth, err as MultiFactorError));
         setStatus("Firebase MFA is required. Send a second-factor challenge to continue.");
       } else {
-        setError(err instanceof Error ? err.message : "Could not sign in.");
+        setError(getAuthErrorMessage(err, "sign-in"));
       }
     } finally {
       setIsWorking(false);
@@ -139,10 +147,12 @@ export default function AdminAuthPage() {
         },
         getRecaptchaVerifier(),
       );
+      clearRecaptchaVerifier();
       setMfaVerificationId(verificationId);
       setStatus("MFA challenge sent. Enter the code to complete sign-in.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send MFA challenge.");
+      clearRecaptchaVerifier();
+      setError(getAuthErrorMessage(err, "send-mfa-code"));
     } finally {
       setIsWorking(false);
     }
@@ -163,7 +173,7 @@ export default function AdminAuthPage() {
       setMfaCode("");
       setStatus("MFA sign-in complete.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not complete MFA sign-in.");
+      setError(getAuthErrorMessage(err, "verify-mfa-code"));
     } finally {
       setIsWorking(false);
     }
@@ -192,10 +202,12 @@ export default function AdminAuthPage() {
         },
         getRecaptchaVerifier(),
       );
+      clearRecaptchaVerifier();
       setMfaEnrollmentVerificationId(verificationId);
       setStatus("MFA enrollment challenge sent. Enter the code to finish enrollment.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start MFA enrollment.");
+      clearRecaptchaVerifier();
+      setError(getAuthErrorMessage(err, "enroll-mfa"));
     } finally {
       setIsWorking(false);
     }
@@ -216,7 +228,7 @@ export default function AdminAuthPage() {
       setStatus("Firebase SMS MFA factor enrolled. Refresh the token before accepting an MFA-required invite.");
       await getIdToken(firebaseUser, true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not complete MFA enrollment.");
+      setError(getAuthErrorMessage(err, "enroll-mfa"));
     } finally {
       setIsWorking(false);
     }
