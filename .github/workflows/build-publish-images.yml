@@ -104,6 +104,7 @@ jobs:
             NEXT_PUBLIC_FIREBASE_APP_ID
             NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
             NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+            FIREBASE_AUTH_ORIGINS
           )
 
           for key in "${required_keys[@]}"; do
@@ -122,6 +123,10 @@ jobs:
           INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
           INFISICAL_ENVIRONMENT_SLUG: ${{ vars.INFISICAL_ENVIRONMENT_SLUG }}
           INFISICAL_SECRET_PATH: ${{ vars.INFISICAL_SECRET_PATH || '/' }}
+
+      - name: Verify Firebase authorized domains
+        shell: bash
+        run: node packages/test-utils/src/check-firebase-auth-domains.mjs
 
       - name: Log in to GHCR
         if: ${{ (vars.IMAGE_REGISTRY == '' || vars.IMAGE_REGISTRY == 'ghcr.io') }}

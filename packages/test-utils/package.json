@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "env:check-next-public": "node src/check-next-public-env.mjs",
+    "firebase:check-auth-domains": "node src/check-firebase-auth-domains.mjs",
     "provider:doctor": "node src/provider-doctor.mjs",
     "smoke:backend": "node src/backend-smoke-flow.mjs",
-    "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs"
+    "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "convex": "1.41.0"

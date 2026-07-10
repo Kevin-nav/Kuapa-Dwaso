@@ -2,6 +2,11 @@ import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  fetchFirebaseAuthorizedDomains,
+  findMissingFirebaseAuthDomains,
+  parseFirebaseAuthOrigins,
+} from "./firebase-auth-domains.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
@@ -11,7 +16,7 @@ const mode = parseMode(process.argv.slice(2), process.env.PROVIDER_DOCTOR_MODE);
 const checks = [];
 
 checkConvex();
-checkFirebase();
+await checkFirebase();
 checkSms();
 checkNotifications();
 checkPayments();
@@ -47,7 +52,7 @@ function checkConvex() {
   requireUrl("CONVEX_URL", "Convex URL");
 }
 
-function checkFirebase() {
+async function checkFirebase() {
   requireText("FIREBASE_PROJECT_ID", "Firebase Admin project ID");
   const serviceAccountJsonBase64 = env("FIREBASE_SERVICE_ACCOUNT_JSON_BASE64");
   if (serviceAccountJsonBase64 === undefined) {
@@ -75,7 +80,41 @@ function checkFirebase() {
   ]) {
     requireText(key, `Firebase browser config ${key}`);
   }
-  add("warn", "Firebase console checklist", "Verify email/password, phone auth, MFA, reCAPTCHA, and allowed domains in Firebase Console; this script does not call Firebase.");
+
+  const origins = env("FIREBASE_AUTH_ORIGINS");
+  if (origins === undefined) {
+    add(requiredLevel(), "Firebase authorized domains", "FIREBASE_AUTH_ORIGINS must list the deployed App, Ops, and Admin origins.");
+    return;
+  }
+
+  let requiredDomains;
+  try {
+    requiredDomains = parseFirebaseAuthOrigins(origins);
+  } catch (error) {
+    add("error", "Firebase authorized domains", error instanceof Error ? error.message : "FIREBASE_AUTH_ORIGINS is invalid.");
+    return;
+  }
+
+  const apiKey = env("NEXT_PUBLIC_FIREBASE_API_KEY");
+  if (apiKey === undefined) {
+    return;
+  }
+
+  try {
+    const authorizedDomains = await fetchFirebaseAuthorizedDomains(apiKey);
+    const missingDomains = findMissingFirebaseAuthDomains(requiredDomains, authorizedDomains);
+    if (missingDomains.length > 0) {
+      add("error", "Firebase authorized domains", `Firebase does not authorize: ${missingDomains.join(", ")}`);
+    } else {
+      add("ok", "Firebase authorized domains", `Firebase authorizes: ${requiredDomains.join(", ")}`);
+    }
+  } catch (error) {
+    add(
+      requiredLevel(),
+      "Firebase authorized domains",
+      error instanceof Error ? error.message : "Could not verify Firebase authorized domains.",
+    );
+  }
 }
 
 function checkSms() {

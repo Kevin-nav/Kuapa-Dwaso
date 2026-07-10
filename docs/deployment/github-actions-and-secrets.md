@@ -67,9 +67,10 @@ enabling it.
 Before each image build, the workflow authenticates to Infisical with the
 environment-scoped machine identity, exports the selected Infisical environment,
 validates the required `NEXT_PUBLIC_*` values, and passes those values as Docker
-build arguments. These values are public in browser bundles, but Infisical is
-still the source of truth so staging and production builds cannot drift from the
-runtime environment inventory.
+build arguments. Before publishing, it also compares `FIREBASE_AUTH_ORIGINS`
+with Firebase's live authorized-domain list. These values are public in browser
+bundles, but Infisical is still the source of truth so staging and production
+builds cannot drift from the runtime environment inventory.
 
 `.github/workflows/deploy.yml`
 
@@ -211,7 +212,12 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+FIREBASE_AUTH_ORIGINS
 ```
+
+Set `FIREBASE_AUTH_ORIGINS` to the comma-separated HTTPS origins of the App,
+Ops, and Admin surfaces for that environment. A missing Firebase authorization
+fails the image job before it can publish its image.
 
 Optional environment variables:
 

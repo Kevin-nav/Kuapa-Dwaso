@@ -34,6 +34,8 @@ The code currently consumes deployment origins through:
   URL output.
 - `PUBLIC_API_URL` only as a provider doctor fallback when `NEXT_PUBLIC_API_URL`
   is absent.
+- `FIREBASE_AUTH_ORIGINS` as a comma-separated list of the App, Ops, and Admin
+  HTTPS origins that Firebase must authorize before a release can build.
 
 Admin, ops, and public web origins are configured in the hosting/provider
 consoles today rather than through repo env variables. Use those origins for
@@ -54,7 +56,10 @@ Run the presence-only provider readiness doctor after Infisical injection:
 corepack pnpm provider:doctor -- --mode=production
 ```
 
-The doctor does not call paid provider APIs. In development mode it may warn
+The doctor does not call paid provider APIs. It reads Firebase's public project
+configuration and fails production/provider mode when any hostname in
+`FIREBASE_AUTH_ORIGINS` is absent from Firebase Authentication's authorized
+domains. In development mode it may warn
 about missing real provider values; production mode fails closed for incomplete
 Firebase, Convex, Arkesel, notification delivery, Paystack, private R2, and URL
 configuration.
