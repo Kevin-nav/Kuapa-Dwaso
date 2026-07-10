@@ -12,6 +12,11 @@ test("extracts Firebase error codes without depending on the Firebase SDK", () =
     "auth/network-request-failed",
   );
   assert.equal(getAuthErrorCode(new Error("Firebase: raw provider text")), undefined);
+
+  const circularError = {};
+  const circularCause = { cause: circularError };
+  circularError.cause = circularCause;
+  assert.equal(getAuthErrorCode(circularError), undefined);
 });
 
 test("maps phone challenge failures to actionable safe messages", () => {

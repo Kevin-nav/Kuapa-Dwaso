@@ -52,17 +52,16 @@ const authErrorMessages: Readonly<Record<string, string>> = {
 };
 
 export function getAuthErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) {
-    return undefined;
-  }
+  let current = error;
+  const visited = new Set<object>();
 
-  const candidate = error as { code?: unknown; cause?: unknown };
-  if (typeof candidate.code === "string" && candidate.code.startsWith("auth/")) {
-    return candidate.code;
-  }
-
-  if (candidate.cause !== error) {
-    return getAuthErrorCode(candidate.cause);
+  while (typeof current === "object" && current !== null && !visited.has(current)) {
+    visited.add(current);
+    const candidate = current as { code?: unknown; cause?: unknown };
+    if (typeof candidate.code === "string" && candidate.code.startsWith("auth/")) {
+      return candidate.code;
+    }
+    current = candidate.cause;
   }
 
   return undefined;
