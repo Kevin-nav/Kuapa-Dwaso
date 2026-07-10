@@ -34,7 +34,7 @@ export function OperationalAccessGate({
   if (isAuthLoading || (firebaseUser !== null && principal === undefined) || isDataLoading) {
     return (
       <AdminAccessState
-        variant="limited"
+        variant="loading"
         title={loadingTitle}
         message="Checking identity, scoped permissions, and live operational records."
       />

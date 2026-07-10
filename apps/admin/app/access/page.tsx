@@ -202,7 +202,7 @@ export default function AccessManagementPage() {
   if (isLoading) {
     return (
       <AdminAccessState
-        variant="limited"
+        variant="loading"
         title="Loading admin access"
         message="Checking your Firebase identity and Convex admin principal before opening access management."
       />

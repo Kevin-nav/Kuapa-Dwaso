@@ -2,11 +2,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AlertTriangle, LockKeyhole, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Loader2, LockKeyhole, ShieldCheck } from "lucide-react";
 import { gray, palette, status } from "@kuapa-dwaso/design-tokens";
 
 export type AdminAccessStateProps = {
-  variant: "denied" | "limited" | "ready";
+  variant: "denied" | "limited" | "ready" | "loading";
   title: string;
   message: string;
   detail?: string;
@@ -14,12 +14,41 @@ export type AdminAccessStateProps = {
 };
 
 export function AdminAccessState({ variant, title, message, detail, action }: AdminAccessStateProps) {
-  const Icon = variant === "denied" ? LockKeyhole : variant === "limited" ? AlertTriangle : ShieldCheck;
-  const accent = variant === "denied" ? status.danger : variant === "limited" ? status.warning : palette.field;
+  const Icon =
+    variant === "denied"
+      ? LockKeyhole
+      : variant === "limited"
+        ? AlertTriangle
+        : variant === "loading"
+          ? Loader2
+          : ShieldCheck;
+
+  const accent =
+    variant === "denied"
+      ? status.danger
+      : variant === "limited"
+        ? status.warning
+        : variant === "loading"
+          ? status.info
+          : palette.field;
+
   const background =
-    variant === "denied" ? status.dangerBg : variant === "limited" ? status.warningBg : status.successBg;
+    variant === "denied"
+      ? status.dangerBg
+      : variant === "limited"
+        ? status.warningBg
+        : variant === "loading"
+          ? status.infoBg
+          : status.successBg;
+
   const border =
-    variant === "denied" ? status.dangerBorder : variant === "limited" ? status.warningBorder : status.successBorder;
+    variant === "denied"
+      ? status.dangerBorder
+      : variant === "limited"
+        ? status.warningBorder
+        : variant === "loading"
+          ? status.infoBorder
+          : status.successBorder;
 
   return (
     <section
@@ -35,6 +64,16 @@ export function AdminAccessState({ variant, title, message, detail, action }: Ad
         padding: "18px",
       }}
     >
+      {variant === "loading" && (
+        <style>{`
+          @keyframes admin-spin {
+            to { transform: rotate(360deg); }
+          }
+          .admin-animate-spin {
+            animation: admin-spin 1.2s linear infinite;
+          }
+        `}</style>
+      )}
       <div
         style={{
           alignItems: "center",
@@ -49,7 +88,7 @@ export function AdminAccessState({ variant, title, message, detail, action }: Ad
           width: "38px",
         }}
       >
-        <Icon size={20} />
+        <Icon size={20} className={variant === "loading" ? "admin-animate-spin" : undefined} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
         <h2 style={{ color: gray[900], fontSize: "1rem", fontWeight: 800, margin: 0 }}>{title}</h2>
@@ -62,3 +101,4 @@ export function AdminAccessState({ variant, title, message, detail, action }: Ad
     </section>
   );
 }
+

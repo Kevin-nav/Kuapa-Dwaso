@@ -24,3 +24,4 @@ export function Button({ label }: ButtonProps) {
 }
 
 export * from "./DotField.js";
+export * from "./Logo.js";
