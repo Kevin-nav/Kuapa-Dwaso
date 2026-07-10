@@ -34,6 +34,7 @@ const authErrorMessages: Readonly<Record<string, string>> = {
   "auth/captcha-check-failed": "Phone verification is temporarily unavailable. Please try again later.",
   "auth/code-expired": "That verification code has expired. Request a new code and try again.",
   "auth/credential-already-in-use": "This sign-in method is already linked to another account.",
+  "auth/email-already-in-use": "An account already exists for this email. Sign in with its current password.",
   "auth/invalid-app-credential": "Phone verification is temporarily unavailable. Please try again later.",
   "auth/invalid-credential": "The email or password is incorrect.",
   "auth/invalid-phone-number": "Enter a complete, valid phone number and try again.",
@@ -65,6 +66,11 @@ export function getAuthErrorCode(error: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+export function shouldCreateInvitedEmailAccountAfterSignInFailure(error: unknown): boolean {
+  const code = getAuthErrorCode(error);
+  return code === "auth/invalid-credential" || code === "auth/user-not-found";
 }
 
 export function getAuthErrorMessage(error: unknown, operation: AuthOperation): string {

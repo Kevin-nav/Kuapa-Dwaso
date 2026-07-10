@@ -4,6 +4,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  getAuthErrorCode,
+  getAuthErrorMessage,
+  shouldCreateInvitedEmailAccountAfterSignInFailure,
+} from "@kuapa-dwaso/utils";
+import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithEmailAndPassword,
@@ -36,7 +41,7 @@ function InviteAcceptContent() {
       throw new Error("Invite token is missing from the URL.");
     }
     const idToken = await user.getIdToken();
-    const response = await fetch(`${apiBaseUrl}/invitations/accept`, {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/invitations/accept`, {
       method: "POST",
       headers: {
         authorization: `Bearer ${idToken}`,
@@ -49,7 +54,7 @@ function InviteAcceptContent() {
     });
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(body || `Invite acceptance failed with ${response.status}.`);
+      throw new Error(readApiErrorMessage(body, response.status));
     }
     const accepted = (await response.json()) as { profileType: string; userId: string; mfaRequired: boolean };
     setStatus(
@@ -68,7 +73,7 @@ function InviteAcceptContent() {
       try {
         credential = await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
       } catch (signInError) {
-        if (typeof signInError === "object" && signInError !== null && "code" in signInError && signInError.code === "auth/user-not-found") {
+        if (shouldCreateInvitedEmailAccountAfterSignInFailure(signInError)) {
           credential = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
           await sendEmailVerification(credential.user);
           setStatus("Account created. Verify the email, then return to accept this invite.");
@@ -83,8 +88,10 @@ function InviteAcceptContent() {
       }
       await acceptInvite(credential.user);
     } catch (err) {
-      if (typeof err === "object" && err !== null && "code" in err && err.code === "auth/multi-factor-auth-required") {
+      if (getAuthErrorCode(err) === "auth/multi-factor-auth-required") {
         setError("Firebase requires a second factor. Complete the configured MFA challenge, then retry acceptance.");
+      } else if (getAuthErrorCode(err) !== undefined) {
+        setError(getAuthErrorMessage(err, "sign-in"));
       } else {
         setError(err instanceof Error ? err.message : "Could not accept invite.");
       }
@@ -153,6 +160,24 @@ function InviteAcceptContent() {
       </section>
     </main>
   );
+}
+
+function readApiErrorMessage(body: string, status: number): string {
+  if (body.trim().length === 0) {
+    return `Invite acceptance failed with ${status}.`;
+  }
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string") {
+      return parsed.message;
+    }
+    if (Array.isArray(parsed.message)) {
+      return parsed.message.filter((item): item is string => typeof item === "string").join(", ");
+    }
+  } catch {
+    // The API may return a plain-text error from an upstream provider.
+  }
+  return body;
 }
 
 export default function InviteAcceptPage() {

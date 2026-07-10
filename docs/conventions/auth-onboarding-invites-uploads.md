@@ -211,7 +211,7 @@ POST /payments/webhooks/paystack
 Invite links use `PUBLIC_APP_URL` and currently resolve to:
 
 ```text
-<PUBLIC_APP_URL>/invite/accept?token=<raw token>
+<PUBLIC_APP_URL>/invites/accept?token=<raw token>
 ```
 
 Raw invite tokens are delivered only by the API provider boundary. Convex stores
@@ -305,9 +305,18 @@ SMOKE_RUN_ID=<run id> corepack pnpm smoke:backend:cleanup -- --confirm --dry-run
 ```
 
 Cleanup deletes only records whose identifiers are derived from that smoke run
-id. It intentionally does not delete the fixed `smoke-backend-admin` bootstrap
-user, because that user may hold the first platform-owner assignment in a local
-or smoke environment.
+id. After all known run ids have been cleaned, remove explicit smoke snapshots,
+orphaned smoke charges, and the fixed bootstrap user with:
+
+```text
+corepack pnpm smoke:backend:cleanup -- --confirm --all --dry-run
+corepack pnpm smoke:backend:cleanup -- --confirm --all
+```
+
+The all-runs cleanup matches only explicit `smoke`, `backend-smoke`, or
+`example.test` markers. If the bootstrap user assigned a permanent owner, the
+permanent assignment is retained and its `assignedBy` reference is repaired to
+the permanent owner before the smoke user is deleted.
 
 ## Provider Readiness Doctor
 
