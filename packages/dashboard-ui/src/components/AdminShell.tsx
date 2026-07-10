@@ -3,8 +3,13 @@
 
 /* eslint-disable react/prop-types */
 
-import { useState } from "react";
-import type { ComponentType, CSSProperties, MouseEvent, ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import type {
+  ComponentType,
+  CSSProperties,
+  MouseEvent,
+  ReactNode,
+} from "react";
 import { palette, gray } from "@kuapa-dwaso/design-tokens";
 import { useWarehouseFilter } from "./WarehouseFilterContext.js";
 import { MockDatabase } from "../mockDb.js";
@@ -29,7 +34,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  User
+  User,
+  ChevronDown,
+  LogOut,
 } from "lucide-react";
 
 type NavItem = {
@@ -52,7 +59,11 @@ type LinkComponentProps = {
   onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const AnchorLink: ComponentType<LinkComponentProps> = ({ href, children, ...props }) => (
+const AnchorLink: ComponentType<LinkComponentProps> = ({
+  href,
+  children,
+  ...props
+}) => (
   <a href={href} {...props}>
     {children}
   </a>
@@ -65,6 +76,7 @@ export type AdminShellProps = {
   warehouseOptions?: { id: string; name: string }[];
   principalName?: string;
   principalRoleLabel?: string;
+  onSignOut?: () => Promise<void>;
 };
 
 export function AdminShell({
@@ -74,11 +86,61 @@ export function AdminShell({
   warehouseOptions,
   principalName = "Dev Admin",
   principalRoleLabel = "Administrator",
+  onSignOut,
 }: AdminShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string>();
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const signOutButtonRef = useRef<HTMLButtonElement>(null);
   const { selectedWarehouseId, setSelectedWarehouseId } = useWarehouseFilter();
   const [searchQuery, setSearchQuery] = useState("");
-  
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) {
+      return;
+    }
+
+    signOutButtonRef.current?.focus();
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileMenuOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isProfileMenuOpen]);
+
+  const handleSignOut = async () => {
+    if (onSignOut === undefined || isSigningOut) {
+      return;
+    }
+    setSignOutError(undefined);
+    setIsSigningOut(true);
+    try {
+      await onSignOut();
+      setIsProfileMenuOpen(false);
+    } catch {
+      setSignOutError("Sign out failed. Check your connection and try again.");
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
+
   const warehouses = warehouseOptions ?? MockDatabase.getWarehouses();
 
   const navGroups: NavGroup[] = [
@@ -121,7 +183,9 @@ export function AdminShell({
   ];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: gray[25] }}>
+    <div
+      style={{ display: "flex", minHeight: "100vh", backgroundColor: gray[25] }}
+    >
       {/* Sidebar Navigation */}
       <aside
         style={{
@@ -152,26 +216,106 @@ export function AdminShell({
         >
           {!isCollapsed && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <svg width="28" height="28" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-                <circle cx="22" cy="30" r="6" fill={palette.field} opacity="0.5" />
-                <circle cx="18" cy="60" r="6" fill={palette.field} opacity="0.65" />
-                <circle cx="22" cy="90" r="6" fill={palette.field} opacity="0.8" />
-                <circle cx="48" cy="45" r="8" fill={palette.field} opacity="0.85" />
-                <circle cx="48" cy="75" r="8" fill={palette.field} opacity="0.9" />
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 120 120"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ flexShrink: 0 }}
+              >
+                <circle
+                  cx="22"
+                  cy="30"
+                  r="6"
+                  fill={palette.field}
+                  opacity="0.5"
+                />
+                <circle
+                  cx="18"
+                  cy="60"
+                  r="6"
+                  fill={palette.field}
+                  opacity="0.65"
+                />
+                <circle
+                  cx="22"
+                  cy="90"
+                  r="6"
+                  fill={palette.field}
+                  opacity="0.8"
+                />
+                <circle
+                  cx="48"
+                  cy="45"
+                  r="8"
+                  fill={palette.field}
+                  opacity="0.85"
+                />
+                <circle
+                  cx="48"
+                  cy="75"
+                  r="8"
+                  fill={palette.field}
+                  opacity="0.9"
+                />
                 <circle cx="88" cy="60" r="22" fill={palette.field} />
               </svg>
-              <span style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "0.02em" }}>
+              <span
+                style={{
+                  fontWeight: 800,
+                  fontSize: "1.05rem",
+                  letterSpacing: "0.02em",
+                }}
+              >
                 KuapaDwaso <span style={{ color: palette.accent }}>Admin</span>
               </span>
             </div>
           )}
           {isCollapsed && (
-            <svg width="36" height="36" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-              <circle cx="22" cy="30" r="6" fill={palette.field} opacity="0.5" />
-              <circle cx="18" cy="60" r="6" fill={palette.field} opacity="0.65" />
-              <circle cx="22" cy="90" r="6" fill={palette.field} opacity="0.8" />
-              <circle cx="48" cy="45" r="8" fill={palette.field} opacity="0.85" />
-              <circle cx="48" cy="75" r="8" fill={palette.field} opacity="0.9" />
+            <svg
+              width="36"
+              height="36"
+              viewBox="0 0 120 120"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <circle
+                cx="22"
+                cy="30"
+                r="6"
+                fill={palette.field}
+                opacity="0.5"
+              />
+              <circle
+                cx="18"
+                cy="60"
+                r="6"
+                fill={palette.field}
+                opacity="0.65"
+              />
+              <circle
+                cx="22"
+                cy="90"
+                r="6"
+                fill={palette.field}
+                opacity="0.8"
+              />
+              <circle
+                cx="48"
+                cy="45"
+                r="8"
+                fill={palette.field}
+                opacity="0.85"
+              />
+              <circle
+                cx="48"
+                cy="75"
+                r="8"
+                fill={palette.field}
+                opacity="0.9"
+              />
               <circle cx="88" cy="60" r="22" fill={palette.field} />
             </svg>
           )}
@@ -180,10 +324,20 @@ export function AdminShell({
         {/* Sidebar Nav Items */}
         <div
           className="sidebar-scroll"
-          style={{ flex: 1, overflowY: "auto", padding: "16px 8px", display: "flex", flexDirection: "column", gap: "20px" }}
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "16px 8px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+          }}
         >
           {navGroups.map((group, groupIdx) => (
-            <div key={groupIdx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div
+              key={groupIdx}
+              style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+            >
               {!isCollapsed && (
                 <span
                   style={{
@@ -225,7 +379,8 @@ export function AdminShell({
                     onMouseEnter={(e: MouseEvent<HTMLAnchorElement>) => {
                       if (!isActive) {
                         e.currentTarget.style.color = "white";
-                        e.currentTarget.style.backgroundColor = "rgba(45, 138, 78, 0.15)";
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(45, 138, 78, 0.15)";
                       }
                     }}
                     onMouseLeave={(e: MouseEvent<HTMLAnchorElement>) => {
@@ -277,7 +432,11 @@ export function AdminShell({
               e.currentTarget.style.backgroundColor = "transparent";
             }}
           >
-            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {isCollapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <ChevronLeft size={18} />
+            )}
           </button>
         </div>
       </aside>
@@ -310,7 +469,15 @@ export function AdminShell({
           }}
         >
           {/* Left search */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, maxWidth: "320px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flex: 1,
+              maxWidth: "320px",
+            }}
+          >
             <Search size={18} style={{ color: gray[500] }} />
             <input
               type="text"
@@ -332,7 +499,14 @@ export function AdminShell({
           <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
             {/* Warehouse Dropdown */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: gray[500], textTransform: "uppercase" }}>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: gray[500],
+                  textTransform: "uppercase",
+                }}
+              >
                 Scope:
               </span>
               <select
@@ -359,39 +533,174 @@ export function AdminShell({
               </select>
             </div>
 
-            <div style={{ height: "24px", width: "1px", backgroundColor: gray[100] }} />
+            <div
+              style={{
+                height: "24px",
+                width: "1px",
+                backgroundColor: gray[100],
+              }}
+            />
 
             {/* User Profile */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <div
+            <div
+              ref={profileMenuRef}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  setIsProfileMenuOpen(false);
+                }
+              }}
+              style={{ position: "relative" }}
+            >
+              <button
+                ref={profileButtonRef}
+                type="button"
+                aria-expanded={isProfileMenuOpen}
+                aria-haspopup="menu"
+                aria-label={`Open profile menu for ${principalName}`}
+                onClick={() => {
+                  setSignOutError(undefined);
+                  setIsProfileMenuOpen((isOpen) => !isOpen);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setIsProfileMenuOpen(true);
+                  }
+                }}
                 style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "50%",
-                  backgroundColor: palette.surface,
-                  border: `1px solid ${palette.line}`,
+                  appearance: "none",
+                  background: "transparent",
+                  border: 0,
+                  borderRadius: "8px",
+                  cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  color: palette.field,
+                  gap: "10px",
+                  padding: "4px",
+                  textAlign: "left",
                 }}
               >
-                <User size={18} />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", justifySelf: "center" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: 700, color: gray[900], lineHeight: 1.2 }}>
-                  {principalName}
+                <span
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    backgroundColor: palette.surface,
+                    border: `1px solid ${palette.line}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: palette.field,
+                  }}
+                >
+                  <User size={18} />
                 </span>
-                <span style={{ fontSize: "0.75rem", color: gray[500], fontWeight: 500 }}>
-                  {principalRoleLabel}
+                <span
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    justifySelf: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.875rem",
+                      fontWeight: 700,
+                      color: gray[900],
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {principalName}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: gray[500],
+                      fontWeight: 500,
+                    }}
+                  >
+                    {principalRoleLabel}
+                  </span>
                 </span>
-              </div>
+                <ChevronDown
+                  aria-hidden="true"
+                  size={16}
+                  style={{ color: gray[500] }}
+                />
+              </button>
+
+              {isProfileMenuOpen ? (
+                <div
+                  role="menu"
+                  aria-label="Profile actions"
+                  style={{
+                    backgroundColor: gray[0],
+                    border: `1px solid ${gray[100]}`,
+                    borderRadius: "8px",
+                    boxShadow: "0 10px 25px rgba(15, 31, 20, 0.14)",
+                    minWidth: "190px",
+                    padding: "6px",
+                    position: "absolute",
+                    right: 0,
+                    top: "calc(100% + 8px)",
+                    zIndex: 100,
+                  }}
+                >
+                  <button
+                    ref={signOutButtonRef}
+                    type="button"
+                    role="menuitem"
+                    disabled={isSigningOut || onSignOut === undefined}
+                    onClick={() => void handleSignOut()}
+                    style={{
+                      alignItems: "center",
+                      background: "transparent",
+                      border: 0,
+                      borderRadius: "6px",
+                      color: gray[700],
+                      cursor: isSigningOut ? "wait" : "pointer",
+                      display: "flex",
+                      font: "inherit",
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      gap: "10px",
+                      padding: "10px",
+                      textAlign: "left",
+                      width: "100%",
+                    }}
+                  >
+                    <LogOut aria-hidden="true" size={17} />
+                    {isSigningOut ? "Signing out…" : "Sign out"}
+                  </button>
+                  {signOutError !== undefined ? (
+                    <p
+                      role="alert"
+                      style={{
+                        color: "#b91c1c",
+                        fontSize: "0.75rem",
+                        lineHeight: 1.4,
+                        margin: "4px 10px 6px",
+                      }}
+                    >
+                      {signOutError}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </header>
 
         {/* Inner Page View */}
-        <main style={{ flex: 1, padding: "24px 32px", display: "flex", flexDirection: "column", gap: "24px" }}>
+        <main
+          style={{
+            flex: 1,
+            padding: "24px 32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+          }}
+        >
           {children}
         </main>
       </div>
