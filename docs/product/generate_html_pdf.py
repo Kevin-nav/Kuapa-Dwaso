@@ -3,7 +3,7 @@ from playwright.sync_api import sync_playwright
 import pypdf
 
 # Define paths
-work_dir = r"c:\Users\Kevin\Projects\ML\agriculture"
+work_dir = "c:/Users/Kevin/Projects/ML/agriculture"
 cover_html_path = os.path.join(work_dir, "docs", "product", "cover.html")
 content_html_path = os.path.join(work_dir, "docs", "product", "content.html")
 cover_pdf_path = os.path.join(work_dir, "docs", "product", "cover.pdf")

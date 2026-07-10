@@ -338,7 +338,7 @@ export const accept = mutation({
         "Privileged invite acceptance requires Firebase email/password or Google sign-in.",
       );
     }
-    if (invitation.targetEmail !== undefined) {
+    if (invitation.targetEmail !== undefined && args.identity.phoneNumber === undefined) {
       assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
     }
     if (invitation.targetPhoneNumber !== undefined) {
