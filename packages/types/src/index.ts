@@ -234,6 +234,17 @@ export const buyerVerificationStatuses = [
 export type BuyerVerificationStatus =
   (typeof buyerVerificationStatuses)[number];
 
+export const enhancedVerificationStatuses = [
+  "not_required",
+  "required",
+  "pending_review",
+  "verified",
+  "changes_requested",
+  "rejected",
+] as const;
+export type EnhancedVerificationStatus =
+  (typeof enhancedVerificationStatuses)[number];
+
 export const buyerStatuses = [
   "active",
   "suspended",
@@ -640,8 +651,18 @@ export type Buyer = TimestampFields & {
   phoneNumber: string;
   buyerType: BuyerType;
   organizationName?: string;
+  email?: string;
+  organizationRegistrationNumber?: string;
+  contactRole?: string;
+  registeredAddress?: string;
   destinationMarket?: string;
   verificationStatus: BuyerVerificationStatus;
+  enhancedVerificationStatus: EnhancedVerificationStatus;
+  enhancedVerificationSubmittedAt?: number;
+  enhancedVerificationReviewedAt?: number;
+  enhancedVerificationReviewedByUserId?: string;
+  enhancedVerificationReason?: string;
+  institutionWelcomeEmailSentAt?: number;
   status: BuyerStatus;
 };
 
@@ -896,6 +917,10 @@ export type BuyerProfileInput = {
   phoneNumber: string;
   buyerType: BuyerType;
   organizationName?: string;
+  email?: string;
+  organizationRegistrationNumber?: string;
+  contactRole?: string;
+  registeredAddress?: string;
   destinationMarket?: string;
 };
 

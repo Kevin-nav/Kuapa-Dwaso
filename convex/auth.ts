@@ -383,6 +383,10 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
     displayName: v.optional(v.string()),
     buyerType,
     organizationName: v.optional(v.string()),
+    email: v.optional(v.string()),
+    organizationRegistrationNumber: v.optional(v.string()),
+    contactRole: v.optional(v.string()),
+    registeredAddress: v.optional(v.string()),
     destinationMarket: v.optional(v.string()),
   },
   returns: v.object({ userId: v.string(), buyerId: v.string() }),
@@ -390,6 +394,15 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
     assertAllowed(args.identity.phoneVerified === true, "Buyer phone number must be verified by Firebase.");
     assertAllowed(args.identity.phoneNumber !== undefined, "Buyer phone number is required.");
     const phoneNumber = normalizePhoneNumber(args.identity.phoneNumber);
+    const isInstitution = args.buyerType === "institution";
+    const email = cleanOptionalText(args.email)?.toLowerCase();
+    if (isInstitution) {
+      assertAllowed(email !== undefined && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email), "A valid official email is required.");
+      assertAllowed(cleanOptionalText(args.organizationName) !== undefined, "Organization name is required.");
+      assertAllowed(cleanOptionalText(args.organizationRegistrationNumber) !== undefined, "Organization registration number is required.");
+      assertAllowed(cleanOptionalText(args.contactRole) !== undefined, "Contact role is required.");
+      assertAllowed(cleanOptionalText(args.registeredAddress) !== undefined, "Registered address is required.");
+    }
     const userId = await upsertUserFromIdentity(ctx, {
       identity: { ...args.identity, phoneNumber },
       role: "buyer",
@@ -410,7 +423,12 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
         displayName: cleanOptionalText(args.displayName),
         buyerType: args.buyerType,
         organizationName: cleanOptionalText(args.organizationName),
+        email,
+        organizationRegistrationNumber: cleanOptionalText(args.organizationRegistrationNumber),
+        contactRole: cleanOptionalText(args.contactRole),
+        registeredAddress: cleanOptionalText(args.registeredAddress),
         destinationMarket: cleanOptionalText(args.destinationMarket),
+        enhancedVerificationStatus: isInstitution ? "required" : (existing.enhancedVerificationStatus ?? "not_required"),
         updatedAt: now,
       }));
     } else {
@@ -421,8 +439,13 @@ export const createOrLinkBuyerProfileAfterPhoneAuth = mutation({
         phoneNumber,
         buyerType: args.buyerType,
         organizationName: cleanOptionalText(args.organizationName),
+        email,
+        organizationRegistrationNumber: cleanOptionalText(args.organizationRegistrationNumber),
+        contactRole: cleanOptionalText(args.contactRole),
+        registeredAddress: cleanOptionalText(args.registeredAddress),
         destinationMarket: cleanOptionalText(args.destinationMarket),
         verificationStatus: "pending",
+        enhancedVerificationStatus: isInstitution ? "required" : "not_required",
         status: "active",
         createdAt: now,
         updatedAt: now,

@@ -75,7 +75,7 @@ export class SmsWebhooksController {
         for (const recipient of delivery.recipients) {
           await this.convex.recordSmsSend(buildRecordSmsSendArgs({
             provider: delivery.provider,
-            providerMessageId: delivery.providerMessageId,
+            providerMessageId: delivery.recipientMessageIds[recipient] ?? delivery.providerMessageId,
             recipient,
             status: delivery.status,
             idempotencyKey: notification.idempotencyKey,

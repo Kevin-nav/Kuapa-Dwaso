@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { BuyerType } from "@kuapa-dwaso/types";
+import { sendInstitutionWelcomeEmail } from "../institutionEmailApi";
 
 export default function BuyerOnboarding() {
   const { principal, firebaseUser } = useAuth();
@@ -22,6 +23,10 @@ export default function BuyerOnboarding() {
     "market_trader"
   );
   const [organizationName, setOrganizationName] = useState("");
+  const [email, setEmail] = useState(firebaseUser?.email ?? "");
+  const [organizationRegistrationNumber, setOrganizationRegistrationNumber] = useState("");
+  const [contactRole, setContactRole] = useState("");
+  const [registeredAddress, setRegisteredAddress] = useState("");
   const [destinationMarket, setDestinationMarket] = useState("Makola Market");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,7 +50,7 @@ export default function BuyerOnboarding() {
     setError(null);
 
     try {
-      await createProfile({
+      const buyerId = await createProfile({
         actorUserId: principal.userId as Id<"users">,
         userId: principal.userId as Id<"users">,
         fullName: fullName.trim(),
@@ -53,11 +58,20 @@ export default function BuyerOnboarding() {
         phoneNumber: phoneNumber.trim(),
         buyerType,
         ...(organizationName.trim() ? { organizationName: organizationName.trim() } : {}),
+        ...(email.trim() ? { email: email.trim() } : {}),
+        ...(organizationRegistrationNumber.trim() ? { organizationRegistrationNumber: organizationRegistrationNumber.trim() } : {}),
+        ...(contactRole.trim() ? { contactRole: contactRole.trim() } : {}),
+        ...(registeredAddress.trim() ? { registeredAddress: registeredAddress.trim() } : {}),
         ...(destinationMarket.trim() ? { destinationMarket: destinationMarket.trim() } : {}),
       });
 
-      // Redirect to buyer homepage
-      router.push("/buyer");
+      if (buyerType === "institution") {
+        if (firebaseUser === null) throw new Error("Your authenticated session is required to send the welcome email.");
+        await sendInstitutionWelcomeEmail(firebaseUser, buyerId);
+        router.push("/buyer/verification");
+      } else {
+        router.push("/buyer");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create profile. Please try again.");
     } finally {
@@ -153,7 +167,7 @@ export default function BuyerOnboarding() {
         </div>
 
         <div className="field-stack">
-          <label htmlFor="organizationName">Business / Org Name (Optional)</label>
+          <label htmlFor="organizationName">Business / Org Name {buyerType === "institution" ? "" : "(Optional)"}</label>
           <input
             type="text"
             id="organizationName"
@@ -162,8 +176,35 @@ export default function BuyerOnboarding() {
             onChange={(e) => setOrganizationName(e.target.value)}
             placeholder="e.g. Serwaa Produce Traders Ltd"
             disabled={isSubmitting}
+            required={buyerType === "institution"}
           />
         </div>
+
+        {buyerType === "institution" ? (
+          <section className="farmer-card" style={{ gap: "16px", background: "var(--color-info-bg)", borderColor: "var(--color-info-border)" }}>
+            <div>
+              <p className="eyebrow">Institution dossier</p>
+              <h2 className="section-title">Official organization details</h2>
+              <p className="card-meta">We use these details for enhanced verification and send a branded account email to the official address.</p>
+            </div>
+            <div className="field-stack">
+              <label htmlFor="institutionEmail">Official email</label>
+              <input id="institutionEmail" type="email" className="form-input" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="procurement@organization.org" disabled={isSubmitting} required />
+            </div>
+            <div className="field-stack">
+              <label htmlFor="registrationNumber">Registration number</label>
+              <input id="registrationNumber" className="form-input" value={organizationRegistrationNumber} onChange={(event) => setOrganizationRegistrationNumber(event.target.value)} placeholder="Organization or company registration number" disabled={isSubmitting} required />
+            </div>
+            <div className="field-stack">
+              <label htmlFor="contactRole">Your role</label>
+              <input id="contactRole" className="form-input" value={contactRole} onChange={(event) => setContactRole(event.target.value)} placeholder="Procurement Officer" disabled={isSubmitting} required />
+            </div>
+            <div className="field-stack">
+              <label htmlFor="registeredAddress">Registered address</label>
+              <textarea id="registeredAddress" className="form-input" value={registeredAddress} onChange={(event) => setRegisteredAddress(event.target.value)} placeholder="Official registered address" disabled={isSubmitting} required rows={3} />
+            </div>
+          </section>
+        ) : null}
 
         <div className="field-stack">
           <label htmlFor="destinationMarket">Preferred Destination Market</label>

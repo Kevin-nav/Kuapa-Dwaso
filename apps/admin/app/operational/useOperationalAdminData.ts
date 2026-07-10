@@ -168,6 +168,7 @@ export function useOperationalAdminData() {
   const assignWarehousesMutation = useMutation(api.warehouseAgents.assignWarehouses);
   const updateFarmerVerificationMutation = useMutation(api.farmers.updateVerificationStatus);
   const updateBuyerVerificationMutation = useMutation(api.buyers.updateVerificationStatus);
+  const updateBuyerEnhancedVerificationMutation = useMutation(api.buyers.updateEnhancedVerificationStatus);
   const updateDisputeStatusMutation = useMutation(api.disputes.updateStatus);
   const replaceFeeRuleMutation = useMutation(api.feeRules.replace);
   const reconcilePaymentMutation = useMutation(api.payments.adminReconcilePayment);
@@ -334,6 +335,13 @@ export function useOperationalAdminData() {
           actorUserId: requireActorUserId(),
           buyerId: buyerId as Id<"buyers">,
           verificationStatus,
+          ...(reason === undefined ? {} : { reason }),
+        }),
+      updateBuyerEnhancedVerification: (buyerId: string, status: "not_required" | "required" | "pending_review" | "verified" | "changes_requested" | "rejected", reason?: string) =>
+        updateBuyerEnhancedVerificationMutation({
+          actorUserId: requireActorUserId(),
+          buyerId: buyerId as Id<"buyers">,
+          status,
           ...(reason === undefined ? {} : { reason }),
         }),
       resolveDispute: (disputeId: string, resolution: string) =>

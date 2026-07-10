@@ -13,6 +13,7 @@ export type ApiEnvironment = {
     disabled: boolean;
   };
   publicAppUrl?: string;
+  productAppUrl?: string;
   cors: {
     allowedOrigins: string[];
   };
@@ -169,6 +170,7 @@ export function getApiEnvironment(): ApiEnvironment {
   }
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;
+  const productAppUrl = process.env.PRODUCT_APP_URL;
   const notifications: ApiEnvironment["notifications"] = {};
   if (process.env.NOTIFICATION_DELIVERY_SECRET !== undefined) {
     notifications.deliverySecret = process.env.NOTIFICATION_DELIVERY_SECRET;
@@ -187,6 +189,9 @@ export function getApiEnvironment(): ApiEnvironment {
 
   if (publicAppUrl && !allowedOrigins.includes(publicAppUrl)) {
     allowedOrigins.push(publicAppUrl);
+  }
+  if (productAppUrl && !allowedOrigins.includes(productAppUrl)) {
+    allowedOrigins.push(productAppUrl);
   }
 
   const environment: ApiEnvironment = {
@@ -209,6 +214,9 @@ export function getApiEnvironment(): ApiEnvironment {
   };
   if (publicAppUrl !== undefined) {
     environment.publicAppUrl = publicAppUrl;
+  }
+  if (productAppUrl !== undefined) {
+    environment.productAppUrl = productAppUrl;
   }
   return environment;
 }

@@ -1,7 +1,7 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { getApiEnvironment } from "../config/env.js";
 
-export type InviteEmailInput = {
+export type EmailInput = {
   to: string;
   subject: string;
   text: string;
@@ -15,7 +15,7 @@ export type EmailDeliveryResult = {
 
 @Injectable()
 export class ResendEmailProvider {
-  async sendInviteEmail(input: InviteEmailInput): Promise<EmailDeliveryResult> {
+  async sendEmail(input: EmailInput): Promise<EmailDeliveryResult> {
     const env = getApiEnvironment();
     if (env.email.resendApiKey === undefined || env.email.fromEmail === undefined) {
       if (env.nodeEnv === "production") {
@@ -49,5 +49,9 @@ export class ResendEmailProvider {
       result.messageId = body.id;
     }
     return result;
+  }
+
+  async sendInviteEmail(input: EmailInput): Promise<EmailDeliveryResult> {
+    return await this.sendEmail(input);
   }
 }

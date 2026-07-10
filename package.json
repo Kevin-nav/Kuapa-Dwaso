@@ -18,6 +18,7 @@
     "seed:staging:platform-owner": "pnpm --filter @kuapa-dwaso/test-utils seed:staging:platform-owner",
     "smoke:backend": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend",
     "smoke:backend:cleanup": "pnpm --filter @kuapa-dwaso/test-utils smoke:backend:cleanup",
+    "sms:staging": "pnpm --filter @kuapa-dwaso/test-utils sms:staging",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

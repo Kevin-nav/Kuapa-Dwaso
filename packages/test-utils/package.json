@@ -11,6 +11,7 @@
     "seed:staging:platform-owner": "node src/seed-staging-platform-owner.mjs",
     "smoke:backend": "node src/backend-smoke-flow.mjs",
     "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs",
+    "sms:staging": "node --env-file=../../.env.staging src/send-staging-sms.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

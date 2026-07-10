@@ -2,6 +2,7 @@ import { canManageTransporters } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   adminAccessHasPermissionForScope,
   adminScopeTarget,
@@ -215,6 +216,11 @@ export const updateVerificationStatus = mutation({
       destinationMarket: profile.destinationsServed[0],
     }));
 
+    const reason = args.reason?.trim();
+    if (args.verificationStatus === "rejected" && !reason) {
+      throw new Error("A rejection reason is required.");
+    }
+
     await ctx.db.patch(args.transporterId, {
       verificationStatus: args.verificationStatus,
       updatedAt: Date.now(),
@@ -227,8 +233,36 @@ export const updateVerificationStatus = mutation({
       entityId: args.transporterId,
       before: auditSnapshot(profile),
       after: after === null ? undefined : auditSnapshot(after),
-      metadata: args.reason === undefined ? undefined : { reason: args.reason },
+      metadata: reason === undefined ? undefined : { reason },
     });
+
+    if (profile.verificationStatus !== args.verificationStatus) {
+      const title =
+        args.verificationStatus === "verified"
+          ? "Transporter profile approved"
+          : args.verificationStatus === "rejected"
+            ? "Transporter profile needs changes"
+            : "Transporter profile under review";
+      const message =
+        args.verificationStatus === "verified"
+          ? "Your transporter profile has been approved. You can now receive eligible dispatch assignments."
+          : args.verificationStatus === "rejected"
+            ? `Your transporter profile was not approved. Reason: ${reason}. Update your profile or vehicle evidence and resubmit for review.`
+            : "Your transporter profile has been returned to the review queue.";
+
+      await insertNotificationRecord(ctx, {
+        recipientId: profile.phoneNumber,
+        recipientUserId: profile.userId,
+        recipientRole: "transporter",
+        channel: "sms",
+        title,
+        message,
+        messageKind: "transactional",
+        templateKey: "generic_notification",
+        relatedEntityType: "transporter_profile",
+        relatedEntityId: args.transporterId,
+      });
+    }
 
     return args.transporterId;
   },

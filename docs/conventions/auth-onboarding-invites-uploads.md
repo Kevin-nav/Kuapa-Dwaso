@@ -106,6 +106,11 @@ authentication mechanism for farmer, buyer, and transporter signup/login in
 this slice. Do not route product auth OTP through Arkesel until a separate auth
 migration is designed.
 
+The V2 send response contains a receipt for each accepted recipient. The API
+stores the matching provider message ID per recipient so a delivery report
+updates the correct `smsDeliveries` record. The provider also accepts the older
+single-object response shape for compatibility.
+
 Sender IDs must be 1-11 alphanumeric characters with at least one letter. Do
 not use emojis, spaces, punctuation, or special symbols. MTN Ghana requires
 sender ID approval before production delivery; unapproved sender IDs can be

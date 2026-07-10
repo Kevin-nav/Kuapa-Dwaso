@@ -308,6 +308,11 @@ export const create = mutation({
     ).flat();
 
     for (const order of nonNullOrders) {
+      const buyer = await ctx.db.get(order.buyerId);
+      assertAllowed(buyer !== null && buyer.verificationStatus === "verified", "Every buyer must be verified before dispatch.");
+      if (buyer.buyerType === "institution") {
+        assertAllowed(buyer.enhancedVerificationStatus === "verified", "Institution buyers require enhanced verification before dispatch.");
+      }
       assertAllowed(
         orderStatusesEligibleForDispatch.has(order.status),
         "Buyer order is not ready for dispatch.",

@@ -134,7 +134,7 @@ export class InvitationsController {
         smsDelivery.recipients.map((recipient) => {
           const recordArgs: Parameters<ConvexPlatformProvider["recordSmsSend"]>[0] = {
             provider: smsDelivery.provider,
-            providerMessageId: smsDelivery.providerMessageId,
+            providerMessageId: smsDelivery.recipientMessageIds[recipient] ?? smsDelivery.providerMessageId,
             recipient,
             status: smsDelivery.status,
             messageKind: "invite",
