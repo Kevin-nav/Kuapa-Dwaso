@@ -21,6 +21,78 @@ export function nowTimestamp(): number {
   return Date.now();
 }
 
+export type AuthOperation =
+  | "send-phone-code"
+  | "verify-phone-code"
+  | "sign-in"
+  | "send-mfa-code"
+  | "verify-mfa-code"
+  | "enroll-mfa";
+
+const authErrorMessages: Readonly<Record<string, string>> = {
+  "auth/app-not-authorized": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/captcha-check-failed": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/code-expired": "That verification code has expired. Request a new code and try again.",
+  "auth/credential-already-in-use": "This sign-in method is already linked to another account.",
+  "auth/invalid-app-credential": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/invalid-credential": "The email or password is incorrect.",
+  "auth/invalid-phone-number": "Enter a complete, valid phone number and try again.",
+  "auth/invalid-verification-code": "That verification code is incorrect. Check the code and try again.",
+  "auth/missing-app-credential": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/missing-phone-number": "Enter a phone number to continue.",
+  "auth/network-request-failed": "Check your internet connection and try again.",
+  "auth/operation-not-allowed": "This sign-in method is temporarily unavailable. Please try again later.",
+  "auth/quota-exceeded": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/session-expired": "This verification session has expired. Request a new code and try again.",
+  "auth/too-many-requests": "Too many attempts were made. Wait a few minutes, then try again.",
+  "auth/unauthorized-domain": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/user-disabled": "This account has been disabled. Contact support if you think this is a mistake.",
+  "auth/user-not-found": "The email or password is incorrect.",
+  "auth/wrong-password": "The email or password is incorrect.",
+};
+
+export function getAuthErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+
+  const candidate = error as { code?: unknown; cause?: unknown };
+  if (typeof candidate.code === "string" && candidate.code.startsWith("auth/")) {
+    return candidate.code;
+  }
+
+  if (candidate.cause !== error) {
+    return getAuthErrorCode(candidate.cause);
+  }
+
+  return undefined;
+}
+
+export function getAuthErrorMessage(error: unknown, operation: AuthOperation): string {
+  const code = getAuthErrorCode(error);
+  if (code !== undefined) {
+    const knownMessage = authErrorMessages[code];
+    if (knownMessage !== undefined) {
+      return knownMessage;
+    }
+  }
+
+  switch (operation) {
+    case "send-phone-code":
+      return "We could not send a verification code. Please try again.";
+    case "verify-phone-code":
+      return "We could not verify that code. Please check it and try again.";
+    case "sign-in":
+      return "We could not sign you in. Please try again.";
+    case "send-mfa-code":
+      return "We could not send a security code. Please try again.";
+    case "verify-mfa-code":
+      return "We could not verify that security code. Please try again.";
+    case "enroll-mfa":
+      return "We could not set up phone verification. Please try again.";
+  }
+}
+
 export function roundMoneyAmount(amount: number, decimalPlaces = 2): number {
   if (!Number.isFinite(amount)) {
     throw new Error("Money amount must be a finite number.");
