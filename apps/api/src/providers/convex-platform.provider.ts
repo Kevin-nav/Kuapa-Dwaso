@@ -236,6 +236,12 @@ const completeUpload = makeFunctionReference<
   { uploadAssetId: string; status: "uploaded" | "attached" }
 >("uploads:complete");
 
+const updateUploadStatus = makeFunctionReference<
+  "mutation",
+  { actorUserId: string; uploadAssetId: string; status: "deleted"; reason?: string },
+  string
+>("uploads:updateStatus");
+
 const getReadableUploadObject = makeFunctionReference<
   "query",
   { actorUserId: string; uploadAssetId: string },
@@ -334,6 +340,10 @@ export class ConvexPlatformProvider {
 
   async completeUpload(args: CompleteUploadArgs): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
     return await this.getClient().mutation(completeUpload, args);
+  }
+
+  async discardUpload(args: { actorUserId: string; uploadAssetId: string; reason: string }): Promise<string> {
+    return await this.getClient().mutation(updateUploadStatus, { ...args, status: "deleted" });
   }
 
   async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }): Promise<ReadableUploadObject | null> {

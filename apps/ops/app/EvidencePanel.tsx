@@ -50,6 +50,7 @@ export function EvidencePanel({
           limit: 12,
         },
   ) as EvidenceAsset[] | undefined;
+  const readableEvidence = evidence?.filter((asset) => !["pending_upload", "deleted", "expired"].includes(asset.status));
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -119,13 +120,13 @@ export function EvidencePanel({
         )}
       </div>
       {error && <div style={{ color: "var(--color-danger)", fontSize: "13px", fontWeight: 700 }}>{error}</div>}
-      {evidence === undefined ? (
+      {readableEvidence === undefined ? (
         <div style={{ color: "var(--gray-500)", fontSize: "13px" }}>Loading evidence...</div>
-      ) : evidence.length === 0 ? (
+      ) : readableEvidence.length === 0 ? (
         <div style={{ color: "var(--gray-500)", fontSize: "13px", fontStyle: "italic" }}>No evidence attached yet.</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))", gap: "8px" }}>
-          {evidence.map((asset) => (
+          {readableEvidence.map((asset) => (
             <button
               key={asset._id}
               type="button"

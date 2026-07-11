@@ -63,7 +63,16 @@ export class UploadsController {
       bucket,
       ...(fileName === undefined ? {} : { fileName }),
     });
-    await this.r2.uploadObject({ objectKey: pending.objectKey, contentType: normalizedContentType, bucket, body });
+    try {
+      await this.r2.uploadObject({ objectKey: pending.objectKey, contentType: normalizedContentType, bucket, body });
+    } catch (error) {
+      await this.convex.discardUpload({
+        actorUserId: principal.userId,
+        uploadAssetId: pending.uploadAssetId,
+        reason: "R2 object write failed before upload completion.",
+      });
+      throw error;
+    }
     return await this.convex.completeUpload({ actorUserId: principal.userId, uploadAssetId: pending.uploadAssetId, sizeBytes: body.byteLength });
   }
 
