@@ -8,6 +8,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { ArrowLeft, MapPin, HelpCircle, ChevronDown, ChevronUp, Package } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
+import type { User } from "firebase/auth";
 import { getSignedReadUrl } from "@/app/uploads/client";
 
 type WarehouseSummary = {
@@ -31,7 +32,7 @@ type InventoryBatchSummary = {
   status?: string;
 };
 
-function ProduceImage({ photoId, user }: { photoId: string | undefined; user: any }) {
+function ProduceImage({ photoId, user }: { photoId: string | undefined; user: User | null }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 

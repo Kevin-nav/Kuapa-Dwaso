@@ -45,8 +45,10 @@ function InviteAcceptContent() {
 
   useEffect(() => {
     if (token.trim().length === 0) {
-      setLoadingInvite(false);
-      setInviteError("Invite token is missing from the URL.");
+      void Promise.resolve().then(() => {
+        setLoadingInvite(false);
+        setInviteError("Invite token is missing from the URL.");
+      });
       return;
     }
     const fetchInvite = async () => {
