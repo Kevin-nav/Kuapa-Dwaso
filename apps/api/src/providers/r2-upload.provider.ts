@@ -7,6 +7,7 @@ import { getApiEnvironment } from "../config/env.js";
 export type PresignPutObjectInput = {
   objectKey: string;
   contentType: string;
+  bucket?: string;
 };
 
 export type UploadPolicyInput = {
@@ -24,8 +25,29 @@ export type PresignPutObjectResult = {
 
 @Injectable()
 export class R2UploadProvider {
-  getBucketName(): string {
-    const bucket = getApiEnvironment().uploads.r2Bucket;
+  async uploadObject(input: PresignPutObjectInput & { body: Buffer }): Promise<void> {
+    const target = this.presignPutObject(input);
+    const response = await fetch(target.uploadUrl, {
+      method: "PUT",
+      headers: target.headers,
+      body: new Uint8Array(input.body),
+    });
+    if (!response.ok) {
+      throw new ServiceUnavailableException("Cloudflare R2 could not store the produce photo.");
+    }
+  }
+
+  getPublicReadUrl(objectKey: string): string {
+    const baseUrl = getApiEnvironment().uploads.r2PublicBaseUrl;
+    if (baseUrl === undefined) {
+      throw new ServiceUnavailableException("Cloudflare R2 public reads are not configured.");
+    }
+    return `${baseUrl}/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
+  }
+
+  getBucketName(accessLevel: "private" | "public_read" = "private"): string {
+    const uploads = getApiEnvironment().uploads;
+    const bucket = accessLevel === "public_read" ? uploads.r2PublicBucket : uploads.r2Bucket;
     if (bucket === undefined) {
       throw new ServiceUnavailableException("Cloudflare R2 uploads are not configured.");
     }
@@ -36,7 +58,8 @@ export class R2UploadProvider {
     const presigned = this.presignObject({
       method: "PUT",
       objectKey: input.objectKey,
-      ttlSeconds: getApiEnvironment().uploads.presignTtlSeconds
+      ttlSeconds: getApiEnvironment().uploads.presignTtlSeconds,
+      ...(input.bucket === undefined ? {} : { bucket: input.bucket })
     });
 
     return {
@@ -84,12 +107,13 @@ export class R2UploadProvider {
     method: "GET" | "PUT";
     objectKey: string;
     ttlSeconds: number;
+    bucket?: string;
   }): { url: string; expiresAt: number; bucket: string } {
     const env = getApiEnvironment();
     const accountId = env.uploads.r2AccountId;
     const accessKeyId = env.uploads.r2AccessKeyId;
     const secretAccessKey = env.uploads.r2SecretAccessKey;
-    const bucket = env.uploads.r2Bucket;
+    const bucket = input.bucket ?? env.uploads.r2Bucket;
     if (
       accountId === undefined ||
       accessKeyId === undefined ||

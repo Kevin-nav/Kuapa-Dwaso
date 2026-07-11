@@ -80,6 +80,7 @@ async function checkFirebase() {
   ]) {
     requireText(key, `Firebase browser config ${key}`);
   }
+  requireText("CLOUDFLARE_R2_PUBLIC_BUCKET", "Cloudflare R2 public listing-photo bucket");
 
   const origins = env("FIREBASE_AUTH_ORIGINS");
   if (origins === undefined) {
@@ -182,11 +183,7 @@ function checkR2() {
   ]) {
     requireText(key, `Cloudflare R2 ${key}`);
   }
-  if (env("CLOUDFLARE_R2_PUBLIC_BASE_URL") !== undefined) {
-    add("error", "Cloudflare R2 public URL", "CLOUDFLARE_R2_PUBLIC_BASE_URL must not be configured. R2 buckets stay private and reads use signed GET URLs.");
-  } else {
-    add("ok", "Cloudflare R2 public URL", "No public R2 base URL is configured.");
-  }
+  requireUrl("CLOUDFLARE_R2_PUBLIC_BASE_URL", "Cloudflare R2 public listing-photo URL");
   requirePositiveInteger("R2_PRESIGN_TTL_SECONDS", "R2 signed PUT TTL", 60, 3600);
   requirePositiveInteger("R2_READ_PRESIGN_TTL_SECONDS", "R2 signed GET TTL", 60, 3600);
   requirePositiveInteger("UPLOAD_MAX_SIZE_BYTES", "Upload max size", 1, Number.MAX_SAFE_INTEGER);

@@ -68,6 +68,7 @@ type IntakeInput = {
   askingPricePerUnit?: number;
   minimumPricePerUnit?: number;
   conditionNotes?: string;
+  photos?: string[];
 };
 
 type SyncAction = {
@@ -483,6 +484,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       if (intakeData.minimumPricePerUnit !== undefined) {
         createArgs.minimumPricePerUnit = intakeData.minimumPricePerUnit;
       }
+      if (intakeData.photos !== undefined) createArgs.photos = intakeData.photos;
       const inventoryBatchId = await createIntake(createArgs);
       const now = Date.now();
       const batch: InventoryBatch = {
@@ -496,7 +498,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         quantityAvailable: intakeData.quantityReceived,
         unit: intakeData.unit,
         grade: intakeData.grade,
-        photos: [],
+        photos: intakeData.photos ?? [],
         receivedAt: intakeData.receivedAt ?? now,
         storageRateSnapshot: {
           label: "Storage fee",

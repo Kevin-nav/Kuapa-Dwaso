@@ -48,7 +48,7 @@ const uploadStatus = v.union(
   v.literal("expired"),
   v.literal("deleted"),
 );
-const uploadAccessLevel = v.literal("private");
+const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
 const relatedEntityType = v.union(
   v.literal("farmer"),
   v.literal("buyer"),
@@ -282,6 +282,10 @@ export const createPending = mutation({
     assertAllowed(
       purposeAllowedForEntity(args.purpose, args.relatedEntityType),
       "Upload purpose is not allowed for this related entity.",
+    );
+    assertAllowed(
+      args.accessLevel !== "public_read" || args.purpose === "produce_intake_photo",
+      "Only produce listing photos may be publicly readable.",
     );
     await requireActorCanUseRelatedEntity(
       ctx,
@@ -561,6 +565,7 @@ export const getReadableObject = query({
       bucket: v.string(),
       objectKey: v.string(),
       contentType: v.string(),
+      accessLevel: uploadAccessLevel,
       status: uploadStatus,
     }),
   ),
@@ -580,6 +585,7 @@ export const getReadableObject = query({
       bucket: asset.bucket,
       objectKey: asset.objectKey,
       contentType: asset.contentType,
+      accessLevel: asset.accessLevel,
       status: asset.status,
     };
   },

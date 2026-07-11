@@ -450,6 +450,7 @@ export const summarizeAvailableInventory = query({
           unit: batch.unit,
           destinationMarket,
           dispatchDays: warehouse.dispatchDays,
+          photoId: (existing?.photoId as string | undefined) ?? batch.photos[0],
           availableQuantity:
             ((existing?.availableQuantity as number | undefined) ?? 0) + reservableQuantity,
           askingPriceRange:

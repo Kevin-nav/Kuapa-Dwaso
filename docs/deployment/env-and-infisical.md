@@ -65,8 +65,9 @@ about missing real provider values; production mode fails closed for incomplete
 Firebase, Convex, Arkesel, notification delivery, Paystack, private R2, and URL
 configuration.
 
-Keep Cloudflare R2 private. `CLOUDFLARE_R2_PUBLIC_BASE_URL` is intentionally
-unsupported and should not be present in any Infisical environment.
+Keep evidence objects in `CLOUDFLARE_R2_BUCKET`. Configure the separate
+`CLOUDFLARE_R2_PUBLIC_BUCKET` and `CLOUDFLARE_R2_PUBLIC_BASE_URL` in Infisical
+for stable public reads of produce listing photos only.
 
 Cloudflare Tunnel uses dashboard-managed token mode. Store each environment's
 tunnel token in that environment's Infisical inventory as

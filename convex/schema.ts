@@ -354,7 +354,7 @@ const uploadAssetStatus = v.union(
   v.literal("expired"),
   v.literal("deleted")
 );
-const uploadAccessLevel = v.literal("private");
+const uploadAccessLevel = v.union(v.literal("private"), v.literal("public_read"));
 const uploadRelatedEntityType = v.union(
   v.literal("farmer"),
   v.literal("buyer"),

@@ -30,17 +30,19 @@ and mock-only until a real provider is selected.
 
 ## Uploads
 
-Frontend apps never receive Cloudflare credentials. The API creates R2
-presigned PUT URLs for writes and presigned GET URLs for reads, previews, and
-downloads. Convex stores upload metadata including owner, purpose, content
+Frontend apps never receive Cloudflare credentials. Produce intake photos are
+posted through the authenticated API so browser-to-R2 CORS is not part of the
+agent flow. Other authenticated writes may use R2 presigned PUT URLs. Produce intake photos use stable
+public read URLs so buyer listings do not depend on expiring links; all other
+reads, previews, and downloads use authorized presigned GET URLs. Convex stores upload metadata including owner, purpose, content
 type, size, object key, status, and related entity. Initial upload purposes are
 image-only and size-limited for transporter truck photos, produce intake
 photos, condition evidence, dispute evidence, dispatch proof photos, and
 profile evidence.
 
-Cloudflare R2 buckets must stay private. Do not use public buckets, public R2
-domains, custom public object domains, or client-side URL construction for
-evidence links. Admin and ops evidence UI must request a short-lived signed GET
+Only produce listing photos may use public R2 reads. Identity, profile,
+condition, dispute, and dispatch evidence stays private, and frontend code must
+not construct evidence URLs. Admin and ops evidence UI must request a short-lived signed GET
 URL from the API/provider seam after the authenticated user has passed Convex
 upload access checks.
 
@@ -159,6 +161,8 @@ CLOUDFLARE_R2_ACCOUNT_ID=
 CLOUDFLARE_R2_ACCESS_KEY_ID=
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=
 CLOUDFLARE_R2_BUCKET=
+CLOUDFLARE_R2_PUBLIC_BUCKET=
+CLOUDFLARE_R2_PUBLIC_BASE_URL=https://images.example.com
 R2_PRESIGN_TTL_SECONDS=900
 R2_READ_PRESIGN_TTL_SECONDS=300
 UPLOAD_MAX_SIZE_BYTES=8388608
@@ -175,8 +179,8 @@ Buckets used from browsers must have CORS that allows the deployed app origins,
 CORS setup is documented at:
 https://developers.cloudflare.com/r2/buckets/cors/
 
-`CLOUDFLARE_R2_PUBLIC_BASE_URL` is intentionally unsupported. If it appears in
-an environment, remove it before running production/provider mode.
+`CLOUDFLARE_R2_PUBLIC_BASE_URL` is the public R2 development URL or custom
+domain used only for `produce_intake_photo` assets.
 
 ## Payment Provider Setup
 
@@ -347,9 +351,9 @@ Production console and provider checklist:
 - Notification delivery: schedule or trigger a worker to call
   `POST /sms/webhooks/deliveries/process` with
   `x-notification-delivery-secret: <NOTIFICATION_DELIVERY_SECRET>`.
-- R2: keep the bucket private, disable public access/custom public domains,
-  use the S3 endpoint and signed PUT/GET URLs only, and configure CORS for the
-  deployed browser origins and signed `PUT`/`GET` access.
+- R2: expose only produce listing photos through the configured public domain;
+  keep every evidence purpose private, use signed PUT URLs for writes and
+  signed GET URLs for private reads, and configure browser upload CORS.
 
 Outstanding provider blockers to confirm before production:
 

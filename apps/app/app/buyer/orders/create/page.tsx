@@ -12,11 +12,13 @@ import type { ProduceGrade } from "@kuapa-dwaso/types";
 
 type BuyerProfile = {
   destinationMarket?: string;
+  buyerType?: "market_trader" | "aggregator" | "processor" | "retailer" | "wholesaler" | "exporter" | "institution";
 };
 
 type WarehouseSummary = {
   _id: string;
   name: string;
+  dispatchDays?: string[];
 };
 
 type InventoryBatchSummary = {
@@ -49,6 +51,8 @@ function CreateOrderContent() {
 
   const warehouses = useQuery(api.warehouses.list, {}) as WarehouseSummary[] | undefined;
   const warehouse = warehouses?.find((w) => w._id === warehouseId);
+  const isInstitution = buyer?.buyerType === "institution";
+  const dispatchOptions = nextDispatchDates(warehouse?.dispatchDays ?? []);
 
   // Form states
   const [quantity, setQuantity] = useState<string>("");
@@ -89,6 +93,10 @@ function CreateOrderContent() {
     }
     if (!quantity || numQuantity <= 0) {
       setError("Please enter a valid positive quantity.");
+      return;
+    }
+    if (!isInstitution && dispatchOptions.length > 0 && !deliveryDate) {
+      setError("Choose one of this warehouse's scheduled dispatch days.");
       return;
     }
 
@@ -245,15 +253,23 @@ function CreateOrderContent() {
         </div>
 
         <div className="field-stack">
-          <label htmlFor="deliveryDate">Requested Delivery Date (Optional)</label>
-          <input
-            type="date"
-            id="deliveryDate"
-            className="form-input"
-            value={deliveryDate}
-            onChange={(e) => setDeliveryDate(e.target.value)}
-            disabled={isSubmitting}
-          />
+          <label htmlFor="deliveryDate">{isInstitution ? "Requested delivery date" : "Warehouse dispatch"}</label>
+          {isInstitution ? (
+            <>
+              <input type="date" id="deliveryDate" className="form-input" value={deliveryDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isSubmitting} />
+              <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>Institutional bulk orders are fulfilled on demand, subject to stock and transport confirmation.</span>
+            </>
+          ) : dispatchOptions.length > 0 ? (
+            <>
+              <select id="deliveryDate" className="form-select" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isSubmitting} required>
+                <option value="">Choose a dispatch day</option>
+                {dispatchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>Market orders can be placed anytime. Goods leave in the evening and are expected at {formattedMarketString} the following morning.</span>
+            </>
+          ) : (
+            <div className="attention-card"><div className="attention-body"><span className="attention-title">Dispatch confirmation required</span><span className="attention-text">This warehouse has not published dispatch days yet. Submit your order and operations will confirm the next run.</span></div></div>
+          )}
         </div>
 
         {/* Live Form Review Section */}
@@ -314,6 +330,32 @@ function CreateOrderContent() {
       </form>
     </div>
   );
+}
+
+const weekdayIndex: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+
+function nextDispatchDates(days: string[]): { value: string; label: string }[] {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const options: { value: string; label: string; time: number }[] = [];
+  for (let week = 0; week < 3; week += 1) {
+    for (const day of days) {
+      const target = weekdayIndex[day.trim().toLowerCase()];
+      if (target === undefined) continue;
+      let offset = (target - today.getDay() + 7) % 7 + week * 7;
+      if (offset === 0) offset = 7;
+      const departure = new Date(today);
+      departure.setDate(today.getDate() + offset);
+      const arrival = new Date(departure);
+      arrival.setDate(departure.getDate() + 1);
+      options.push({
+        value: departure.toISOString().slice(0, 10),
+        label: `${departure.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} evening → ${arrival.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} morning`,
+        time: departure.getTime(),
+      });
+    }
+  }
+  return [...options].sort((left, right) => left.time - right.time).slice(0, 6).map(({ value, label }) => ({ value, label }));
 }
 
 export default function CreateOrderPage() {

@@ -41,6 +41,8 @@ export type ApiEnvironment = {
     r2AccessKeyId?: string;
     r2SecretAccessKey?: string;
     r2Bucket?: string;
+    r2PublicBucket?: string;
+    r2PublicBaseUrl?: string;
     presignTtlSeconds: number;
     readPresignTtlSeconds: number;
     maxSizeBytes: number;
@@ -167,6 +169,12 @@ export function getApiEnvironment(): ApiEnvironment {
   }
   if (process.env.CLOUDFLARE_R2_BUCKET !== undefined) {
     uploads.r2Bucket = process.env.CLOUDFLARE_R2_BUCKET;
+  }
+  if (process.env.CLOUDFLARE_R2_PUBLIC_BUCKET !== undefined) {
+    uploads.r2PublicBucket = process.env.CLOUDFLARE_R2_PUBLIC_BUCKET;
+  }
+  if (process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL !== undefined) {
+    uploads.r2PublicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL.replace(/\/$/, "");
   }
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;

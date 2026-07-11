@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import type { UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
+import type { UploadAccessLevel, UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 
 type PresignResponse = {
   uploadAssetId: string;
@@ -16,9 +16,10 @@ export async function uploadEvidenceFile(input: {
   firebaseUser: User | null;
   file: File;
   purpose: UploadAssetPurpose;
-  relatedEntityType: UploadRelatedEntityType;
-  relatedEntityId: string;
+  relatedEntityType?: UploadRelatedEntityType;
+  relatedEntityId?: string;
   ownerUserId?: string;
+  accessLevel?: UploadAccessLevel;
 }): Promise<string> {
   if (input.firebaseUser === null) {
     throw new Error("Sign in is required before uploading evidence.");
@@ -28,6 +29,19 @@ export async function uploadEvidenceFile(input: {
     throw new Error("NEXT_PUBLIC_API_URL is required to upload evidence.");
   }
   const token = await input.firebaseUser.getIdToken();
+  if (input.purpose === "produce_intake_photo" && input.accessLevel === "public_read") {
+    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/uploads/produce-photo`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": input.file.type,
+        "x-file-name": input.file.name,
+      },
+      body: input.file,
+    });
+    if (!response.ok) throw new Error(await readErrorMessage(response, "Could not upload the produce photo."));
+    return ((await response.json()) as { uploadAssetId: string }).uploadAssetId;
+  }
   const presignResponse = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/uploads/presign`, {
     method: "POST",
     headers: {
@@ -42,7 +56,7 @@ export async function uploadEvidenceFile(input: {
       relatedEntityType: input.relatedEntityType,
       relatedEntityId: input.relatedEntityId,
       ownerUserId: input.ownerUserId,
-      accessLevel: "private",
+      accessLevel: input.accessLevel ?? "private",
     }),
   });
   if (!presignResponse.ok) {

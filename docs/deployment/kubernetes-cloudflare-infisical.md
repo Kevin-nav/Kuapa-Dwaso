@@ -214,9 +214,9 @@ response, and back-port any emergency change into the manifests afterward.
 Protect the `production` branch before enabling production automation. Rotate
 Infisical machine identities, provider keys, Cloudflare Tunnel tokens, and
 Firebase Admin service accounts on a schedule and after personnel changes. Keep
-R2 buckets private-only; this platform uses signed PUT and signed GET URLs, not
-a public bucket URL. No public R2 bucket is involved in Cloudflare Tunnel
-routing.
+R2 evidence objects private; writes and private reads remain signed. Produce
+listing photos use the configured public R2 domain, which is independent of
+Cloudflare Tunnel routing.
 
 Configure provider webhooks to the deployed API origin:
 

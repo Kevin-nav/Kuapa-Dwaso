@@ -123,7 +123,11 @@ cover_html_content = """<!DOCTYPE html>
       </div>
       <div class="footer-group">
         <div class="divider"></div>
-        <div class="url">kuapadwaso.com</div>
+        <div style="display: flex; gap: 30px; justify-content: center; font-size: 13px; font-family: 'Plus Jakarta Sans', sans-serif;">
+          <a href="https://kuapadwaso.com" style="color: #38a85c; text-decoration: none; font-weight: 700; letter-spacing: 0.5px;">kuapadwaso.com</a>
+          <span style="color: #dde3d5; font-weight: 700;">|</span>
+          <a href="https://github.com/Kevin-nav/Kuapa-Dwaso.git" style="color: #38a85c; text-decoration: none; font-weight: 700; letter-spacing: 0.5px;">github.com/Kevin-nav/Kuapa-Dwaso</a>
+        </div>
       </div>
     </div>
   </div>
@@ -318,6 +322,11 @@ content_html_content = """<!DOCTYPE html>
   <h1>Kuapa Dwaso: Product Description</h1>
   
   <p>Kuapa Dwaso (&ldquo;Farmer's Market&rdquo; in Akan) is a warehouse-based platform for produce aggregation, inventory, sales, and dispatch. Built around the realities of agricultural trade in regions like Tarkwa, it replaces risky, speculative farm-to-city transport with a secure, demand-driven local warehouse model.</p>
+
+  <p style="font-size: 10pt; color: #4b5563; margin-bottom: 20px; font-family: 'Plus Jakarta Sans', sans-serif;">
+    <strong>Official Website:</strong> <a href="https://kuapadwaso.com" style="color: #2d8a4e; text-decoration: none; font-weight: 600;">https://kuapadwaso.com</a> &nbsp;|&nbsp; 
+    <strong>GitHub Repository:</strong> <a href="https://github.com/Kevin-nav/Kuapa-Dwaso.git" style="color: #2d8a4e; text-decoration: none; font-weight: 600;">https://github.com/Kevin-nav/Kuapa-Dwaso.git</a>
+  </p>
 
   <h2>Context and System Design</h2>
 

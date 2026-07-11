@@ -7,7 +7,13 @@ import { AllExceptionsFilter } from "./filters/all-exceptions.filter.js";
 
 async function bootstrap(): Promise<void> {
   const env = getApiEnvironment();
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
+  const adapter = new FastifyAdapter({ bodyLimit: env.uploads.maxSizeBytes + 1024 });
+  adapter.getInstance().addContentTypeParser(
+    ["image/jpeg", "image/png", "image/webp"],
+    { parseAs: "buffer" },
+    (_request, body, done) => done(null, body),
+  );
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
     logger: ["error", "warn", "log"]
   });
 

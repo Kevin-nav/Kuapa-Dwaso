@@ -91,6 +91,7 @@ type ReadableUploadObject = {
   bucket: string;
   objectKey: string;
   contentType: string;
+  accessLevel: UploadAccessLevel;
   status: string;
 };
 

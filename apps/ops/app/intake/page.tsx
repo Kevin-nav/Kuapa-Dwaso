@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, react-hooks/exhaustive-deps, react/no-unescaped-entities */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useWarehouse } from "../context/WarehouseContext";
@@ -11,12 +11,18 @@ import {
   ArrowRight, 
   User, 
   AlertTriangle,
-  Info
+  Info,
+  Camera,
+  ImagePlus,
+  X
 } from "lucide-react";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
+import { useOpsAuth } from "../auth/OpsAuthProvider";
+import { uploadEvidenceFile } from "../evidenceUpload";
 
 export default function IntakePage() {
   const router = useRouter();
+  const { firebaseUser } = useOpsAuth();
   const { 
     farmers, 
     addIntake, 
@@ -66,6 +72,12 @@ export default function IntakePage() {
   // Submit states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const photoPreviewUrl = useMemo(() => photoFile === null ? undefined : URL.createObjectURL(photoFile), [photoFile]);
+
+  useEffect(() => () => {
+    if (photoPreviewUrl !== undefined) URL.revokeObjectURL(photoPreviewUrl);
+  }, [photoPreviewUrl]);
 
   // Crop-to-variety lists
   const varietiesByCrop: Record<string, string[]> = {
@@ -230,7 +242,19 @@ export default function IntakePage() {
     if (minimumPrice) {
       intakePayload.minimumPricePerUnit = parseFloat(minimumPrice);
     }
-    void addIntake(intakePayload)
+    const createReceipt = async () => {
+      if (photoFile !== null) {
+        const photoId = await uploadEvidenceFile({
+          firebaseUser,
+          file: photoFile,
+          purpose: "produce_intake_photo",
+          accessLevel: "public_read",
+        });
+        intakePayload.photos = [photoId];
+      }
+      return await addIntake(intakePayload);
+    };
+    void createReceipt()
       .then((batch) => {
         router.push(`/receipts/${batch.id}`);
       })
@@ -690,6 +714,35 @@ export default function IntakePage() {
       {/* STEP 4: Confirm with Farmer */}
       {step === 4 && (
         <div className="step-container">
+          <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+              <div>
+                <h2 className="detail-section-title"><Camera size={18} /> Produce photo</h2>
+                <p style={{ margin: "6px 0 0", color: "var(--gray-600)", fontSize: "14px" }}>
+                  Optional. A clear photo helps buyers recognize this lot. You can create the receipt without one.
+                </p>
+              </div>
+              <span className="badge">Optional</span>
+            </div>
+            {photoPreviewUrl === undefined ? (
+              <label className="btn btn-outline" style={{ cursor: "pointer", minHeight: "52px" }}>
+                <ImagePlus size={19} /> Take or choose photo
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  hidden
+                  onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+            ) : (
+              <div style={{ position: "relative", overflow: "hidden", borderRadius: "14px", border: "1px solid var(--color-line)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreviewUrl} alt="Produce preview" style={{ width: "100%", maxHeight: "260px", objectFit: "cover", display: "block" }} />
+                <button type="button" className="modal-close" aria-label="Remove photo" onClick={() => setPhotoFile(null)} style={{ position: "absolute", right: "10px", top: "10px", background: "white" }}><X size={18} /></button>
+              </div>
+            )}
+          </div>
           <div className="receipt-ticket">
             <div className="receipt-ticket-dashed" />
             <div className="receipt-header">

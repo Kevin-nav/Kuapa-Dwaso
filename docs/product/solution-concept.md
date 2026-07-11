@@ -1,6 +1,8 @@
-# Kuapa Dwaso: Product Vision
+# Kuapa Dwaso: Product Description
 
 Kuapa Dwaso ("Farmer's Market" in Akan) is a warehouse-based platform for produce aggregation, inventory, sales, and dispatch. Built around the realities of agricultural trade in regions like Tarkwa, it replaces risky, speculative farm-to-city transport with a secure, demand-driven local warehouse model.
+
+Official website: [kuapadwaso.com](https://kuapadwaso.com) | GitHub Repository: [Kevin-nav/Kuapa-Dwaso](https://github.com/Kevin-nav/Kuapa-Dwaso.git)
 
 ---
 

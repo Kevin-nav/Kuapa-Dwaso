@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, HttpException, HttpStatus, NotFoundException, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Headers, HttpException, HttpStatus, NotFoundException, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
 import type { ProfileType, UploadAccessLevel, UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
@@ -41,6 +41,32 @@ export class UploadsController {
     private readonly r2: R2UploadProvider
   ) {}
 
+  @Post("produce-photo")
+  @RequirePermissions("uploads:create")
+  async uploadProducePhoto(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Headers("content-type") contentType: string | undefined,
+    @Headers("x-file-name") fileName: string | undefined,
+    @Body() body: Buffer,
+  ): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
+    if (principal.userId === undefined) throw new UnauthorizedException("Convex user profile is required.");
+    if (!Buffer.isBuffer(body)) throw new BadRequestException("A produce image file is required.");
+    const normalizedContentType = contentType?.split(";", 1)[0] ?? "";
+    this.r2.assertPresignPolicy({ purpose: "produce_intake_photo", contentType: normalizedContentType, sizeBytes: body.byteLength });
+    const bucket = this.r2.getBucketName("public_read");
+    const pending = await this.convex.createPendingUpload({
+      actorUserId: principal.userId,
+      purpose: "produce_intake_photo",
+      contentType: normalizedContentType,
+      sizeBytes: body.byteLength,
+      accessLevel: "public_read",
+      bucket,
+      ...(fileName === undefined ? {} : { fileName }),
+    });
+    await this.r2.uploadObject({ objectKey: pending.objectKey, contentType: normalizedContentType, bucket, body });
+    return await this.convex.completeUpload({ actorUserId: principal.userId, uploadAssetId: pending.uploadAssetId, sizeBytes: body.byteLength });
+  }
+
   @Post("presign")
   @RequirePermissions("uploads:create")
   async presign(
@@ -75,8 +101,8 @@ export class UploadsController {
       sizeBytes: body.sizeBytes
     });
 
-    if (body.accessLevel === "public_read") {
-      throw new BadRequestException("Public R2 upload access is disabled. Use signed read URLs.");
+    if (body.accessLevel === "public_read" && body.purpose !== "produce_intake_photo") {
+      throw new BadRequestException("Only produce listing photos may use public read access.");
     }
 
     const createUploadArgs: Parameters<ConvexPlatformProvider["createPendingUpload"]>[0] = {
@@ -84,7 +110,7 @@ export class UploadsController {
       purpose: body.purpose,
       contentType: body.contentType,
       sizeBytes: body.sizeBytes,
-      bucket: this.r2.getBucketName(),
+      bucket: this.r2.getBucketName(body.accessLevel ?? "private"),
     };
     if (body.ownerUserId !== undefined) {
       createUploadArgs.ownerUserId = body.ownerUserId;
@@ -110,7 +136,8 @@ export class UploadsController {
     const pending = await this.convex.createPendingUpload(createUploadArgs);
     const presigned = this.r2.presignPutObject({
       objectKey: pending.objectKey,
-      contentType: body.contentType
+      contentType: body.contentType,
+      bucket: this.r2.getBucketName(body.accessLevel ?? "private")
     });
 
     return {
@@ -165,17 +192,18 @@ export class UploadsController {
     if (asset === null) {
       throw new NotFoundException("Upload asset was not found.");
     }
-    const presigned = this.r2.presignGetObject({
-      objectKey: asset.objectKey
-    });
+    const publicReadUrl = asset.accessLevel === "public_read"
+      ? this.r2.getPublicReadUrl(asset.objectKey)
+      : undefined;
+    const presigned = publicReadUrl === undefined ? this.r2.presignGetObject({ objectKey: asset.objectKey }) : undefined;
 
     return {
       method: "GET",
-      readUrl: presigned.readUrl,
+      readUrl: publicReadUrl ?? presigned!.readUrl,
       uploadAssetId: asset.uploadAssetId,
       objectKey: asset.objectKey,
       contentType: asset.contentType,
-      expiresAt: presigned.expiresAt
+      expiresAt: presigned?.expiresAt ?? 0
     };
   }
 }

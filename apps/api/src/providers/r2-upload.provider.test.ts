@@ -100,4 +100,12 @@ describe("R2UploadProvider", () => {
     expect(result.readUrl).not.toContain("public.example.com");
     expect(result.readUrl).not.toContain("secret123");
   });
+
+  it("builds a stable encoded URL for public produce photos", () => {
+    process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL = "https://images.example.com/";
+    const provider = new R2UploadProvider();
+
+    expect(provider.getPublicReadUrl("uploads/produce intake/photo 1.webp"))
+      .toBe("https://images.example.com/uploads/produce%20intake/photo%201.webp");
+  });
 });

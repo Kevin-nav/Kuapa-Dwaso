@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
 import Link from "next/link";
-import { Search, MapPin, Calendar, CircleDollarSign, ArrowRight, ShieldCheck } from "lucide-react";
+import { Search, MapPin, Calendar, CircleDollarSign, ArrowRight, ShieldCheck, Package } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
+import { getSignedReadUrl } from "@/app/uploads/client";
+import type { User } from "firebase/auth";
 
 type BuyerProfile = {
   fullName?: string;
@@ -27,12 +29,13 @@ type InventorySummary = {
   askingPriceRange?: { min: number; max: number };
   earliestSellByDate?: number;
   dispatchDays?: string[];
+  photoId?: string;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export default function BuyerDashboard() {
-  const { principal } = useAuth();
+  const { principal, firebaseUser } = useAuth();
   const [selectedCrop, setSelectedCrop] = useState<string>("All");
   const [selectedGrade, setSelectedGrade] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -211,6 +214,7 @@ export default function BuyerDashboard() {
                 className="farmer-card"
                 style={{ cursor: "pointer" }}
               >
+                <ListingPhoto photoId={item.photoId} user={firebaseUser} cropType={item.cropType} />
                 <div className="card-header">
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ fontSize: "1.5rem" }}>
@@ -284,5 +288,25 @@ export default function BuyerDashboard() {
 
       <p className="timestamp">Connected · Last synced {new Date().toLocaleTimeString()}</p>
     </div>
+  );
+}
+
+function ListingPhoto({ photoId, user, cropType }: { photoId: string | undefined; user: User | null; cropType: string }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    if (photoId !== undefined && user !== null) {
+      void getSignedReadUrl(user, photoId).then((nextUrl) => { if (active) setUrl(nextUrl); }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [photoId, user]);
+
+  return url === undefined ? (
+    <div style={{ height: "150px", borderRadius: "12px", background: "linear-gradient(135deg, var(--color-surface-raised), var(--color-bg))", display: "grid", placeItems: "center", color: "var(--color-text-muted)", marginBottom: "14px" }}>
+      <div style={{ textAlign: "center" }}><Package size={34} style={{ opacity: 0.55 }} /><div style={{ fontSize: "12px", marginTop: "6px" }}>{cropType} lot</div></div>
+    </div>
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt={`${cropType} produce at the warehouse`} loading="lazy" style={{ width: "100%", height: "180px", objectFit: "cover", borderRadius: "12px", marginBottom: "14px", border: "1px solid var(--color-line)" }} />
   );
 }
