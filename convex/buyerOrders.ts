@@ -207,11 +207,15 @@ async function findReservableBatches(
     if (warehouse === null || warehouse.status !== "active") {
       continue;
     }
-    if (
-      args.destinationMarket !== undefined &&
-      !warehouse.destinationMarketsServed.includes(args.destinationMarket)
-    ) {
-      continue;
+    if (args.destinationMarket !== undefined) {
+      const match = warehouse.destinationMarketsServed.some((served) => {
+        const servedLower = served.toLowerCase().trim();
+        const targetLower = args.destinationMarket!.toLowerCase().trim();
+        return servedLower.includes(targetLower) || targetLower.includes(servedLower);
+      });
+      if (!match) {
+        continue;
+      }
     }
 
     const reservations = await getBatchReservations(ctx, batch._id);
@@ -401,9 +405,11 @@ export const summarizeAvailableInventory = query({
       const destinationMarkets =
         args.destinationMarket === undefined
           ? warehouse.destinationMarketsServed
-          : warehouse.destinationMarketsServed.filter(
-              (market) => market === args.destinationMarket!.trim(),
-            );
+          : warehouse.destinationMarketsServed.filter((market) => {
+              const marketLower = market.toLowerCase().trim();
+              const targetLower = args.destinationMarket!.toLowerCase().trim();
+              return marketLower.includes(targetLower) || targetLower.includes(marketLower);
+            });
       if (destinationMarkets.length === 0) {
         continue;
       }

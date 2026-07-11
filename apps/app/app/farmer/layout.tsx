@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Sprout, Receipt, Wallet, User } from "lucide-react";
+import { Home, Sprout, Receipt, Wallet, User, Search } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 
 type FarmerLayoutProps = {
@@ -88,6 +88,10 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
         <Link href="/farmer/produce" className={`nav-link ${isActive("/farmer/produce") ? "nav-link-active" : ""}`}>
           <Sprout size={22} />
           <span>Produce</span>
+        </Link>
+        <Link href="/buyer" className={`nav-link ${isActive("/buyer") ? "nav-link-active" : ""}`}>
+          <Search size={22} />
+          <span>Marketplace</span>
         </Link>
         <Link href="/farmer/receipts" className={`nav-link ${isActive("/farmer/receipts") ? "nav-link-active" : ""}`}>
           <Receipt size={22} />

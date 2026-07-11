@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { AlertTriangle, Bell, ChevronRight, FileText, HelpCircle, MapPin, Phone, Sprout } from "lucide-react";
+import { AlertTriangle, Bell, ChevronRight, FileText, HelpCircle, MapPin, Phone, Sprout, Search } from "lucide-react";
 import { useAuth } from "@/app/auth/AuthProvider";
 
 type Receipt = {
@@ -239,6 +239,9 @@ export default function FarmerDashboard() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
+        <Link href="/buyer" style={{ width: "100%" }}>
+          <button type="button" className="btn btn-primary btn-full"><Search size={18} /><span>Browse Marketplace Stock</span></button>
+        </Link>
         <Link href="/farmer/contact" style={{ width: "100%" }}>
           <button type="button" className="btn btn-secondary btn-full"><Phone size={18} /><span>Contact Warehouse</span></button>
         </Link>
