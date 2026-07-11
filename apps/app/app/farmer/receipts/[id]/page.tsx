@@ -63,8 +63,14 @@ export default function ReceiptDetailPage({ params }: Props) {
       : "skip",
   ) as LedgerEntry[] | undefined;
   const warehouses = useQuery(api.warehouses.list, {});
+  const agents = useQuery(
+    api.warehouseAgents.listByWarehouseForFarmer,
+    principal !== null && principal !== undefined && batch?.warehouseId !== undefined
+      ? { actorUserId: principal.userId as Id<"users">, warehouseId: batch.warehouseId as Id<"warehouses"> }
+      : "skip"
+  );
 
-  if (batch === undefined || ledger === undefined) {
+  if (batch === undefined || ledger === undefined || agents === undefined) {
     return <div className="skeleton" style={{ minHeight: "420px", borderRadius: "20px" }} />;
   }
 
@@ -79,6 +85,9 @@ export default function ReceiptDetailPage({ params }: Props) {
   }
 
   const warehouseName = warehouses?.find((warehouse) => warehouse._id === batch.warehouseId)?.name ?? "Warehouse";
+  const agent = agents && agents.length > 0 ? agents[0] : null;
+  const agentName = agent?.fullName || "Warehouse";
+  const phone = agent?.phoneNumber || "+233240000000";
   const daysStored = Math.max(0, Math.floor((now - batch.receivedAt) / (24 * 60 * 60 * 1000)));
   const rate = batch.storageRateSnapshot?.ratePerUnitPerDay ?? 0;
   const currency = batch.storageRateSnapshot?.currency ?? "GHS";
@@ -160,7 +169,7 @@ export default function ReceiptDetailPage({ params }: Props) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
-        <a href="tel:+233240000000" className="btn btn-primary btn-full"><Phone size={18} /><span>Call Warehouse</span></a>
+        <a href={`tel:${phone}`} className="btn btn-primary btn-full"><Phone size={18} /><span>Call {agentName}</span></a>
         <Link href={`/farmer/issue?receiptId=${id}`} style={{ width: "100%" }}>
           <button type="button" className="btn btn-secondary btn-full"><AlertTriangle size={18} /><span>Dispute this receipt / report issue</span></button>
         </Link>

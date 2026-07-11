@@ -107,8 +107,6 @@ function InventorySummaryContent() {
 
   const buyerProfile = principal?.profiles?.find((p) => p.profileType === "buyer");
   const buyerId = buyerProfile?.profileId as Id<"buyers"> | undefined;
-  const farmerProfile = principal?.profiles?.find((p) => p.profileType === "farmer");
-  const isFarmer = principal?.role === "farmer" || farmerProfile !== undefined;
 
   // Retrieve Buyer Details
   const buyer = useQuery(
@@ -132,7 +130,7 @@ function InventorySummaryContent() {
           warehouseId: warehouseId as Id<"warehouses">,
           cropType,
           grade: grade as ProduceGrade,
-          ...(!isFarmer ? { destinationMarket: defaultMarket } : {}),
+          destinationMarket: defaultMarket,
         }
       : "skip"
   ) as InventoryBatchSummary[] | undefined;
@@ -376,22 +374,20 @@ function InventorySummaryContent() {
       </div>
 
       {/* Primary Action Zone - Reachable Bottom Placement */}
-      {!isFarmer && (
-        <div style={{ marginTop: "10px" }}>
-          <button
-            type="button"
-            className="btn btn-primary btn-full"
-            disabled={!hasAvailableBatches || minPrice === undefined || maxPrice === undefined}
-            onClick={() =>
-              router.push(
-                `/buyer/orders/create?warehouseId=${warehouseId}&cropType=${cropType}&grade=${grade}&unit=${unit}&minPrice=${minPrice}&maxPrice=${maxPrice}`
-              )
-            }
-          >
-            <span>Continue to Place Order</span>
-          </button>
-        </div>
-      )}
+      <div style={{ marginTop: "10px" }}>
+        <button
+          type="button"
+          className="btn btn-primary btn-full"
+          disabled={!hasAvailableBatches || minPrice === undefined || maxPrice === undefined}
+          onClick={() =>
+            router.push(
+              `/buyer/orders/create?warehouseId=${warehouseId}&cropType=${cropType}&grade=${grade}&unit=${unit}&minPrice=${minPrice}&maxPrice=${maxPrice}`
+            )
+          }
+        >
+          <span>Continue to Place Order</span>
+        </button>
+      </div>
 
       <p className="timestamp">Official warehouse records synced · Connected</p>
     </div>

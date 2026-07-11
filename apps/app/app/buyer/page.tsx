@@ -43,8 +43,6 @@ export default function BuyerDashboard() {
 
   const buyerProfile = principal?.profiles?.find((p) => p.profileType === "buyer");
   const buyerId = buyerProfile?.profileId as Id<"buyers"> | undefined;
-  const farmerProfile = principal?.profiles?.find((p) => p.profileType === "farmer");
-  const isFarmer = principal?.role === "farmer" || farmerProfile !== undefined;
 
   // Retrieve Buyer details
   const buyer = useQuery(
@@ -60,7 +58,7 @@ export default function BuyerDashboard() {
   const summaryArgs =
     principal !== null && principal !== undefined
       ? {
-          ...(!isFarmer ? { destinationMarket: defaultMarket } : {}),
+          destinationMarket: defaultMarket,
           ...(selectedCrop === "All" ? {} : { cropType: selectedCrop }),
           ...(selectedGrade === "All" ? {} : { grade: selectedGrade as ProduceGrade }),
         }
@@ -78,7 +76,7 @@ export default function BuyerDashboard() {
     return "Good evening";
   };
 
-  const displayName = buyer?.fullName || principal?.name || (isFarmer ? "Farmer" : "Buyer");
+  const displayName = buyer?.fullName || principal?.name || "Buyer";
 
   // List of crops for filtering
   const cropOptions = ["All", "Maize", "Cassava", "Rice", "Soybeans"];
@@ -117,7 +115,7 @@ export default function BuyerDashboard() {
         <h1 style={{ fontSize: "1.75rem", marginBottom: "4px" }}>{displayName}</h1>
         <div className="home-warehouse">
           <MapPin size={16} />
-          <span>{isFarmer ? "All Locations" : `Sourcing for ${defaultMarket}`}</span>
+          <span>Sourcing for {defaultMarket}</span>
         </div>
       </div>
 
@@ -281,9 +279,7 @@ export default function BuyerDashboard() {
               <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🌾</div>
               <h3 style={{ color: "var(--color-ink)", marginBottom: "8px" }}>No Produce Available</h3>
               <p style={{ maxWidth: "320px", margin: "0 auto", color: "var(--color-text-muted)" }}>
-                {isFarmer
-                  ? "There are no buyer-visible warehouse listings matching your filters."
-                  : `There are no buyer-visible warehouse listings matching your filters for ${defaultMarket}.`}
+                There are no buyer-visible warehouse listings matching your filters for {defaultMarket}.
               </p>
             </div>
           )}

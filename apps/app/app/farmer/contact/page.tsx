@@ -30,8 +30,17 @@ export default function ContactPage() {
     ? `${warehouse.community || "Akwatia"}, ${warehouse.region || "Eastern Region"}`
     : "Akwatia, Eastern Region, Ghana";
 
-  // Active warehouse agent assigned to this warehouse if any
-  const phone = "+233240000000"; // default mock phone
+  // Retrieve assigned warehouse agents
+  const agents = useQuery(
+    api.warehouseAgents.listByWarehouseForFarmer,
+    principal !== null && principal !== undefined && farmer?.preferredWarehouseId !== undefined
+      ? { actorUserId: principal.userId as Id<"users">, warehouseId: farmer.preferredWarehouseId }
+      : "skip"
+  );
+
+  const agent = agents && agents.length > 0 ? agents[0] : null;
+  const agentName = agent?.fullName || "Warehouse Manager";
+  const phone = agent?.phoneNumber || "+233240000000";
   const whatsappUrl = `https://wa.me/${phone.replace(/\+/g, "")}`;
 
   return (
@@ -93,7 +102,7 @@ export default function ContactPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
         <a href={`tel:${phone}`} className="btn btn-primary btn-full">
           <Phone size={18} />
-          <span>Call Warehouse Manager</span>
+          <span>Call {agentName}</span>
         </a>
         <a
           href={whatsappUrl}

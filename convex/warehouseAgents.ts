@@ -449,3 +449,27 @@ export const listByWarehouse = query({
       .slice(0, limit);
   },
 });
+
+export const listByWarehouseForFarmer = query({
+  args: {
+    actorUserId: v.id("users"),
+    warehouseId: v.id("warehouses"),
+  },
+  returns: v.array(v.any()),
+  handler: async (ctx, args) => {
+    const actor = await getActor(ctx, args.actorUserId);
+    assertAllowed(
+      actor.role === "farmer" || actor.role === "admin",
+      "Only farmers or admins can list warehouse agents.",
+    );
+
+    const candidates = await ctx.db
+      .query("warehouseAgents")
+      .withIndex("by_status", (q) => q.eq("status", "approved"))
+      .collect();
+
+    return candidates.filter((agent) =>
+      agent.assignedWarehouseIds.some((id) => id === args.warehouseId),
+    );
+  },
+});
