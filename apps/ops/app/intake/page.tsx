@@ -73,11 +73,35 @@ export default function IntakePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoAssetId, setPhotoAssetId] = useState<string>();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState("");
   const photoPreviewUrl = useMemo(() => photoFile === null ? undefined : URL.createObjectURL(photoFile), [photoFile]);
 
   useEffect(() => () => {
     if (photoPreviewUrl !== undefined) URL.revokeObjectURL(photoPreviewUrl);
   }, [photoPreviewUrl]);
+
+  const handlePhotoSelection = async (file: File | null) => {
+    setPhotoFile(file);
+    setPhotoAssetId(undefined);
+    setPhotoUploadError("");
+    if (file === null) return;
+    setIsUploadingPhoto(true);
+    try {
+      const assetId = await uploadEvidenceFile({
+        firebaseUser,
+        file,
+        purpose: "produce_intake_photo",
+        accessLevel: "public_read",
+      });
+      setPhotoAssetId(assetId);
+    } catch (error) {
+      setPhotoUploadError(error instanceof Error ? error.message : "Could not upload the produce photo.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   // Crop-to-variety lists
   const varietiesByCrop: Record<string, string[]> = {
@@ -242,19 +266,8 @@ export default function IntakePage() {
     if (minimumPrice) {
       intakePayload.minimumPricePerUnit = parseFloat(minimumPrice);
     }
-    const createReceipt = async () => {
-      if (photoFile !== null) {
-        const photoId = await uploadEvidenceFile({
-          firebaseUser,
-          file: photoFile,
-          purpose: "produce_intake_photo",
-          accessLevel: "public_read",
-        });
-        intakePayload.photos = [photoId];
-      }
-      return await addIntake(intakePayload);
-    };
-    void createReceipt()
+    if (photoAssetId !== undefined) intakePayload.photos = [photoAssetId];
+    void addIntake(intakePayload)
       .then((batch) => {
         router.push(`/receipts/${batch.id}`);
       })
@@ -403,9 +416,9 @@ export default function IntakePage() {
             </div>
           </div>
 
-          <button 
-            type="button" 
-            className="btn btn-primary" 
+          <button
+            type="button"
+            className="btn btn-primary"
             style={{ marginTop: "12px" }}
             disabled={!selectedFarmerId}
             onClick={() => saveDraft(2)}
@@ -699,10 +712,36 @@ export default function IntakePage() {
             </div>
           </div>
 
-          <button 
-            type="button" 
-            className="btn btn-primary" 
+          <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
+              <div>
+                <h2 className="detail-section-title"><Camera size={18} /> 4. Produce photo</h2>
+                <p style={{ margin: "6px 0 0", color: "var(--gray-600)", fontSize: "14px" }}>Optional. Upload it now so it is ready before you review and confirm the intake.</p>
+              </div>
+              <span className="badge">Optional</span>
+            </div>
+            {photoPreviewUrl === undefined ? (
+              <label className="btn btn-outline" style={{ cursor: "pointer", minHeight: "52px" }}>
+                <ImagePlus size={19} /> Take or choose photo
+                <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onChange={(event) => void handlePhotoSelection(event.target.files?.[0] ?? null)} />
+              </label>
+            ) : (
+              <div style={{ position: "relative", overflow: "hidden", borderRadius: "14px", border: "1px solid var(--color-line)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoPreviewUrl} alt="Produce preview" style={{ width: "100%", maxHeight: "260px", objectFit: "cover", display: "block" }} />
+                <button type="button" className="modal-close" aria-label="Remove photo" disabled={isUploadingPhoto} onClick={() => void handlePhotoSelection(null)} style={{ position: "absolute", right: "10px", top: "10px", background: "white" }}><X size={18} /></button>
+              </div>
+            )}
+            {isUploadingPhoto ? <div className="offline-banner" style={{ margin: 0 }}><Info size={16} /><span>Uploading photo before review…</span></div> : null}
+            {photoAssetId !== undefined ? <div style={{ color: "var(--color-success)", fontWeight: 700, fontSize: "14px" }}>Photo uploaded and ready for this intake.</div> : null}
+            {photoUploadError ? <div className="offline-banner" style={{ margin: 0, backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)", borderColor: "var(--color-danger-border)" }}><AlertTriangle size={16} /><span>{photoUploadError} Choose the photo again to retry, or remove it to continue without one.</span></div> : null}
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
             style={{ marginTop: "12px" }}
+            disabled={isUploadingPhoto || (photoFile !== null && photoAssetId === undefined)}
             onClick={() => saveDraft(4)}
           >
             <span>Review Receipt Preview</span>
@@ -714,35 +753,6 @@ export default function IntakePage() {
       {/* STEP 4: Confirm with Farmer */}
       {step === 4 && (
         <div className="step-container">
-          <div className="section-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "flex-start" }}>
-              <div>
-                <h2 className="detail-section-title"><Camera size={18} /> Produce photo</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--gray-600)", fontSize: "14px" }}>
-                  Optional. A clear photo helps buyers recognize this lot. You can create the receipt without one.
-                </p>
-              </div>
-              <span className="badge">Optional</span>
-            </div>
-            {photoPreviewUrl === undefined ? (
-              <label className="btn btn-outline" style={{ cursor: "pointer", minHeight: "52px" }}>
-                <ImagePlus size={19} /> Take or choose photo
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
-                  hidden
-                  onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-            ) : (
-              <div style={{ position: "relative", overflow: "hidden", borderRadius: "14px", border: "1px solid var(--color-line)" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoPreviewUrl} alt="Produce preview" style={{ width: "100%", maxHeight: "260px", objectFit: "cover", display: "block" }} />
-                <button type="button" className="modal-close" aria-label="Remove photo" onClick={() => setPhotoFile(null)} style={{ position: "absolute", right: "10px", top: "10px", background: "white" }}><X size={18} /></button>
-              </div>
-            )}
-          </div>
           <div className="receipt-ticket">
             <div className="receipt-ticket-dashed" />
             <div className="receipt-header">

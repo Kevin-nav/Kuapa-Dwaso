@@ -65,6 +65,7 @@ export function EvidencePanel({
       purpose,
       relatedEntityType,
       relatedEntityId,
+      ...(purpose === "produce_intake_photo" ? { accessLevel: "public_read" as const } : {}),
     })
       .catch((uploadError: unknown) => {
         setError(uploadError instanceof Error ? uploadError.message : "Could not upload evidence.");
