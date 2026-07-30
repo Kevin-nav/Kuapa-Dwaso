@@ -15,6 +15,7 @@
     "@kuapa-dwaso/dashboard-ui": "workspace:*",
     "@kuapa-dwaso/permissions": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
+    "@kuapa-dwaso/ui": "workspace:*",
     "@kuapa-dwaso/utils": "workspace:*",
     "@next/env": "^16.2.9",
     "convex": "1.41.0",

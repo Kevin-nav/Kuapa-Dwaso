@@ -36,6 +36,7 @@ import {
   Copy,
   CheckCircle2,
 } from "lucide-react";
+import { OtpInput } from "@kuapa-dwaso/ui";
 import { firebaseAuth } from "./firebase";
 import { useAdminAuth } from "./AdminAuthProvider";
 
@@ -740,14 +741,13 @@ export default function AdminAuthPage() {
 
                 <div className="auth-input-group">
                   <label htmlFor="mfa-code">MFA Verification Code</label>
-                  <input
+                  <OtpInput
                     id="mfa-code"
                     value={mfaCode}
-                    onChange={(event) => setMfaCode(event.target.value)}
-                    inputMode="numeric"
-                    className="auth-input"
-                    placeholder="123456"
-                    maxLength={8}
+                    onChange={setMfaCode}
+                    length={6}
+                    disabled={isWorking}
+                    aria-label="MFA verification code"
                   />
                 </div>
 
@@ -1130,24 +1130,13 @@ export default function AdminAuthPage() {
                           <label htmlFor="totp-code">
                             Current authenticator code
                           </label>
-                          <input
+                          <OtpInput
                             id="totp-code"
-                            aria-describedby="totp-code-help"
                             value={totpEnrollmentCode}
-                            onChange={(event) => {
-                              const digits = event.target.value.replace(
-                                /\D/g,
-                                "",
-                              );
-                              setTotpEnrollmentCode(digits);
-                            }}
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            className="auth-input"
-                            placeholder="123456"
-                            maxLength={6}
-                            pattern="[0-9]{6}"
-                            required
+                            onChange={setTotpEnrollmentCode}
+                            length={6}
+                            disabled={isWorking}
+                            aria-label="Current authenticator code"
                           />
                           <span id="totp-code-help" className="auth-field-help">
                             Codes refresh about every 30 seconds. If one
@@ -1234,16 +1223,13 @@ export default function AdminAuthPage() {
                     {mfaEnrollmentVerificationId.length > 0 && (
                       <div className="auth-input-group">
                         <label htmlFor="sms-code">MFA Verification Code</label>
-                        <input
+                        <OtpInput
                           id="sms-code"
                           value={mfaEnrollmentCode}
-                          onChange={(event) =>
-                            setMfaEnrollmentCode(event.target.value)
-                          }
-                          inputMode="numeric"
-                          className="auth-input"
-                          placeholder="123456"
-                          maxLength={6}
+                          onChange={setMfaEnrollmentCode}
+                          length={6}
+                          disabled={isWorking}
+                          aria-label="SMS MFA verification code"
                         />
                       </div>
                     )}

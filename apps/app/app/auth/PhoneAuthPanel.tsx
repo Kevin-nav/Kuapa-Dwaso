@@ -11,6 +11,7 @@ import {
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "./firebase";
+import { OtpInput } from "@kuapa-dwaso/ui";
 
 type PhoneAuthPanelProps = {
   onVerified: (user: User) => Promise<void> | void;
@@ -158,19 +159,13 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
 
           <div className="field">
             <span className="field-label">Verification code</span>
-            <input
+            <OtpInput
               id="otp"
-              className="otp-input"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]*"
-              maxLength={6}
-              placeholder="• • • • • •"
               value={otp}
-              onChange={(event) => setOtp(event.target.value)}
-              required
+              onChange={setOtp}
+              length={6}
               disabled={isVerifying}
+              aria-label="Phone verification code"
             />
             <span className="field-help">Enter the 6-digit code we sent you.</span>
           </div>
