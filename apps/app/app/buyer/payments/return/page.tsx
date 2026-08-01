@@ -13,6 +13,7 @@ function PaymentReturnContent() {
   const { firebaseUser } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("Verifying your payment with the provider.");
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   const buyerOrderId = searchParams.get("buyerOrderId");
   const reference =
@@ -57,7 +58,7 @@ function PaymentReturnContent() {
     return () => {
       cancelled = true;
     };
-  }, [blockingMessage, firebaseUser, reference]);
+  }, [blockingMessage, firebaseUser, reference, retryAttempt]);
 
   const orderHref = buyerOrderId === null ? "/buyer/orders" : `/buyer/orders/${buyerOrderId}`;
   const displayStatus = blockingMessage === null ? status : "error";
@@ -79,6 +80,13 @@ function PaymentReturnContent() {
             {displayStatus === "loading" ? "Verifying payment" : displayStatus === "success" ? "Payment verified" : "Payment needs attention"}
           </span>
           <span className="attention-text">{displayMessage}</span>
+          {displayStatus === "error" && blockingMessage === null && (
+            <button type="button" className="btn btn-secondary" onClick={() => {
+              setStatus("loading");
+              setMessage("Checking the same payment again. Your order and reference are still saved.");
+              setRetryAttempt((attempt) => attempt + 1);
+            }}>Try verification again</button>
+          )}
         </div>
       </div>
 

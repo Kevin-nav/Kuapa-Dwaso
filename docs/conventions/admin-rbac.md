@@ -53,6 +53,15 @@ Warehouse-agent operational checks remain separate from admin RBAC. A warehouse
 agent can still operate only assigned warehouses through the existing warehouse
 agent checks.
 
+`warehouse_manager` remains an administrative role, not a marketplace role. It
+uses `apps/admin` for warehouse-scoped oversight of agents, inventory, buyer
+orders, market schedules, dated runs, dispatches, reports, notifications, and
+auditable actions. `apps/ops` remains the focused warehouse-agent execution
+surface; whole interfaces are not duplicated there for managers. Every manager
+query filters inaccessible records and every mutation evaluates the assigned
+warehouse target. A warehouse grant never matches another warehouse or an
+unrelated global record.
+
 Admin access changes are audited through `auditLogs`.
 
 ## Bootstrap

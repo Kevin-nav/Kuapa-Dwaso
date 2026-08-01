@@ -4,8 +4,8 @@ import { SiteHeader, Logo } from "./site-header";
 const proofPoints = [
   ["Warehouse-verified", "Produce is received, weighed, graded, and recorded"],
   ["Storage receipts", "Farmers get clear records for every inventory batch"],
-  ["Buyer orders", "Buyers order from real warehouse stock"],
-  ["Dispatch ready", "Warehouse-to-market movement is tracked"],
+  ["Published cutoffs", "Traders know when orders close and payment is due"],
+  ["Scheduled delivery", "Confirmed orders move to selected market destinations"],
 ] as const;
 
 const steps = [
@@ -19,7 +19,11 @@ const steps = [
   },
   {
     title: "Buyers order verified stock",
-    body: "Buyers purchase from available warehouse inventory, and dispatches move produce to the buyer or destination market.",
+    body: "Traders order before a published cutoff for a dated run to a selected market destination or collection point.",
+  },
+  {
+    title: "Orders travel together",
+    body: "Kuapa Dwaso aggregates confirmed orders and prepares one scheduled market delivery without mixing incompatible loads.",
   },
 ] as const;
 
@@ -30,9 +34,19 @@ const audiences = [
     body: "Store produce locally, track storage fees, see sale status, and receive one-way SMS updates.",
   },
   {
-    title: "For Buyers",
+    title: "For Market Traders and Bulk Buyers",
     href: "#buyers",
-    body: "Source verified produce from warehouse stock by crop, grade, location, and dispatch day.",
+    body: "See selected destinations, published delivery days, order cutoffs, payment deadlines, and available warehouse stock.",
+  },
+  {
+    title: "For Transporters",
+    href: "#how",
+    body: "Receive assigned dispatch details and share concise operational updates for scheduled runs.",
+  },
+  {
+    title: "For Invited Staff",
+    href: "#access",
+    body: "Use the secure invitation you received to join the correct warehouse or administrative workspace.",
   },
   {
     title: "For Warehouses",
@@ -65,7 +79,7 @@ export default function LandingPage() {
         <ProofBar />
         <WarehouseSection />
         <HowItWorks />
-        <AudienceCards />
+        <AudienceCards appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
         <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
@@ -102,9 +116,9 @@ function HeroSection({ appAuthHref, appLoginHref }: { appAuthHref: string; appLo
             <span className="text-[#7dd8a0]">Sell from verified stock.</span>
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
-            Kuapa Dwaso helps farmers deposit produce at community warehouses,
-            gives buyers access to verified inventory, and tracks storage fees,
-            sales, and dispatches in one system.
+            Traders place orders before a published cutoff. Kuapa Dwaso aggregates
+            confirmed orders and delivers produce to selected market destinations
+            on scheduled days.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <a href={appAuthHref} className="btn-primary">
@@ -177,7 +191,7 @@ function HowItWorks() {
           From warehouse intake to sale and dispatch.
         </h2>
 
-        <ol className="mt-12 grid gap-8 lg:mt-16 lg:grid-cols-3">
+        <ol className="mt-12 grid gap-8 lg:mt-16 lg:grid-cols-2">
           {steps.map((step, index) => (
             <li key={step.title} className="flex gap-5 sm:gap-6">
               <span className="step-number">{index + 1}</span>
@@ -195,7 +209,7 @@ function HowItWorks() {
   );
 }
 
-function AudienceCards() {
+function AudienceCards({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
   return (
     <section id="buyers" className="bg-brand-surface py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
@@ -203,9 +217,9 @@ function AudienceCards() {
         <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
           One warehouse network, clear roles.
         </h2>
-        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-3 md:gap-6">
+        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
           {audiences.map((audience) => (
-            <a key={audience.title} href={audience.href} className="audience-card">
+            <a key={audience.title} href={audience.title === "For Invited Staff" ? appLoginHref : audience.href} className="audience-card">
               <h3 className="font-display text-xl font-semibold text-brand-ink">{audience.title}</h3>
               <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">{audience.body}</p>
               <span className="card-arrow">
@@ -214,7 +228,14 @@ function AudienceCards() {
               </span>
             </a>
           ))}
+          <a id="access" href={appLoginHref} className="audience-card">
+            <h3 className="font-display text-xl font-semibold text-brand-ink">For Existing Users</h3>
+            <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">Log in once and Kuapa Dwaso routes your verified identity to the right workspace.</p>
+            <span className="card-arrow">Log in<ArrowIcon /></span>
+          </a>
         </div>
+        <p className="mt-6 text-sm text-brand-ink/60">New farmers, traders, and partners can register for the pilot. Staff access is invitation-only.</p>
+        <a href={appAuthHref} className="mt-4 inline-flex font-bold text-brand-field">Register for the pilot</a>
       </div>
     </section>
   );
@@ -225,12 +246,11 @@ function FinalCta({ appAuthHref, appLoginHref }: { appAuthHref: string; appLogin
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
         <h2 className="font-display text-[length:var(--text-h2)] font-bold leading-tight text-white">
-          Build the warehouse flow.
+          Order for a published delivery day.
         </h2>
         <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
-          The MVP proves one simple loop: deposit produce, create a receipt,
-          reserve stock, sell it, dispatch it, and show the farmer a clear net
-          update.
+          Choose an available destination and run, order before cutoff, pay by
+          the stated deadline, and follow reservation and preparation updates.
         </p>
         <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
           <a href={appAuthHref} className="btn-light">
@@ -259,8 +279,8 @@ function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
               <span className="font-display text-lg font-bold text-white">Kuapa Dwaso</span>
             </a>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
-              Warehouse-based produce storage, inventory, sales, and dispatch
-              for farmers and buyers in Ghana.
+              Warehouse-based produce aggregation and scheduled market delivery
+              for farmers, traders, partners, and transporters in Ghana.
             </p>
           </div>
 

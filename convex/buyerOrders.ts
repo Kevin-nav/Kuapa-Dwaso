@@ -10,6 +10,7 @@ import {
   allocateInventoryReservations,
   calculateBuyerOrderCharges,
   calculateReservableBatchQuantity,
+  assertOrderCanJoinMarketRun,
   inventoryBatchStatusesVisibleToBuyers,
 } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
@@ -22,11 +23,13 @@ import {
   assertAllowed,
   auditSnapshot,
   buyerOrderScopeTarget,
+  cleanOptionalText,
   getActor,
   insertAuditLog,
   omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
   type Actor,
 } from "./workflowHelpers";
 
@@ -320,14 +323,33 @@ async function insertBuyerOrderNotification(
   orderId: Id<"buyerOrders">,
   title: string,
   message: string,
+  options: { actionRequired?: boolean; dueAt?: number; priority?: "low" | "normal" | "high" | "urgent" } = {},
 ): Promise<void> {
   await insertNotificationRecord(ctx, {
     recipientId: buyer._id,
     recipientUserId: buyer.userId,
     recipientRole: "buyer",
+    channel: "in_app",
+    title,
+    message,
+    messageKind: "buyer_order_update",
+    relatedEntityType: "buyer_order",
+    relatedEntityId: orderId,
+    actionUrl: `/buyer/orders/${orderId}`,
+    actionRequired: options.actionRequired,
+    priority: options.priority ?? "normal",
+    dueAt: options.dueAt,
+    deduplicationKey: `buyer-order:${orderId}:${title.toLowerCase().replace(/\s+/g, "-")}:in-app`,
+  });
+  await insertNotificationRecord(ctx, {
+    recipientId: buyer.phoneNumber,
+    recipientUserId: buyer.userId,
+    recipientRole: "buyer",
     channel: "sms",
     title,
     message,
+    messageKind: "buyer_order_update",
+    templateKey: "generic_notification",
     relatedEntityType: "buyer_order",
     relatedEntityId: orderId,
   });
@@ -490,6 +512,8 @@ export const create = mutation({
     requestedDeliveryDate: v.optional(v.number()),
     maxPricePerUnit: v.optional(v.number()),
     reservationExpiresAt: v.optional(v.number()),
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
+    afterCutoffExceptionReason: v.optional(v.string()),
     clientRequestId: v.optional(v.string()),
   },
   returns: v.id("buyerOrders"),
@@ -508,8 +532,28 @@ export const create = mutation({
     const destinationMarket = cleanText(args.destinationMarket, "Destination market");
     const cropType = cleanText(args.cropType, "Crop type");
     const unit = cleanText(args.unit, "Unit");
+    assertAllowed(actor.role !== "buyer" || args.marketDeliveryRunId !== undefined, "Choose an available market delivery run before placing this order.");
+    const run = args.marketDeliveryRunId === undefined ? null : await ctx.db.get(args.marketDeliveryRunId);
+    if (args.marketDeliveryRunId !== undefined) assertAllowed(run !== null, "Market delivery run was not found.");
     if (actor.role === "admin") {
-      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", { destinationMarket });
+      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", run === null
+        ? { destinationMarket }
+        : { ...(await warehouseScopeTarget(ctx, run.originWarehouseId)), destinationMarket });
+    }
+    if (args.marketDeliveryRunId !== undefined) {
+      assertAllowed(run !== null, "Market delivery run was not found.");
+      assertOrderCanJoinMarketRun({
+        runStatus: run.status,
+        now: Date.now(),
+        orderCutoffAt: run.orderCutoffAt,
+        runOriginWarehouseId: String(run.originWarehouseId),
+        inventoryWarehouseIds: [String(args.warehouseId ?? run.originWarehouseId)],
+        runDestination: run.destinationName,
+        orderDestination: destinationMarket,
+        authorizedAfterCutoff: actor.role === "admin" && cleanOptionalText(args.afterCutoffExceptionReason) !== undefined,
+        ...(args.afterCutoffExceptionReason === undefined ? {} : { exceptionReason: args.afterCutoffExceptionReason }),
+      });
+      assertAllowed(args.warehouseId === undefined || args.warehouseId === run.originWarehouseId, "Order warehouse does not match the delivery run origin.");
     }
     assertPositiveNumber(args.requestedQuantity, "Requested quantity");
     if (args.maxPricePerUnit !== undefined) {
@@ -523,6 +567,13 @@ export const create = mutation({
     }
 
     const now = Date.now();
+    const isAuthorizedAfterCutoff = run !== null && now >= run.orderCutoffAt && actor.role === "admin" && cleanOptionalText(args.afterCutoffExceptionReason) !== undefined;
+    const effectiveReservationExpiry = run === null
+      ? args.reservationExpiresAt
+      : isAuthorizedAfterCutoff
+        ? Math.min(args.reservationExpiresAt ?? run.expectedArrivalStartAt, run.expectedArrivalStartAt)
+        : Math.min(args.reservationExpiresAt ?? run.orderCutoffAt, run.orderCutoffAt);
+    const paymentDeadline = run === null ? args.reservationExpiresAt : effectiveReservationExpiry;
     const orderId = await ctx.db.insert("buyerOrders", omitUndefinedValues({
       buyerId: args.buyerId,
       destinationMarket,
@@ -531,6 +582,15 @@ export const create = mutation({
       unit,
       preferredGrade: args.preferredGrade,
       requestedDeliveryDate: args.requestedDeliveryDate,
+      marketDeliveryRunId: run?._id,
+      deliveryDateSnapshot: run?.deliveryDateAt,
+      orderCutoffSnapshot: run?.orderCutoffAt,
+      expectedArrivalStartSnapshot: run?.expectedArrivalStartAt,
+      expectedArrivalEndSnapshot: run?.expectedArrivalEndAt,
+      fulfilmentInstructionsSnapshot: run?.destinationInstructions,
+      paymentDeadline,
+      authorizedAfterCutoffByUserId: isAuthorizedAfterCutoff ? actor._id : undefined,
+      afterCutoffExceptionReason: isAuthorizedAfterCutoff ? cleanOptionalText(args.afterCutoffExceptionReason) : undefined,
       maxPricePerUnit: args.maxPricePerUnit,
       matchedInventoryBatchIds: [],
       paymentStatus: "awaiting_payment",
@@ -538,18 +598,25 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     }));
+    if (run !== null) {
+      await ctx.db.patch(run._id, {
+        buyerOrderIds: run.buyerOrderIds.includes(orderId) ? run.buyerOrderIds : [...run.buyerOrderIds, orderId],
+        updatedAt: now,
+      });
+    }
     await insertBuyerOrderNotification(
       ctx,
       buyer,
       orderId,
       "Order submitted",
       `Your order for ${args.requestedQuantity} ${unit} of ${cropType} has been submitted.`,
+      { actionRequired: true, ...(paymentDeadline === undefined ? {} : { dueAt: paymentDeadline }), priority: "high" },
     );
 
     const candidates = await findReservableBatches(ctx, omitUndefinedValues({
       cropType,
       unit,
-      warehouseId: args.warehouseId,
+      warehouseId: run?.originWarehouseId ?? args.warehouseId,
       destinationMarket,
       preferredGrade: args.preferredGrade,
       maxPricePerUnit: args.maxPricePerUnit,
@@ -620,7 +687,7 @@ export const create = mutation({
         quantityReleased: 0,
         quantityFulfilled: 0,
         unit: batch.unit,
-        expiresAt: args.reservationExpiresAt,
+        expiresAt: effectiveReservationExpiry,
         status: "active",
         createdAt: now,
         updatedAt: now,
@@ -718,6 +785,7 @@ export const create = mutation({
       orderId,
       "Order reserved",
       `Your order for ${args.requestedQuantity} ${unit} of ${cropType} has been reserved for ${destinationMarket}.`,
+      { actionRequired: true, ...(paymentDeadline === undefined ? {} : { dueAt: paymentDeadline }), priority: "high" },
     );
     await insertAuditLog(ctx, {
       actor,
@@ -1037,6 +1105,20 @@ export const getById = query({
       );
       if (actor.role === "admin") {
         await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+      } else {
+        const warehouseIds = new Set<Id<"warehouses">>();
+        if (order.marketDeliveryRunId !== undefined) {
+          const run = await ctx.db.get(order.marketDeliveryRunId);
+          if (run !== null) warehouseIds.add(run.originWarehouseId);
+        }
+        for (const batchId of order.matchedInventoryBatchIds) {
+          const batch = await ctx.db.get(batchId);
+          if (batch !== null) warehouseIds.add(batch.warehouseId);
+        }
+        assertAllowed(warehouseIds.size > 0, "Warehouse agents cannot view an unscoped legacy order.");
+        for (const warehouseId of warehouseIds) {
+          await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, warehouseId);
+        }
       }
     }
 
@@ -1052,9 +1134,11 @@ export const getById = query({
       .query("paymentTransactions")
       .withIndex("by_order", (q) => q.eq("buyerOrderId", args.buyerOrderId))
       .collect();
+    const marketDeliveryRun = order.marketDeliveryRunId === undefined ? null : await ctx.db.get(order.marketDeliveryRunId);
 
     return {
       ...order,
+      marketDeliveryRun,
       buyer,
       reservations,
       charges,
@@ -1140,7 +1224,29 @@ export const listForOperations = query({
         continue;
       }
       if (actor.role === "admin") {
-        await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+        try {
+          await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+        } catch {
+          continue;
+        }
+      } else {
+        const run = order.marketDeliveryRunId === undefined
+          ? null
+          : await ctx.db.get(order.marketDeliveryRunId);
+        const warehouseIds = new Set<Id<"warehouses">>();
+        if (run !== null) warehouseIds.add(run.originWarehouseId);
+        for (const batchId of order.matchedInventoryBatchIds) {
+          const batch = await ctx.db.get(batchId);
+          if (batch !== null) warehouseIds.add(batch.warehouseId);
+        }
+        if (warehouseIds.size === 0) continue;
+        try {
+          for (const warehouseId of warehouseIds) {
+            await requireWarehouseAgentAssignedToWarehouse(ctx, args.actorUserId, warehouseId);
+          }
+        } catch {
+          continue;
+        }
       }
       results.push(order);
       if (results.length >= limit) {

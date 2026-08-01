@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { getIdToken } from "firebase/auth";
+import { QRCodeSVG } from "qrcode.react";
 import type { User } from "firebase/auth";
 import type {
   AdminRoleKey,
@@ -43,7 +44,6 @@ const inviteTypes: PlatformInvitationType[] = [
   "warehouse_agent_invite",
   "transporter_invite",
 ];
-const mfaRequirements: MfaRequirement[] = ["not_required", "sms_required", "totp_required", "required"];
 const tabs = ["Invites", "Admin Users", "Groups", "Permission Preview"] as const;
 
 type TabKey = (typeof tabs)[number];
@@ -409,18 +409,20 @@ function InvitesPanel({
 }) {
   const [type, setType] = useState<PlatformInvitationType>("admin_invite");
   const [channel, setChannel] = useState<InvitationChannel>("email");
-  const [target, setTarget] = useState("");
+  const [targetEmail, setTargetEmail] = useState("");
+  const [targetPhoneNumber, setTargetPhoneNumber] = useState("");
   const [roleKey, setRoleKey] = useState<AdminRoleKey>("admin_viewer");
   const [scopeType, setScopeType] = useState<AdminScopeType>("global");
   const [scopeValue, setScopeValue] = useState("");
   const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("totp_required");
   const [isWorking, setIsWorking] = useState(false);
+  const [manualInviteUrl, setManualInviteUrl] = useState<string>();
 
   const allowedChannels = useMemo<InvitationChannel[]>(() => {
     if (type === "admin_invite" || type === "warehouse_manager_invite") {
       return ["email"];
     }
-    return ["email", "sms"];
+    return ["email", "manual_link"];
   }, [type]);
 
   async function submit(event: FormEvent) {
@@ -437,17 +439,15 @@ function InvitesPanel({
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         mfaRequirement,
       };
-      if (channel === "email") {
-        body.targetEmail = target.trim();
-      } else {
-        body.targetPhoneNumber = target.trim();
-      }
+      const phonePrimary = type === "warehouse_agent_invite" || type === "transporter_invite";
+      if (channel === "email") body.targetEmail = targetEmail.trim();
+      if (phonePrimary) body.targetPhoneNumber = targetPhoneNumber.trim();
       if (type === "admin_invite" || type === "warehouse_manager_invite") {
         body.pendingAdminRoleAssignment = {
-          roleKey,
-          scopeType,
-          ...(scopeType === "warehouse" ? { scopeId: scopeValue.trim() } : {}),
-          ...(scopeType !== "global" && scopeType !== "warehouse" ? { scopeValue: scopeValue.trim() } : {}),
+          roleKey: type === "warehouse_manager_invite" ? "warehouse_manager" : roleKey,
+          scopeType: type === "warehouse_manager_invite" ? "warehouse" : scopeType,
+          ...((type === "warehouse_manager_invite" || scopeType === "warehouse") ? { scopeId: scopeValue.trim() } : {}),
+          ...(type !== "warehouse_manager_invite" && scopeType !== "global" && scopeType !== "warehouse" ? { scopeValue: scopeValue.trim() } : {}),
         };
       }
       const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/invitations`, {
@@ -461,9 +461,11 @@ function InvitesPanel({
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      await response.json();
-      setTarget("");
-      onCreateSuccess(`Invitation successfully sent to ${target.trim()} via ${channel === "email" ? "email" : "SMS"}.`);
+      const result = await response.json() as { manualInviteUrl?: string };
+      setManualInviteUrl(result.manualInviteUrl);
+      setTargetEmail("");
+      setTargetPhoneNumber("");
+      onCreateSuccess(channel === "email" ? "Invitation sent by email." : "Secure manual link generated. Copy or present it now; the raw token is not stored and cannot be shown again.");
     } catch (err) {
       onFailure(err);
     } finally {
@@ -485,7 +487,15 @@ function InvitesPanel({
               setType(val);
               if (val === "admin_invite" || val === "warehouse_manager_invite") {
                 setChannel("email");
+                setMfaRequirement("totp_required");
+                if (val === "warehouse_manager_invite") {
+                  setRoleKey("warehouse_manager");
+                  setScopeType("warehouse");
+                }
+              } else {
+                setMfaRequirement("not_required");
               }
+              setManualInviteUrl(undefined);
             }}
             style={inputStyle}
           >
@@ -497,30 +507,38 @@ function InvitesPanel({
             {allowedChannels.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
         </Field>
-        <Field label={channel === "email" ? "Target email" : "Target phone number"}>
-          <input value={target} onChange={(event) => setTarget(event.target.value)} required style={inputStyle} />
-        </Field>
+        {channel === "email" && <Field label="Delivery email"><input type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} required style={inputStyle} /></Field>}
+        {(type === "warehouse_agent_invite" || type === "transporter_invite") && (
+          <Field label="Verified sign-in phone"><input type="tel" value={targetPhoneNumber} onChange={(event) => setTargetPhoneNumber(event.target.value)} required placeholder="+233..." style={inputStyle} /></Field>
+        )}
         {(type === "admin_invite" || type === "warehouse_manager_invite") && (
           <>
             <Field label="Initial role">
               <select value={roleKey} onChange={(event) => setRoleKey(event.target.value as AdminRoleKey)} style={inputStyle}>
-                {roleKeys.map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}
+                {(type === "warehouse_manager_invite" ? ["warehouse_manager"] : roleKeys.filter((item) => item !== "warehouse_manager")).map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}
               </select>
             </Field>
-            <ScopeFields warehouses={warehouses} scopeType={scopeType} scopeValue={scopeValue} setScopeType={setScopeType} setScopeValue={setScopeValue} />
+            {type === "warehouse_manager_invite" ? (
+              <Field label="Assigned warehouse"><select required value={scopeValue} onChange={(event) => setScopeValue(event.target.value)} style={inputStyle}><option value="">Select warehouse</option>{warehouses.map((warehouse) => <option key={warehouse._id} value={warehouse._id}>{warehouse.name}</option>)}</select></Field>
+            ) : <ScopeFields warehouses={warehouses} scopeType={scopeType} scopeValue={scopeValue} setScopeType={setScopeType} setScopeValue={setScopeValue} />}
           </>
         )}
-        <Field label="MFA requirement">
-          <select value={mfaRequirement} onChange={(event) => setMfaRequirement(event.target.value as MfaRequirement)} style={inputStyle}>
-            {mfaRequirements.map((item) => <option key={item} value={item}>{formatLabel(item)}</option>)}
-          </select>
-        </Field>
+        <Field label="Authentication security"><input readOnly value={type === "admin_invite" || type === "warehouse_manager_invite" ? "Verified email + required authenticator MFA" : "Verified phone OTP"} style={{ ...inputStyle, background: gray[25] }} /></Field>
         <p style={{ color: gray[500], fontSize: "0.8125rem", lineHeight: 1.45, margin: 0 }}>
-          Email invites use the API Resend provider boundary. SMS invites use the mock SMS provider until a real provider is selected.
+          Invitation links are delivered by email or shown here as a secure manual link. SMS is reserved for transactional updates.
         </p>
         <button disabled={isWorking} type="submit" style={{ ...buttonStyle, opacity: isWorking ? 0.65 : 1 }}>
-          {isWorking ? "Sending..." : "Send invitation"}
+          {isWorking ? "Working..." : channel === "email" ? "Send invitation" : "Generate secure link"}
         </button>
+        {manualInviteUrl !== undefined && (
+          <section aria-live="polite" style={{ border: `1px solid ${gray[100]}`, borderRadius: "8px", padding: "14px", display: "grid", gap: "12px", justifyItems: "center" }}>
+            <strong>Present this link once</strong>
+            <QRCodeSVG value={manualInviteUrl} size={180} level="M" />
+            <input readOnly value={manualInviteUrl} style={{ ...inputStyle, width: "100%" }} aria-label="Manual invitation link" />
+            <button type="button" style={buttonStyle} onClick={() => void navigator.clipboard.writeText(manualInviteUrl).then(() => onCreateSuccess("Secure invitation link copied."))}>Copy secure link</button>
+            <small style={{ color: gray[500] }}>The raw token is not saved. Generate a new invitation if this link is lost.</small>
+          </section>
+        )}
       </form>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", minWidth: 0 }}>

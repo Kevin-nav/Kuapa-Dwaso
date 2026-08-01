@@ -48,7 +48,7 @@ The top-level `apps/`, `packages/`, `convex/`, and `docs/` folders are intention
 
 ## Data and workflow ownership
 
-Convex is the product system of record. It owns warehouses, warehouse agents, farmers, buyers, transporters, inventory batches and reservations, storage-fee ledgers, fee rules, buyer orders and charges, sales and deductions, dispatches, notifications, disputes, audit logs, and settings.
+Convex is the product system of record. It owns warehouses, warehouse agents, farmers, buyers, transporters, inventory batches and reservations, recurring market-service schedules, dated market-delivery runs, storage-fee ledgers, fee rules, buyer orders and charges, sales and deductions, dispatches, notifications, disputes, audit logs, and settings.
 
 The API calls provider SDKs and receives provider webhooks. It validates and translates those interactions into product workflow updates, but it must not hold a competing workflow database. Firebase supplies identity; it is not the warehouse data store.
 
@@ -59,7 +59,12 @@ warehouse · warehouse_agent · inventory_batch · storage_receipt
 storage_fee_ledger · buyer_order · sale_record · dispatch
 ```
 
-State transitions are centrally constrained in the shared permissions package. This keeps inventory, order, payment, and dispatch changes explicit and helps prevent invalid transitions such as dispatching unreserved stock.
+Schedules express a recurring service promise, runs snapshot one dated
+occurrence, and dispatches record physical movement. These records are not
+collapsed. Buyer orders bind to a run before cutoff, while operations teams aggregate
+quantities by compatible crop and unit only.
+
+State transitions are centrally constrained in the shared permissions package. This keeps inventory, order, payment, run, and dispatch changes explicit and helps prevent invalid transitions such as dispatching unreserved stock.
 
 ## Integrations
 
@@ -76,7 +81,7 @@ State transitions are centrally constrained in the shared permissions package. T
 
 - Firebase ID tokens are verified on protected API routes.
 - Roles and scoped permissions are centralized in `packages/permissions` and enforced in product workflows.
-- Admin access supports invitations, scoped roles, groups, effective-permission review, and multi-factor authentication flows.
+- Admin access supports email/manual-link invitations, scoped roles, groups, effective-permission review, and multi-factor authentication flows. Account invitation links are never sent by SMS.
 - Provider credentials, webhook secrets, and Firebase Admin credentials stay server-side. Only `NEXT_PUBLIC_*` browser configuration is exposed to clients.
 - Sensitive operational activity is auditable; disputes and evidence provide an exception path.
 - Private upload storage is accessed through signed URLs rather than public object URLs.

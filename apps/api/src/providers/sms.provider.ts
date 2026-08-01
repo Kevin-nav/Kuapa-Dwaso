@@ -71,8 +71,8 @@ type ArkeselSendResponse = {
 };
 
 @Injectable()
-export class SmsInviteProvider {
-  private readonly logger = new Logger(SmsInviteProvider.name);
+export class TransactionalSmsProvider {
+  private readonly logger = new Logger(TransactionalSmsProvider.name);
 
   async sendSms(input: SmsInput): Promise<SmsDeliveryResult> {
     const env = getApiEnvironment();
@@ -95,10 +95,6 @@ export class SmsInviteProvider {
       arkeselConfig.sender = env.sms.fromName;
     }
     return await sendArkeselSms(normalized, arkeselConfig);
-  }
-
-  async sendInviteSms(input: Omit<SmsInput, "kind">): Promise<SmsDeliveryResult> {
-    return await this.sendSms({ ...input, kind: "invite" });
   }
 }
 
@@ -208,7 +204,7 @@ function warnForExpensiveHighFrequencyMessage(
   logger: Logger,
 ): void {
   if (
-    (input.kind === "invite" || input.kind === "notification" || input.kind === "otp") &&
+    (input.kind === "notification" || input.kind === "otp") &&
     input.segmentEstimate.segments > maxHighFrequencySegments
   ) {
     logger.warn(

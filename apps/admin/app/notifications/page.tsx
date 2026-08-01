@@ -1,11 +1,16 @@
 "use client";
 
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { DataTable, StatusBadge, gray, palette } from "@kuapa-dwaso/dashboard-ui";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
 export default function NotificationsPage() {
   const { access, notifications } = useOperationalAdminData();
+  const markRead = useMutation(api.notifications.markRead);
+  const acknowledge = useMutation(api.notifications.acknowledge);
 
   return (
     <OperationalAccessGate
@@ -31,6 +36,9 @@ export default function NotificationsPage() {
             { key: "recipientRole", header: "Recipient Role", type: "text" as const },
             { key: "channel", header: "Channel", type: "text" as const },
             { key: "title", header: "Title", type: "text" as const },
+            { key: "priority", header: "Priority", render: (row) => <StatusBadge status={String(row.priority ?? "normal")} /> },
+            { key: "actionRequired", header: "Action", render: (row) => row.actionRequired === true ? (row.acknowledgedAt === undefined ? "Required" : "Acknowledged") : "Information" },
+            { key: "dueAt", header: "Due", render: (row) => row.dueAt === undefined ? "None" : new Date(Number(row.dueAt)).toLocaleString() },
             { key: "relatedEntityType", header: "Related", render: (row) => row.relatedEntityType === undefined ? "None" : `${String(row.relatedEntityType)} (${String(row.relatedEntityId ?? "")})` },
             { key: "status", header: "Status", render: (row) => <StatusBadge status={String(row.status)} /> },
           ]}
@@ -52,6 +60,10 @@ export default function NotificationsPage() {
                 <Field label="Status" value={String(row.status)} />
                 <Field label="Created" value={new Date(Number(row.createdAt)).toLocaleString()} />
                 <Field label="Sent" value={row.sentAt === undefined ? "Not sent" : new Date(Number(row.sentAt)).toLocaleString()} />
+                <Field label="Priority" value={String(row.priority ?? "normal")} />
+                <Field label="Action required" value={row.actionRequired === true ? "Yes" : "No"} />
+                <Field label="Due" value={row.dueAt === undefined ? "No deadline" : new Date(Number(row.dueAt)).toLocaleString()} />
+                <Field label="Acknowledged" value={row.acknowledgedAt === undefined ? "Not acknowledged" : new Date(Number(row.acknowledgedAt)).toLocaleString()} />
               </section>
 
               <section style={{ border: `1px solid ${gray[100]}`, borderRadius: "8px", padding: "16px" }}>
@@ -66,6 +78,15 @@ export default function NotificationsPage() {
                     {String(row.relatedEntityType)} ({String(row.relatedEntityId ?? "")})
                   </p>
                 </section>
+              )}
+              {row.actionUrl !== undefined && (
+                <a href={String(row.actionUrl)} style={{ color: palette.field, fontSize: "0.875rem", fontWeight: 800 }}>Open action destination</a>
+              )}
+              {access.actorUserId !== undefined && row.recipientUserId === access.actorUserId && (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {row.status !== "read" && <button type="button" onClick={() => void markRead({ actorUserId: access.actorUserId as Id<"users">, notificationId: String(row.id) as Id<"notifications"> })}>Mark read</button>}
+                  {row.actionRequired === true && row.acknowledgedAt === undefined && <button type="button" onClick={() => void acknowledge({ actorUserId: access.actorUserId as Id<"users">, notificationId: String(row.id) as Id<"notifications"> })}>Acknowledge</button>}
+                </div>
               )}
             </div>
           )}

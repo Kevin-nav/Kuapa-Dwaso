@@ -15,9 +15,10 @@ Kuapa Dwaso changes the flow from individual, speculative trips to market into a
 1. A farmer deposits produce at a community warehouse.
 2. A warehouse agent receives, weighs, grades, photographs, and records it.
 3. The platform creates an inventory batch and storage receipt.
-4. Buyers order from verified available inventory.
-5. Stock is reserved, prepared, sold, and dispatched against a tracked order.
-6. The farmer can see fees, sale progress, and payment or payout updates.
+4. An admin publishes a dated run from a recurring service to a selected market destination.
+5. Buyers order verified inventory before the run cutoff and pay by the stated deadline.
+6. Compatible orders are aggregated, reserved, prepared, sold, and linked to a physical dispatch.
+7. The farmer can see fees, sale progress, and payment or payout updates.
 
 ## What users can do
 
@@ -54,8 +55,9 @@ The product records sensitive operational changes so that quantity, condition, a
 Buyers work with aggregated, warehouse-held stock—not private farmer records. The buyer flow supports:
 
 - organization profile and verification steps;
-- browsing available inventory summaries by crop, grade, warehouse, quantity, and dispatch timing;
-- creating and tracking orders;
+- choosing a selected market destination and an upcoming delivery run;
+- seeing the published delivery date, cutoff, arrival window, collection instructions, and payment deadline;
+- browsing inventory eligible for that run and creating and tracking an order;
 - payment initiation and order-payment status; and
 - delivery or pickup fulfillment tracking.
 
@@ -71,6 +73,7 @@ The administration console provides network-wide oversight. Authorized teams can
 
 - warehouses, warehouse agents, farmers, buyers, and transporters;
 - inventory, fee rules, orders, sales, payments, payouts, and dispatches;
+- recurring market-service schedules, dated delivery runs, and compatible-unit readiness;
 - notifications, disputes, evidence, reports, and audit logs; and
 - scoped access, roles, invitations, groups, and multi-factor authentication requirements.
 
@@ -82,6 +85,7 @@ The administration console provides network-wide oversight. Authorized teams can
 | Inventory batches and reservations     | Separates received, available, reserved, sold, and dispatched quantities to prevent overselling. |
 | Storage-fee ledger                     | Makes daily storage charges and later deductions visible and historically stable.                |
 | Buyer order workflow                   | Connects verified stock to an accountable order from submission through completion.              |
+| Scheduled market delivery              | Publishes destinations, cutoffs, dated runs, and arrival windows without conflating a run with a dispatch. |
 | Sales, deductions, and payout tracking | Shows the financial outcome for the batch and the farmer amount due.                             |
 | Dispatch tracking                      | Links the warehouse, order, transporter, destination, cost, and fulfillment status.              |
 | Notifications                          | Delivers important updates through in-app notifications and one-way SMS.                         |
@@ -95,6 +99,7 @@ The administration console provides network-wide oversight. Authorized teams can
 - **Financial and fulfillment states are separate.** A buyer's payment, a farmer's sale payment, and an order's delivery progress can each be at different stages.
 - **Private information is protected.** Buyers see warehouse inventory, not farmer-private details.
 - **Exceptions have a route.** Spoilage, withdrawal, cancellation, payment problems, and operational issues can be disputed and reviewed.
+- **Gross value is not revenue.** Reports distinguish farmer-owned produce value, platform service fees, cash collected, outstanding orders, and payable/paid payouts using actual records only.
 
 ## Status language at a glance
 

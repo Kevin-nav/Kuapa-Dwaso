@@ -25,8 +25,25 @@ Convex stores only token hashes and invite state. Invite acceptance must fail
 closed when the verified Firebase email or phone number does not match the
 invite target.
 
-Email delivery uses the Resend provider boundary. SMS invite delivery is modular
-and mock-only until a real provider is selected.
+Invitation delivery supports only `email` and `manual_link`. Email delivery uses
+the Resend provider boundary. A manual link is returned once to the authorized
+admin UI for copying or QR presentation; only its hash is persisted. SMS must
+never contain an account invitation link. SMS remains a transactional channel
+for receipt, payment, reservation, run, dispatch, reminder, and operational
+alerts.
+
+Role and delivery/authentication combinations are fixed:
+
+| Invitation | Delivery | Authentication | Scope/security |
+| --- | --- | --- | --- |
+| Platform admin | Email only | Verified Google or email/password | Privileged MFA required |
+| Warehouse manager | Email only | Verified Google or email/password | Privileged MFA and a warehouse-scoped `warehouse_manager` assignment required |
+| Warehouse agent | Email or manual secure link | Verified phone OTP | Invitation establishes warehouse/profile; reuse an existing matching identity |
+| Transporter | Email or manual secure link | Verified phone OTP | Reuse an existing matching identity/profile |
+
+Acceptance is single-use, expiration- and revocation-aware, audited, and
+idempotent at the identity/profile boundary. Error messages may explain how to
+recover, but must not reveal a raw token or weaken target matching.
 
 ## Uploads
 
@@ -219,7 +236,8 @@ Invite links use `PUBLIC_APP_URL` and currently resolve to:
 ```
 
 Raw invite tokens are delivered only by the API provider boundary. Convex stores
-only token hashes.
+only token hashes. Email links are passed to Resend; manual links are returned
+once to the authorized admin session for copy or QR presentation.
 
 ## Privileged MFA Setup
 

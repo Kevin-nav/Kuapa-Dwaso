@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CheckCircle2, PauseCircle, RefreshCw } from "lucide-react";
 import { DataTable, StatusBadge, gray, palette } from "@kuapa-dwaso/dashboard-ui";
+import { calculateActualFinancialSummary } from "@kuapa-dwaso/utils";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
 
@@ -25,6 +26,7 @@ export default function FinancePage() {
     sales,
     buyers,
     farmers,
+    storageFeeLedger,
     actions,
   } = useOperationalAdminData();
   const [activeTab, setActiveTab] = useState<"payments" | "webhooks" | "orders" | "sales" | "payouts">("payments");
@@ -83,6 +85,30 @@ export default function FinancePage() {
     [farmers, sales],
   );
 
+  const actualSummary = useMemo(
+    () => calculateActualFinancialSummary({
+      sales: sales.map((sale) => ({
+        grossAmount: Number(sale.grossAmount ?? 0),
+        netAmountDueToFarmer: Number(sale.netAmountDueToFarmer ?? 0),
+        paymentStatus: String(sale.paymentStatus ?? "pending"),
+      })),
+      charges: [
+        ...orders.flatMap((order) => [
+          { amount: Number(order.serviceFee ?? 0), category: "service" as const },
+          { amount: Number(order.transportFee ?? 0), category: "transport" as const },
+        ]),
+        ...storageFeeLedger.map((entry) => ({ amount: Number(entry.amount ?? 0), category: "storage" as const })),
+      ],
+      buyerOrders: orders.map((order) => ({
+        ...(order.totalAmount === undefined ? {} : { totalAmount: Number(order.totalAmount) }),
+        paymentStatus: String(order.paymentStatus ?? "awaiting_payment"),
+      })),
+      payments: payments.map((payment) => ({ amount: Number(payment.amount ?? 0), status: String(payment.status) })),
+      payouts: payoutLedger.map((payout) => ({ amount: Number(payout.amount ?? 0), status: String(payout.status) })),
+    }),
+    [orders, payments, payoutLedger, sales, storageFeeLedger],
+  );
+
   return (
     <OperationalAccessGate
       firebaseUser={access.firebaseUser}
@@ -108,6 +134,28 @@ export default function FinancePage() {
             <Metric label="Review" value={paymentRows.filter((row) => row.status === "manual_review").length + payoutRows.filter((row) => row.status === "manual_review").length} />
           </div>
         </header>
+
+        <section>
+          <h2 style={{ color: gray[900], fontSize: "1rem", margin: "0 0 4px" }}>Actual financial position</h2>
+          <p style={{ color: gray[500], fontSize: "0.8125rem", margin: "0 0 12px" }}>
+            Recorded sales, charges, payments, and payouts only. Gross produce value is not Kuapa Dwaso revenue.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))", gap: "10px" }}>
+            <MoneyMetric label="Gross produce sold" state="Actual" value={actualSummary.grossProduceValue} />
+            <MoneyMetric label="Farmer-owned value" state="Actual" value={actualSummary.farmerOwnedValue} />
+            <MoneyMetric label="Service-fee revenue" state="Accrued" value={actualSummary.serviceFeeRevenue} />
+            <MoneyMetric label="Storage charges" state="Accrued" value={actualSummary.storageCharges} />
+            <MoneyMetric label="Transport charges" state="Accrued" value={actualSummary.transportCharges} />
+            <MoneyMetric label="Insurance charges" state="Actual recorded" value={actualSummary.insuranceCharges} />
+            <MoneyMetric label="Buyer payments" state="Collected" value={actualSummary.buyerPaymentsCollected} />
+            <MoneyMetric label="Buyer orders" state="Outstanding" value={actualSummary.unpaidBuyerOrders} />
+            <MoneyMetric label="Farmer net payouts" state="Payable" value={actualSummary.farmerNetPayoutsDue} />
+            <MoneyMetric label="Farmer payouts" state="Paid" value={actualSummary.payoutsPaid} />
+            <MoneyMetric label="Payment failures" state="Failed" value={actualSummary.paymentFailures} />
+            <MoneyMetric label="Transactions" state="Manual review" value={actualSummary.manualReviewAmounts} />
+            <MoneyMetric label="Amounts" state="Disputed" value={actualSummary.disputedAmounts} />
+          </div>
+        </section>
 
         <nav style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           {[
@@ -431,6 +479,16 @@ function Metric({ label, value }: { label: string; value: number }) {
     <div style={{ border: `1px solid ${gray[100]}`, borderRadius: "8px", background: "white", padding: "8px 12px", minWidth: "92px" }}>
       <span style={{ color: gray[500], fontSize: "0.6875rem", fontWeight: 800, textTransform: "uppercase" }}>{label}</span>
       <p style={{ color: gray[900], fontSize: "1.125rem", fontWeight: 900, margin: "2px 0 0" }}>{value}</p>
+    </div>
+  );
+}
+
+function MoneyMetric({ label, state, value }: { label: string; state: string; value: number }) {
+  return (
+    <div style={{ border: `1px solid ${gray[100]}`, borderRadius: "8px", background: "white", padding: "12px" }}>
+      <span style={{ color: palette.field, fontSize: "0.6875rem", fontWeight: 900, textTransform: "uppercase" }}>{state}</span>
+      <p style={{ color: gray[900], fontSize: "1.125rem", fontWeight: 900, margin: "4px 0" }}>GHS {value.toFixed(2)}</p>
+      <span style={{ color: gray[500], fontSize: "0.75rem", fontWeight: 700 }}>{label}</span>
     </div>
   );
 }

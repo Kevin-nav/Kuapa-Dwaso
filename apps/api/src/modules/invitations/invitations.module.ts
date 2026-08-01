@@ -7,7 +7,6 @@ import { FirebaseAdminTokenVerifier } from "../../providers/firebase-auth.provid
 import { InviteTemplatesProvider } from "../../providers/invite-templates.provider.js";
 import { InviteTokenProvider } from "../../providers/invite-token.provider.js";
 import { InMemoryRateLimitProvider } from "../../providers/rate-limit.provider.js";
-import { SmsInviteProvider } from "../../providers/sms.provider.js";
 import { ConvexUserProfilesProvider } from "../../providers/convex-user-profiles.provider.js";
 import { InvitationsController } from "./invitations.controller.js";
 
@@ -22,8 +21,7 @@ import { InvitationsController } from "./invitations.controller.js";
     InviteTemplatesProvider,
     InviteTokenProvider,
     ResendEmailProvider,
-    RoleGuard,
-    SmsInviteProvider
+    RoleGuard
   ]
 })
 export class InvitationsModule {}

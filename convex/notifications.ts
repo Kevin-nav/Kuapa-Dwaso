@@ -1,8 +1,20 @@
 import { v } from "convex/values";
+import { assertNotificationActionAllowed } from "@kuapa-dwaso/utils";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { assertAllowed, getActor, omitUndefinedValues, requireAdminPermission } from "./workflowHelpers";
+import {
+  adminAccessHasPermissionForScope,
+  assertAllowed,
+  buyerOrderScopeTarget,
+  dispatchScopeTarget,
+  getActor,
+  getEffectiveAdminAccess,
+  omitUndefinedValues,
+  requireAdminPermission,
+  warehouseScopeTarget,
+  type AdminScopeTarget,
+} from "./workflowHelpers";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -27,11 +39,9 @@ const notificationStatus = v.union(
   v.literal("archived"),
 );
 const smsMessageKind = v.union(
-  v.literal("invite"),
   v.literal("notification"),
   v.literal("otp"),
   v.literal("transactional"),
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),
@@ -42,11 +52,11 @@ const smsMessageKind = v.union(
   v.literal("buyer_cancellation_update"),
   v.literal("dispatch_assignment"),
   v.literal("dispatch_status_update"),
+  v.literal("market_run_update"),
   v.literal("dispute_update"),
   v.literal("promotional"),
 );
 const smsTemplateKey = v.union(
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),
@@ -61,6 +71,7 @@ const smsTemplateKey = v.union(
   v.literal("generic_notification"),
 );
 const rawPayload = v.record(v.string(), v.any());
+const notificationPriority = v.union(v.literal("low"), v.literal("normal"), v.literal("high"), v.literal("urgent"));
 
 export async function insertNotificationRecord(
   ctx: MutationCtx,
@@ -71,13 +82,32 @@ export async function insertNotificationRecord(
     channel: "sms" | "in_app" | "email";
     title: string;
     message: string;
-    messageKind?: "invite" | "notification" | "otp" | "transactional" | "warehouse_agent_invite" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "promotional" | undefined;
-    templateKey?: "warehouse_agent_invite" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification" | undefined;
+    messageKind?: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional" | undefined;
+    templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification" | undefined;
     templateData?: Record<string, unknown> | undefined;
     relatedEntityType?: string | undefined;
     relatedEntityId?: string | undefined;
+    marketDeliveryRunId?: Id<"marketDeliveryRuns"> | undefined;
+    actionUrl?: string | undefined;
+    actionRequired?: boolean | undefined;
+    priority?: "low" | "normal" | "high" | "urgent" | undefined;
+    dueAt?: number | undefined;
+    deduplicationKey?: string | undefined;
+    escalationLevel?: number | undefined;
+    expiresAt?: number | undefined;
   },
 ): Promise<Id<"notifications">> {
+  if (args.deduplicationKey !== undefined && args.recipientUserId !== undefined) {
+    const existing = await ctx.db
+      .query("notifications")
+      .withIndex("by_recipient_deduplication", (q) =>
+        q.eq("recipientUserId", args.recipientUserId).eq("deduplicationKey", args.deduplicationKey),
+      )
+      .first();
+    if (existing !== null && existing.status !== "archived" && (existing.expiresAt === undefined || existing.expiresAt > Date.now())) {
+      return existing._id;
+    }
+  }
   return await ctx.db.insert("notifications", omitUndefinedValues({
     ...args,
     status: "pending",
@@ -98,6 +128,14 @@ export const createRecord = mutation({
     templateData: v.optional(rawPayload),
     relatedEntityType: v.optional(v.string()),
     relatedEntityId: v.optional(v.string()),
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
+    actionUrl: v.optional(v.string()),
+    actionRequired: v.optional(v.boolean()),
+    priority: v.optional(notificationPriority),
+    dueAt: v.optional(v.number()),
+    deduplicationKey: v.optional(v.string()),
+    escalationLevel: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
   },
   returns: v.id("notifications"),
   handler: async (ctx, args) => {
@@ -166,8 +204,8 @@ export const claimPendingSmsDeliveries = mutation({
         recipient: string;
         title: string;
         message: string;
-        messageKind: "invite" | "notification" | "otp" | "transactional" | "warehouse_agent_invite" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "promotional";
-        templateKey?: "warehouse_agent_invite" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification";
+        messageKind: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional";
+        templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification";
         templateData?: Record<string, unknown>;
         relatedEntityType?: string;
         relatedEntityId?: string;
@@ -225,13 +263,70 @@ export const updateStatus = mutation({
   },
   returns: v.id("notifications"),
   handler: async (ctx, args) => {
+    assertAllowed(args.status === "queued" || args.status === "sent" || args.status === "failed", "Use the actor-scoped notification actions for read and archive state.");
     await ctx.db.patch(args.notificationId, omitUndefinedValues({
       status: args.status,
       updatedAt: Date.now(),
       sentAt: args.status === "sent" ? Date.now() : undefined,
-      readAt: args.status === "read" ? Date.now() : undefined,
     }));
 
+    return args.notificationId;
+  },
+});
+
+async function requireOwnedNotification(ctx: MutationCtx, actorUserId: Id<"users">, notificationId: Id<"notifications">, action: "read" | "acknowledge" | "archive") {
+  const actor = await getActor(ctx, actorUserId);
+  const notification = await ctx.db.get(notificationId);
+  assertAllowed(notification !== null, "Notification was not found.");
+  assertNotificationActionAllowed({
+    actorUserId: actor._id,
+    recipientUserId: notification.recipientUserId,
+    action,
+    actionRequired: notification.actionRequired,
+    acknowledgedAt: notification.acknowledgedAt,
+    expiresAt: notification.expiresAt,
+  });
+  return notification;
+}
+
+export const markRead = mutation({
+  args: { actorUserId: v.id("users"), notificationId: v.id("notifications") },
+  returns: v.id("notifications"),
+  handler: async (ctx, args) => {
+    const notification = await requireOwnedNotification(ctx, args.actorUserId, args.notificationId, "read");
+    if (notification.status !== "archived") {
+      const now = Date.now();
+      await ctx.db.patch(args.notificationId, { status: "read", readAt: notification.readAt ?? now, updatedAt: now });
+    }
+    return args.notificationId;
+  },
+});
+
+export const acknowledge = mutation({
+  args: { actorUserId: v.id("users"), notificationId: v.id("notifications") },
+  returns: v.id("notifications"),
+  handler: async (ctx, args) => {
+    const notification = await requireOwnedNotification(ctx, args.actorUserId, args.notificationId, "acknowledge");
+    if (notification.acknowledgedAt === undefined) {
+      const now = Date.now();
+      await ctx.db.patch(args.notificationId, {
+        acknowledgedAt: now,
+        acknowledgedByUserId: args.actorUserId,
+        status: "read",
+        readAt: notification.readAt ?? now,
+        updatedAt: now,
+      });
+    }
+    return args.notificationId;
+  },
+});
+
+export const archive = mutation({
+  args: { actorUserId: v.id("users"), notificationId: v.id("notifications") },
+  returns: v.id("notifications"),
+  handler: async (ctx, args) => {
+    await requireOwnedNotification(ctx, args.actorUserId, args.notificationId, "archive");
+    await ctx.db.patch(args.notificationId, { status: "archived", updatedAt: Date.now() });
     return args.notificationId;
   },
 });
@@ -300,7 +395,8 @@ export const listForAdmin = query({
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(actor.role === "admin", "Only admins can inspect platform notifications.");
-    await requireAdminPermission(ctx, args.actorUserId, "notifications:read", {});
+    const access = await getEffectiveAdminAccess(ctx, args.actorUserId);
+    assertAllowed(access.permissions.has("notifications:read"), "Admin lacks notifications:read permission.");
 
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
@@ -323,7 +419,7 @@ export const listForAdmin = query({
                 .take(limit * 4)
             : await ctx.db.query("notifications").take(limit * 4);
 
-    return candidates
+    const filtered = candidates
       .filter((notification) => args.status === undefined || notification.status === args.status)
       .filter((notification) => args.recipientRole === undefined || notification.recipientRole === args.recipientRole)
       .filter(
@@ -336,7 +432,31 @@ export const listForAdmin = query({
           args.relatedEntityId === undefined ||
           notification.relatedEntityId === args.relatedEntityId,
       )
-      .sort((left, right) => right.createdAt - left.createdAt)
-      .slice(0, limit);
+      .sort((left, right) => right.createdAt - left.createdAt);
+    const scoped = [];
+    for (const notification of filtered) {
+      if (notification.recipientUserId === actor._id) {
+        scoped.push(notification);
+      } else {
+        let target: AdminScopeTarget = {};
+        if (notification.marketDeliveryRunId !== undefined) {
+          const run = await ctx.db.get(notification.marketDeliveryRunId);
+          if (run === null) continue;
+          target = await warehouseScopeTarget(ctx, run.originWarehouseId);
+        } else if (notification.relatedEntityType === "dispatch" && notification.relatedEntityId !== undefined) {
+          const dispatch = await ctx.db.get(notification.relatedEntityId as Id<"dispatches">);
+          if (dispatch === null) continue;
+          target = await dispatchScopeTarget(ctx, dispatch);
+        } else if (notification.relatedEntityType === "buyer_order" && notification.relatedEntityId !== undefined) {
+          const order = await ctx.db.get(notification.relatedEntityId as Id<"buyerOrders">);
+          if (order === null) continue;
+          target = await buyerOrderScopeTarget(ctx, order);
+        }
+        if (!adminAccessHasPermissionForScope(access, "notifications:read", target)) continue;
+        scoped.push(notification);
+      }
+      if (scoped.length >= limit) break;
+    }
+    return scoped;
   },
 });

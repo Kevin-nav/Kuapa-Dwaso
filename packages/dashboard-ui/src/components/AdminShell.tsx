@@ -31,6 +31,7 @@ import {
   History,
   BarChart3,
   Bell,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -153,6 +154,7 @@ export function AdminShell({
         { label: "Sales", href: "/sales", icon: DollarSign },
         { label: "Finance", href: "/finance", icon: Landmark },
         { label: "Dispatch", href: "/dispatch", icon: Truck },
+        { label: "Market Services", href: "/market-services", icon: CalendarDays },
       ],
     },
     {

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  adminScopeMatchesTarget,
   adminPermissionKeys,
   adminRoleHasPermission,
   getAdminRolePermissions,
@@ -55,4 +56,19 @@ test("permission reverse lookup exposes eligible admin roles", () => {
   const accessManagers = getAdminRolesForPermission("adminAccess:manage");
   assert.deepEqual(accessManagers, ["platform_owner"]);
   assert.ok(getAdminRolesForPermission("disputes:manage").includes("support_officer"));
+});
+
+test("warehouse managers can supervise schedules and runs but remain warehouse scoped", () => {
+  assert.equal(adminRoleHasPermission("warehouse_manager", "marketSchedules:read"), true);
+  assert.equal(adminRoleHasPermission("warehouse_manager", "marketSchedules:manage"), true);
+  assert.equal(adminRoleHasPermission("warehouse_manager", "marketRuns:read"), true);
+  assert.equal(adminRoleHasPermission("warehouse_manager", "marketRuns:manage"), true);
+  assert.equal(adminRoleHasPermission("warehouse_manager", "adminAccess:manage"), false);
+});
+
+test("warehouse scope grants never match another warehouse", () => {
+  const managerGrant = { scopeType: "warehouse" as const, scopeId: "warehouse-a" };
+  assert.equal(adminScopeMatchesTarget(managerGrant, { warehouseId: "warehouse-a" }), true);
+  assert.equal(adminScopeMatchesTarget(managerGrant, { warehouseId: "warehouse-b" }), false);
+  assert.equal(adminScopeMatchesTarget(managerGrant, { destinationMarket: "Tarkwa" }), false);
 });

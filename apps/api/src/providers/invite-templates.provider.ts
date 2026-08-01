@@ -215,11 +215,6 @@ export class InviteTemplatesProvider {
     return this.inviteEmail(input);
   }
 
-  warehouseAgentSms(input: InviteTemplateInput): string {
-    const expiry = new Date(input.expiresAt).toUTCString();
-    const roleLabel = roleLabelForInviteType(input.type);
-    return `Kuapa Dwaso ${roleLabel} invite. Accept before ${expiry}: ${input.inviteUrl}`;
-  }
 }
 
 export function roleLabelForInviteType(type: PlatformInvitationType): string {

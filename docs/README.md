@@ -23,6 +23,7 @@ This is the entry point for the project documentation. It separates the current 
 - [Backend structure](conventions/backend-structure.md)
 - [Authentication, onboarding, invitations, and uploads](conventions/auth-onboarding-invites-uploads.md)
 - [Admin RBAC](conventions/admin-rbac.md)
+- [Market services, delivery runs, notifications, and finance](conventions/market-services-runs-notifications-finance.md)
 - [Network performance](conventions/network-performance.md)
 - [Architecture decisions](decisions/)
 

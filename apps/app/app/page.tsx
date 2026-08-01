@@ -12,14 +12,14 @@ export default function ProductHomePage() {
   const { firebaseUser, principal, isLoading, signOut } = useAuth();
   const router = useRouter();
 
-  const farmerProfile = principal?.profiles?.find((p) => p.profileType === "farmer");
-  const isFarmer = principal?.role === "farmer" || farmerProfile !== undefined;
+  const workspacePath = resolveWorkspacePath(principal);
 
   useEffect(() => {
-    if (!isLoading && firebaseUser !== null && isFarmer) {
-      router.push("/farmer");
+    if (!isLoading && firebaseUser !== null && workspacePath !== undefined) {
+      if (workspacePath.startsWith("http")) window.location.assign(workspacePath);
+      else router.replace(workspacePath);
     }
-  }, [isLoading, firebaseUser, isFarmer, router]);
+  }, [isLoading, firebaseUser, workspacePath, router]);
 
   if (isLoading) {
     return (
@@ -48,16 +48,16 @@ export default function ProductHomePage() {
 
         {firebaseUser !== null ? (
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "16px" }}>
-            {isFarmer ? (
-              <button type="button" className="btn btn-primary btn-full" onClick={() => router.push("/farmer")}>
-                Go to Farmer Dashboard
+            {workspacePath !== undefined ? (
+              <button type="button" className="btn btn-primary btn-full" onClick={() => workspacePath.startsWith("http") ? window.location.assign(workspacePath) : router.push(workspacePath)}>
+                Continue to your workspace
               </button>
             ) : (
               <div className="attention-card" style={{ textAlign: "left", marginBottom: "8px" }}>
                 <div className="attention-body">
                   <span className="attention-title">Profile Required</span>
                   <span className="attention-text">
-                    You are logged in, but you don&apos;t have a linked farmer profile. Please contact support or verify your role.
+                    You are signed in, but your platform profile is not ready. Accept your invitation or contact support; you do not need to choose a role again.
                   </span>
                 </div>
               </div>
@@ -88,4 +88,21 @@ export default function ProductHomePage() {
       </section>
     </main>
   );
+}
+
+function resolveWorkspacePath(principal: ReturnType<typeof useAuth>["principal"]): string | undefined {
+  if (principal == null) return undefined;
+  const profileTypes = new Set(principal.profiles.map((profile) => profile.profileType));
+  if (principal.role === "admin" || profileTypes.has("admin")) return externalWorkspace("admin");
+  if (principal.role === "warehouse_agent" || profileTypes.has("warehouse_agent")) return externalWorkspace("ops");
+  if (principal.role === "buyer" || profileTypes.has("buyer")) return "/buyer";
+  if (principal.role === "transporter" || profileTypes.has("transporter")) return "/transporter";
+  if (principal.role === "farmer" || profileTypes.has("farmer")) return "/farmer";
+  return undefined;
+}
+
+function externalWorkspace(kind: "admin" | "ops") {
+  if (typeof window === "undefined") return `https://${kind}.kuapadwaso.com/`;
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") return `http://localhost:${kind === "admin" ? "3002" : "3003"}/`;
+  return `https://${kind}.${window.location.hostname.includes("staging") ? "staging." : ""}kuapadwaso.com/`;
 }

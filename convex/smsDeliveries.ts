@@ -4,11 +4,9 @@ import { assertAllowed, getActor, omitUndefinedValues, requireAdminPermission } 
 
 const smsProvider = v.union(v.literal("mock"), v.literal("arkesel"));
 const smsMessageKind = v.union(
-  v.literal("invite"),
   v.literal("notification"),
   v.literal("otp"),
   v.literal("transactional"),
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),
@@ -19,6 +17,7 @@ const smsMessageKind = v.union(
   v.literal("buyer_cancellation_update"),
   v.literal("dispatch_assignment"),
   v.literal("dispatch_status_update"),
+  v.literal("market_run_update"),
   v.literal("dispute_update"),
   v.literal("promotional"),
 );
@@ -32,7 +31,6 @@ const smsDeliveryStatus = v.union(
   v.literal("rejected"),
 );
 const smsTemplateKey = v.union(
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),

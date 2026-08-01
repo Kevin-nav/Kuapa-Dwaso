@@ -23,6 +23,7 @@ type OrderReservation = {
   quantityReserved: number;
   unit: string;
   status: string;
+  expiresAt?: number;
 };
 
 type PaymentTransaction = {
@@ -55,6 +56,13 @@ type BuyerOrderDetail = {
   reservations?: OrderReservation[];
   charges?: OrderCharge[];
   payments?: PaymentTransaction[];
+  deliveryDateSnapshot?: number;
+  orderCutoffSnapshot?: number;
+  expectedArrivalStartSnapshot?: number;
+  expectedArrivalEndSnapshot?: number;
+  fulfilmentInstructionsSnapshot?: string;
+  paymentDeadline?: number;
+  marketDeliveryRun?: { status: string; timezone: string; postponementReason?: string; cancellationReason?: string } | null;
 };
 
 export default function OrderDetailPage({ params }: Props) {
@@ -233,6 +241,16 @@ export default function OrderDetailPage({ params }: Props) {
         </div>
       )}
 
+      <section style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info-border)", borderRadius: 14, padding: 16, display: "grid", gap: 8 }}>
+        <strong>Published delivery promise</strong>
+        <span><strong>Destination:</strong> {currentOrder.destinationMarket}</span>
+        <span><strong>Delivery day:</strong> {currentOrder.deliveryDateSnapshot ? new Date(currentOrder.deliveryDateSnapshot).toLocaleDateString("en-GH", { dateStyle: "full" }) : "Legacy order — operations will confirm"}</span>
+        <span><strong>Expected arrival:</strong> {currentOrder.expectedArrivalStartSnapshot && currentOrder.expectedArrivalEndSnapshot ? `${new Date(currentOrder.expectedArrivalStartSnapshot).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" })}–${new Date(currentOrder.expectedArrivalEndSnapshot).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit" })}` : "Operations will confirm"}</span>
+        <span><strong>Order/payment deadline:</strong> {currentOrder.paymentDeadline ? new Date(currentOrder.paymentDeadline).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" }) : "Not recorded for this legacy order"}</span>
+        <span><strong>Collection instructions:</strong> {currentOrder.fulfilmentInstructionsSnapshot ?? "Contact support for the collection point."}</span>
+        {currentOrder.marketDeliveryRun?.status === "cancelled" && <span style={{ color: "var(--color-danger)", fontWeight: 700 }}>This delivery run was cancelled or postponed. Your reservation remains visible while operations contacts you. {currentOrder.marketDeliveryRun.postponementReason ?? currentOrder.marketDeliveryRun.cancellationReason}</span>}
+      </section>
+
       {/* Simple Timeline Status Tracker */}
       {!isAbnormal && (
         <div
@@ -395,7 +413,7 @@ export default function OrderDetailPage({ params }: Props) {
               ? `Latest transaction ${latestPayment.providerReference} is ${latestPayment.status.replace(/_/g, " ")}.`
               : currentOrder.totalAmount === undefined
                 ? "Payment will be available after warehouse pricing is complete."
-                : "Pay securely through the platform payment provider."}
+                : `Pay securely through the platform payment provider${currentOrder.paymentDeadline ? ` before ${new Date(currentOrder.paymentDeadline).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })}` : ""}. If payment or connectivity is interrupted, return to this order and try again; your order details remain saved.`}
           </span>
           {latestPayment?.providerMessage !== undefined && (
             <span className="attention-text">{latestPayment.providerMessage}</span>
@@ -452,7 +470,7 @@ export default function OrderDetailPage({ params }: Props) {
                     {res.quantityReserved} {res.unit} Locked
                   </div>
                   <div style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)", marginTop: "2px" }}>
-                    Fulfillment Status: {res.status}
+                    {res.status === "active" ? `Reserved${res.expiresAt ? ` until ${new Date(res.expiresAt).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })}` : ""}` : `Reservation: ${res.status.replaceAll("_", " ")}`}
                   </div>
                 </div>
                 <div className="status-chip status-success" style={{ textTransform: "capitalize" }}>
