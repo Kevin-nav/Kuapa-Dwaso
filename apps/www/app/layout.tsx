@@ -4,9 +4,9 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kuapa Dwaso | Warehouse Produce Aggregation",
+  title: "Kuapa Dwaso | Scheduled Market Delivery",
   description:
-    "Kuapa Dwaso helps farmers store produce at community warehouses while buyers order verified warehouse stock.",
+    "Traders order verified warehouse stock before published cutoffs for scheduled delivery to selected market destinations.",
   keywords: [
     "agriculture",
     "warehouse aggregation",
@@ -15,11 +15,12 @@ export const metadata: Metadata = {
     "produce storage",
     "produce buyers",
     "dispatch",
+    "scheduled market delivery",
   ],
   openGraph: {
-    title: "Kuapa Dwaso | Warehouse Produce Aggregation",
+    title: "Kuapa Dwaso | Scheduled Market Delivery",
     description:
-      "Warehouse-verified produce inventory, storage receipts, buyer orders, sales, and dispatch tracking.",
+      "Published order cutoffs and scheduled delivery of confirmed trader orders to selected market destinations.",
     type: "website",
     locale: "en_US",
   },
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Kuapa Dwaso | Warehouse Produce Aggregation",
     description:
-      "Farmers store locally. Buyers order from verified warehouse stock.",
+      "Farmers store locally. Traders order for published market delivery days.",
   },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { AlertTriangle, Bell, ChevronRight, FileText, HelpCircle, MapPin, Phone, Sprout } from "lucide-react";
@@ -44,6 +44,8 @@ export default function FarmerDashboard() {
   const { principal } = useAuth();
   const farmerProfile = principal?.profiles?.find((profile) => profile.profileType === "farmer");
   const farmerId = farmerProfile?.profileId as Id<"farmers"> | undefined;
+  const markNotificationRead = useMutation(api.notifications.markRead);
+  const acknowledgeNotification = useMutation(api.notifications.acknowledge);
 
   const farmer = useQuery(
     api.farmers.getById,
@@ -230,6 +232,16 @@ export default function FarmerDashboard() {
                   <div className="row-info">
                     <span className="row-title">{notification.title}</span>
                     <span className="row-subtitle">{notification.message}</span>
+                    {notification.dueAt !== undefined && <span className="row-subtitle">Due {new Date(notification.dueAt).toLocaleString()}</span>}
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
+                      {notification.actionUrl !== undefined && <Link href={notification.actionUrl} className="btn btn-secondary">Open</Link>}
+                      {notification.status !== "read" && principal !== null && principal !== undefined && (
+                        <button type="button" className="btn btn-secondary" onClick={() => void markNotificationRead({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Mark read</button>
+                      )}
+                      {notification.actionRequired === true && notification.acknowledgedAt === undefined && principal !== null && principal !== undefined && (
+                        <button type="button" className="btn btn-primary" onClick={() => void acknowledgeNotification({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Acknowledge</button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

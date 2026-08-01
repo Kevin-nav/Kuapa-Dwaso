@@ -3,9 +3,10 @@ import {
   canCreateDispatch,
   canTransitionBuyerOrderStatus,
   canTransitionDispatchStatus,
+  canTransitionMarketDeliveryRunStatus,
   canUpdateDispatchStatus,
 } from "@kuapa-dwaso/permissions";
-import { calculateDispatchQuantityAggregation } from "@kuapa-dwaso/utils";
+import { assertDispatchRunGroupingCompatible, calculateDispatchQuantityAggregation } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -201,6 +202,20 @@ async function notifyDispatchParticipants(
 
   if (dispatch.transporterId !== undefined) {
     const transporter = await ctx.db.get(dispatch.transporterId);
+    if (transporter?.userId !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientUserId: transporter.userId,
+        recipientRole: "transporter",
+        channel: "in_app",
+        title,
+        message,
+        actionUrl: `/transporter/dispatches/${dispatch._id}`,
+        actionRequired: status === "planned" || status === "loading" || status === "issue_reported",
+        priority: status === "issue_reported" ? "urgent" : "high",
+        deduplicationKey: `dispatch:${dispatch._id}:${status}:transporter`,
+        ...related,
+      });
+    }
     await insertNotificationRecord(ctx, {
       recipientId: transporter?.phoneNumber,
       recipientUserId: transporter?.userId,
@@ -222,6 +237,20 @@ async function notifyDispatchParticipants(
     }
     notifiedBuyers.add(order.buyerId);
     const buyer = await ctx.db.get(order.buyerId);
+    if (buyer?.userId !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientUserId: buyer.userId,
+        recipientRole: "buyer",
+        channel: "in_app",
+        title,
+        message,
+        actionUrl: `/buyer/orders/${order._id}`,
+        actionRequired: status === "issue_reported",
+        priority: status === "issue_reported" ? "urgent" : "normal",
+        deduplicationKey: `dispatch:${dispatch._id}:${status}:buyer:${buyer._id}`,
+        ...related,
+      });
+    }
     await insertNotificationRecord(ctx, {
       recipientId: buyer?.phoneNumber,
       recipientUserId: buyer?.userId,
@@ -246,6 +275,20 @@ async function notifyDispatchParticipants(
     }
     notifiedFarmers.add(sale.farmerId);
     const farmer = await ctx.db.get(sale.farmerId);
+    if (farmer?.userId !== undefined) {
+      await insertNotificationRecord(ctx, {
+        recipientUserId: farmer.userId,
+        recipientRole: "farmer",
+        channel: "in_app",
+        title,
+        message,
+        actionUrl: "/farmer",
+        actionRequired: status === "issue_reported",
+        priority: status === "issue_reported" ? "urgent" : "normal",
+        deduplicationKey: `dispatch:${dispatch._id}:${status}:farmer:${farmer._id}`,
+        ...related,
+      });
+    }
     await insertNotificationRecord(ctx, {
       recipientId: farmer?.phoneNumber,
       recipientUserId: farmer?.userId,
@@ -318,6 +361,13 @@ export const create = mutation({
     const orders = await Promise.all(buyerOrderIds.map((buyerOrderId) => ctx.db.get(buyerOrderId)));
     assertAllowed(orders.every((order) => order !== null), "Every buyer order must exist.");
     const nonNullOrders = orders.filter((order): order is Doc<"buyerOrders"> => order !== null);
+    assertDispatchRunGroupingCompatible(nonNullOrders.map((order) => order.marketDeliveryRunId));
+    const marketDeliveryRunId = nonNullOrders[0]?.marketDeliveryRunId;
+    const marketDeliveryRun = marketDeliveryRunId === undefined ? null : await ctx.db.get(marketDeliveryRunId);
+    if (marketDeliveryRunId !== undefined) {
+      assertAllowed(marketDeliveryRun !== null, "Market delivery run was not found.");
+      assertAllowed(marketDeliveryRun.status === "confirmed", "The market delivery run must be confirmed before dispatch preparation.");
+    }
     const destination = cleanText(args.destination ?? nonNullOrders[0]!.destinationMarket, "Destination");
     const saleRecords = (await Promise.all(nonNullOrders.map((order) => getSalesForOrder(ctx, order._id)))).flat();
     assertAllowed(saleRecords.length > 0, "Dispatches require completed sale records.");
@@ -336,6 +386,9 @@ export const create = mutation({
         "Buyer order is not ready for dispatch.",
       );
       assertAllowed(order.destinationMarket === destination, "All buyer orders must share the dispatch destination.");
+      if (marketDeliveryRun !== null) {
+        assertAllowed(order.marketDeliveryRunId === marketDeliveryRun._id, "Every order must belong to the same delivery run.");
+      }
     }
 
     const aggregation = calculateDispatchQuantityAggregation(
@@ -347,6 +400,10 @@ export const create = mutation({
       })),
     );
     const warehouseId = aggregation.warehouseId as Id<"warehouses">;
+    if (marketDeliveryRun !== null) {
+      assertAllowed(marketDeliveryRun.originWarehouseId === warehouseId, "Dispatch warehouse does not match the market delivery run origin.");
+      assertAllowed(marketDeliveryRun.destinationName.toLowerCase() === destination.toLowerCase(), "Dispatch destination does not match the market delivery run.");
+    }
     await assertCanOperateWarehouse(ctx, actor, warehouseId);
     const inventoryBatchIds = uniqueIds(saleRecords.map((sale) => sale.inventoryBatchId));
     const saleRecordIds = uniqueIds(saleRecords.map((sale) => sale._id));
@@ -372,6 +429,7 @@ export const create = mutation({
     // payer now, but later slices should decide whether/how to post buyer
     // charges or farmer deductions without rewriting existing sale records here.
     const dispatchId = await ctx.db.insert("dispatches", omitUndefinedValues({
+      marketDeliveryRunId,
       warehouseId,
       destination,
       transporterId: args.transporterId,
@@ -387,13 +445,30 @@ export const create = mutation({
       totalQuantity: aggregation.totalQuantity,
       unit: aggregation.unit,
       plannedDepartureAt: args.plannedDepartureAt,
-      expectedArrivalAt: args.expectedArrivalAt,
+      expectedArrivalAt: args.expectedArrivalAt ?? marketDeliveryRun?.expectedArrivalEndAt,
       transportCost: args.transportCost,
       transportPayer: args.transportPayer,
       status: "planned",
       createdAt: now,
       updatedAt: now,
     }));
+    if (marketDeliveryRun !== null) {
+      await ctx.db.patch(marketDeliveryRun._id, {
+        dispatchIds: marketDeliveryRun.dispatchIds.includes(dispatchId) ? marketDeliveryRun.dispatchIds : [...marketDeliveryRun.dispatchIds, dispatchId],
+        updatedByUserId: args.actorUserId,
+        updatedAt: now,
+      });
+      const runAfter = await ctx.db.get(marketDeliveryRun._id);
+      await insertAuditLog(ctx, {
+        actor,
+        action: "market_delivery_run.dispatch_linked",
+        entityType: "market_delivery_run",
+        entityId: marketDeliveryRun._id,
+        before: auditSnapshot(marketDeliveryRun),
+        after: runAfter === null ? undefined : auditSnapshot(runAfter),
+        metadata: { dispatchId },
+      });
+    }
     const after = await ctx.db.get(dispatchId);
     await insertAuditLog(ctx, {
       actor,
@@ -487,6 +562,32 @@ export const updateStatus = mutation({
     }
     if (after !== null) {
       await notifyDispatchParticipants(ctx, after, args.status);
+    }
+    if (dispatch.marketDeliveryRunId !== undefined) {
+      const run = await ctx.db.get(dispatch.marketDeliveryRunId);
+      if (run !== null) {
+        let nextRunStatus: "dispatched" | "completed" | undefined =
+          args.status === "departed" || args.status === "in_transit" ? "dispatched" : undefined;
+        if (args.status === "closed") {
+          const linkedDispatches = await Promise.all(run.dispatchIds.map((id) => ctx.db.get(id)));
+          if (linkedDispatches.length > 0 && linkedDispatches.every((item) => item?.status === "closed")) {
+            nextRunStatus = "completed";
+          }
+        }
+        if (nextRunStatus !== undefined && run.status !== nextRunStatus && canTransitionMarketDeliveryRunStatus(run.status, nextRunStatus)) {
+          await ctx.db.patch(run._id, { status: nextRunStatus, updatedByUserId: args.actorUserId, updatedAt: Date.now() });
+          const runAfter = await ctx.db.get(run._id);
+          await insertAuditLog(ctx, {
+            actor,
+            action: "market_delivery_run.status_updated_from_dispatch",
+            entityType: "market_delivery_run",
+            entityId: run._id,
+            before: auditSnapshot(run),
+            after: runAfter === null ? undefined : auditSnapshot(runAfter),
+            metadata: { dispatchId: args.dispatchId, dispatchStatus: args.status },
+          });
+        }
+      }
     }
 
     return args.dispatchId;

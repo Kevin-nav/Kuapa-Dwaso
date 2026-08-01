@@ -91,6 +91,10 @@ function InviteAcceptContent() {
     }
     return "https://ops.kuapadwaso.com/";
   };
+  const getAdminRedirectUrl = () => {
+    if (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) return "http://localhost:3002/";
+    return typeof window !== "undefined" && window.location.hostname.includes("staging") ? "https://admin.staging.kuapadwaso.com/" : "https://admin.kuapadwaso.com/";
+  };
 
   const sendVerification = async (user: User) => {
     const continueUrl = new URL(window.location.href);
@@ -130,6 +134,8 @@ function InviteAcceptContent() {
     setTimeout(() => {
       if (accepted.profileType === "warehouse_agent") {
         window.location.href = getOpsRedirectUrl();
+      } else if (accepted.profileType === "admin") {
+        window.location.href = getAdminRedirectUrl();
       } else {
         window.location.href = "/";
       }
@@ -284,7 +290,7 @@ function InviteAcceptContent() {
               <input id="password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required disabled={isSubmitting} />
             </div>
             <p className="auth-status">
-              {inviteDetails?.type === "warehouse_manager_invite" ? "Warehouse manager invites require SMS MFA messaging." : "Admin invites require email verification and MFA."}
+              Privileged invitations require verified email and the configured Firebase authenticator MFA challenge.
             </p>
             <button type="submit" disabled={isSubmitting}>
               {verificationEmail === undefined ? `Continue as ${roleLabel}` : `I've verified — sign in as ${roleLabel}`}

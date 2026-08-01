@@ -9,6 +9,7 @@ export default function ReportsPage() {
   const summary = summaryStats.platformSummary ?? {};
   const grossSales = Number(summary.grossSalesAmount ?? sales.reduce((total, sale) => total + Number(sale.grossAmount ?? 0), 0));
   const farmerNet = Number(summary.netFarmerAmountDue ?? sales.reduce((total, sale) => total + Number(sale.netAmountDueToFarmer ?? 0), 0));
+  const accruedServiceFees = orders.reduce((total, order) => total + Number(order.serviceFee ?? 0), 0);
 
   const warehouseRows: Record<string, any>[] = warehouses.map((warehouse) => {
     const stock = inventory
@@ -42,8 +43,10 @@ export default function ReportsPage() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
           <MetricCard label="Warehouses" value={Number(summary.warehouses ?? warehouses.length)} contextLine={`${warehouses.filter((item) => item.status === "active").length} active in loaded scope`} accentColor={palette.field} />
           <MetricCard label="Inventory Batches" value={Number(summary.inventoryBatches ?? inventory.length)} contextLine={`${Number(summary.availableInventoryBatches ?? inventory.filter((item) => item.status === "available").length)} available`} accentColor={palette.sky} />
-          <MetricCard label="Orders / Sales" value={`${Number(summary.buyerOrders ?? orders.length)} / ${Number(summary.saleRecords ?? sales.length)}`} contextLine={`Gross GHS ${grossSales.toFixed(2)}`} accentColor={palette.accent} />
-          <MetricCard label="Farmer Net Due" value={`GHS ${farmerNet.toFixed(2)}`} contextLine="After visible deductions" accentColor={status.success} />
+          <MetricCard label="Orders / Sales" value={`${Number(summary.buyerOrders ?? orders.length)} / ${Number(summary.saleRecords ?? sales.length)}`} contextLine="Actual records in loaded scope" accentColor={palette.accent} />
+          <MetricCard label="Gross Produce Value" value={`GHS ${grossSales.toFixed(2)}`} contextLine="Actual sold value; not platform revenue" accentColor={palette.accent} />
+          <MetricCard label="Service-fee Revenue" value={`GHS ${accruedServiceFees.toFixed(2)}`} contextLine="Accrued on actual buyer orders" accentColor={palette.sky} />
+          <MetricCard label="Farmer Net Payable" value={`GHS ${farmerNet.toFixed(2)}`} contextLine="Actual value after recorded deductions" accentColor={status.success} />
           <MetricCard label="Dispatches" value={Number(summary.dispatches ?? dispatches.length)} contextLine={`${Number(summary.inTransitDispatches ?? dispatches.filter((item) => ["departed", "in_transit", "arrived"].includes(String(item.status))).length)} in transit`} accentColor={status.warning} />
           <MetricCard label="Open Disputes" value={Number(summary.openDisputes ?? disputes.filter((item) => item.status === "open").length)} contextLine={`${Number(summary.disputes ?? disputes.length)} total visible`} accentColor={status.danger} />
         </div>

@@ -30,6 +30,9 @@ import {
   platformInvitationStatuses,
   platformInvitationTypes,
   invitationChannels,
+  marketDeliveryRunStatuses,
+  marketServiceScheduleStatuses,
+  notificationPriorities,
   profileLinkStatuses,
   profileTypes,
   uploadAccessLevels,
@@ -76,6 +79,9 @@ import {
   type PlatformInvitationStatus,
   type PlatformInvitationType,
   type InvitationChannel,
+  type MarketDeliveryRunStatus,
+  type MarketServiceScheduleStatus,
+  type NotificationPriority,
   type ProfileLinkStatus,
   type ProfileType,
   type UploadAccessLevel,
@@ -294,6 +300,18 @@ export function isPlatformInvitationType(
 
 export function isInvitationChannel(value: unknown): value is InvitationChannel {
   return isOneOf(invitationChannels, value);
+}
+
+export function isMarketServiceScheduleStatus(value: unknown): value is MarketServiceScheduleStatus {
+  return isOneOf(marketServiceScheduleStatuses, value);
+}
+
+export function isMarketDeliveryRunStatus(value: unknown): value is MarketDeliveryRunStatus {
+  return isOneOf(marketDeliveryRunStatuses, value);
+}
+
+export function isNotificationPriority(value: unknown): value is NotificationPriority {
+  return isOneOf(notificationPriorities, value);
 }
 
 export function isPlatformInvitationStatus(

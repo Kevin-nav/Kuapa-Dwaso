@@ -1,9 +1,11 @@
 import type {
   AdminRoleKey,
+  AdminScopeType,
   BuyerOrderStatus,
   DispatchStatus,
   InventoryBatchStatus,
   InventoryReservationStatus,
+  MarketDeliveryRunStatus,
   MarketplaceRole,
   SalePaymentStatus,
 } from "@kuapa-dwaso/types";
@@ -30,6 +32,7 @@ export const permissionKeys = [
   "dispatches:create",
   "dispatches:assignTransporter",
   "dispatches:updateStatus",
+  "marketRuns:read",
   "notifications:send",
   "auditLogs:view",
   "disputes:create",
@@ -67,6 +70,10 @@ export const adminPermissionKeys = [
   "payouts:manage",
   "dispatches:read",
   "dispatches:manage",
+  "marketSchedules:read",
+  "marketSchedules:manage",
+  "marketRuns:read",
+  "marketRuns:manage",
   "transporters:read",
   "transporters:manage",
   "disputes:read",
@@ -84,6 +91,45 @@ export const adminPermissionKeys = [
 ] as const;
 export type AdminPermissionKey = (typeof adminPermissionKeys)[number];
 
+export type AdminScopeDescriptor = {
+  scopeType: AdminScopeType;
+  scopeId?: string;
+  scopeValue?: string;
+};
+
+export type AdminScopeTargetDescriptor = {
+  warehouseId?: string;
+  region?: string;
+  district?: string;
+  destinationMarket?: string;
+};
+
+function normalizeScopeValue(value: string | undefined): string | undefined {
+  const cleaned = value?.trim().toLowerCase();
+  return cleaned === undefined || cleaned.length === 0 ? undefined : cleaned;
+}
+
+/** Central warehouse/region/destination scope rule used by every admin workflow. */
+export function adminScopeMatchesTarget(
+  grant: AdminScopeDescriptor,
+  target: AdminScopeTargetDescriptor,
+): boolean {
+  if (grant.scopeType === "global") return true;
+  if (grant.scopeType === "warehouse") {
+    return target.warehouseId !== undefined && grant.scopeId === target.warehouseId;
+  }
+  if (grant.scopeType === "region") {
+    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.region);
+  }
+  if (grant.scopeType === "district") {
+    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.district);
+  }
+  if (grant.scopeType === "destination_market") {
+    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.destinationMarket);
+  }
+  return false;
+}
+
 const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
   farmer: new Set(["disputes:create", "profileLinks:manageOwn", "uploads:create", "uploads:completeOwn"]),
   warehouse_agent: new Set([
@@ -97,6 +143,7 @@ const permissionsByRole: Record<MarketplaceRole, ReadonlySet<PermissionKey>> = {
     "dispatches:create",
     "dispatches:assignTransporter",
     "dispatches:updateStatus",
+    "marketRuns:read",
     "disputes:create",
     "notifications:send",
     "uploads:create",
@@ -125,6 +172,8 @@ const readOnlyAdminPermissions = [
   "payments:read",
   "payouts:read",
   "dispatches:read",
+  "marketSchedules:read",
+  "marketRuns:read",
   "transporters:read",
   "disputes:read",
   "auditLogs:read",
@@ -162,6 +211,10 @@ export const adminPermissionsByRole: Record<
     "payouts:manage",
     "dispatches:read",
     "dispatches:manage",
+    "marketSchedules:read",
+    "marketSchedules:manage",
+    "marketRuns:read",
+    "marketRuns:manage",
     "transporters:read",
     "transporters:manage",
     "disputes:read",
@@ -192,6 +245,10 @@ export const adminPermissionsByRole: Record<
     "payouts:read",
     "dispatches:read",
     "dispatches:manage",
+    "marketSchedules:read",
+    "marketSchedules:manage",
+    "marketRuns:read",
+    "marketRuns:manage",
     "transporters:read",
     "disputes:read",
     "disputes:manage",
@@ -216,6 +273,8 @@ export const adminPermissionsByRole: Record<
     "payouts:read",
     "payouts:manage",
     "dispatches:read",
+    "marketSchedules:read",
+    "marketRuns:read",
     "auditLogs:read",
     "reports:read",
     "uploads:read",
@@ -231,6 +290,8 @@ export const adminPermissionsByRole: Record<
     "payments:read",
     "payouts:read",
     "dispatches:read",
+    "marketSchedules:read",
+    "marketRuns:read",
     "disputes:read",
     "disputes:manage",
     "notifications:read",
@@ -251,6 +312,8 @@ export const adminPermissionsByRole: Record<
     "payments:read",
     "payouts:read",
     "dispatches:read",
+    "marketSchedules:read",
+    "marketRuns:read",
     "transporters:read",
     "disputes:read",
     "auditLogs:read",
@@ -258,7 +321,7 @@ export const adminPermissionsByRole: Record<
     "profileLinks:read",
     "uploads:read",
   ]),
-  analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "payments:read", "payouts:read", "dispatches:read"]),
+  analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "payments:read", "payouts:read", "dispatches:read", "marketSchedules:read", "marketRuns:read"]),
   admin_viewer: new Set(readOnlyAdminPermissions),
 };
 
@@ -524,6 +587,19 @@ export const allowedDispatchStatusTransitions: Readonly<
   issue_reported: ["loading", "departed", "in_transit", "arrived", "delivered", "closed", "cancelled"],
 };
 
+export const allowedMarketDeliveryRunStatusTransitions: Readonly<
+  Record<MarketDeliveryRunStatus, readonly MarketDeliveryRunStatus[]>
+> = {
+  draft: ["accepting_orders", "cancelled"],
+  accepting_orders: ["cutoff_reached", "cancelled"],
+  cutoff_reached: ["ready", "cancelled"],
+  ready: ["confirmed", "cancelled"],
+  confirmed: ["dispatched", "cancelled"],
+  cancelled: [],
+  dispatched: ["completed"],
+  completed: [],
+};
+
 export function canTransitionInventoryBatchStatus(
   currentStatus: InventoryBatchStatus,
   nextStatus: InventoryBatchStatus,
@@ -557,6 +633,13 @@ export function canTransitionDispatchStatus(
   nextStatus: DispatchStatus,
 ): boolean {
   return allowedDispatchStatusTransitions[currentStatus].includes(nextStatus);
+}
+
+export function canTransitionMarketDeliveryRunStatus(
+  currentStatus: MarketDeliveryRunStatus,
+  nextStatus: MarketDeliveryRunStatus,
+): boolean {
+  return allowedMarketDeliveryRunStatusTransitions[currentStatus].includes(nextStatus);
 }
 
 export const activeReservationStatuses: readonly InventoryReservationStatus[] = [

@@ -1,4 +1,5 @@
 import {
+  adminScopeMatchesTarget,
   adminRoleHasPermission,
   type AdminPermissionKey,
 } from "@kuapa-dwaso/permissions";
@@ -95,28 +96,13 @@ function isActiveGrant(grant: {
   return grant.status === "active" && (grant.expiresAt === undefined || grant.expiresAt > now);
 }
 
-function normalizeScopeValue(value: string | undefined): string | undefined {
-  const cleaned = value?.trim().toLowerCase();
-  return cleaned === undefined || cleaned.length === 0 ? undefined : cleaned;
-}
-
 function scopeGrantMatchesTarget(grant: AdminScopeGrant, target: AdminScopeTarget): boolean {
-  if (grant.scopeType === "global") {
-    return true;
-  }
-  if (grant.scopeType === "warehouse") {
-    return target.warehouseId !== undefined && grant.scopeId === String(target.warehouseId);
-  }
-  if (grant.scopeType === "region") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.region);
-  }
-  if (grant.scopeType === "district") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.district);
-  }
-  if (grant.scopeType === "destination_market") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.destinationMarket);
-  }
-  return false;
+  return adminScopeMatchesTarget(grant, {
+    ...(target.warehouseId === undefined ? {} : { warehouseId: String(target.warehouseId) }),
+    ...(target.region === undefined ? {} : { region: target.region }),
+    ...(target.district === undefined ? {} : { district: target.district }),
+    ...(target.destinationMarket === undefined ? {} : { destinationMarket: target.destinationMarket }),
+  });
 }
 
 function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
@@ -146,6 +132,10 @@ function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
     "payouts:manage",
     "dispatches:read",
     "dispatches:manage",
+    "marketSchedules:read",
+    "marketSchedules:manage",
+    "marketRuns:read",
+    "marketRuns:manage",
     "transporters:read",
     "transporters:manage",
     "disputes:read",
@@ -178,10 +168,10 @@ export async function requireActiveAdmin(
     "Admin must use Firebase email/password or Google authentication.",
   );
   assertAllowed(
-    actor.mfaRequirement === undefined ||
-      actor.mfaRequirement === "not_required" ||
+    actor.mfaRequirement !== undefined &&
+      actor.mfaRequirement !== "not_required" &&
       actor.mfaStatus === "verified",
-    "Admin MFA requirement has not been satisfied.",
+    "Privileged admin access requires verified MFA.",
   );
   return actor;
 }
@@ -324,8 +314,17 @@ export async function farmerScopeTarget(
 
 export async function buyerOrderScopeTarget(
   ctx: QueryCtx | MutationCtx,
-  order: Pick<Doc<"buyerOrders">, "destinationMarket" | "matchedInventoryBatchIds">,
+  order: Pick<Doc<"buyerOrders">, "destinationMarket" | "matchedInventoryBatchIds" | "marketDeliveryRunId">,
 ): Promise<AdminScopeTarget> {
+  if (order.marketDeliveryRunId !== undefined) {
+    const run = await ctx.db.get(order.marketDeliveryRunId);
+    if (run !== null) {
+      return {
+        ...(await warehouseScopeTarget(ctx, run.originWarehouseId)),
+        destinationMarket: order.destinationMarket,
+      };
+    }
+  }
   const firstBatchId = order.matchedInventoryBatchIds[0];
   if (firstBatchId !== undefined) {
     const batch = await ctx.db.get(firstBatchId);

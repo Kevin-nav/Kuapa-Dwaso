@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 const navLinks = [
   ["How it works", "#how"],
   ["Warehouse model", "#warehouse"],
-  ["Buyers", "#buyers"],
+  ["Who it is for", "#buyers"],
 ] as const;
 
 export function Logo({ className }: { className?: string }) {

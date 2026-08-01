@@ -32,6 +32,18 @@ type InventoryBatchSummary = {
   status?: string;
 };
 
+type MarketRun = {
+  _id: Id<"marketDeliveryRuns">;
+  originWarehouseId: Id<"warehouses">;
+  destinationName: string;
+  destinationInstructions: string;
+  deliveryDateAt: number;
+  orderCutoffAt: number;
+  expectedArrivalStartAt: number;
+  expectedArrivalEndAt: number;
+  timezone: string;
+};
+
 function ProduceImage({ photoId, user }: { photoId: string | undefined; user: User | null }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -118,6 +130,13 @@ function InventorySummaryContent() {
   );
 
   const defaultMarket = buyer?.destinationMarket || "Makola Market";
+  const upcomingRuns = useQuery(
+    api.marketDeliveryRuns.listUpcomingForBuyer,
+    principal !== null && principal !== undefined && buyer?.destinationMarket
+      ? { actorUserId: principal.userId as Id<"users">, destinationName: buyer.destinationMarket, limit: 20 }
+      : "skip",
+  ) as MarketRun[] | undefined;
+  const selectedRun = upcomingRuns?.find((run) => run.originWarehouseId === warehouseId);
 
   // Query Warehouses
   const warehouses = useQuery(api.warehouses.list, {}) as WarehouseSummary[] | undefined;
@@ -244,12 +263,9 @@ function InventorySummaryContent() {
               </span>
             </div>
           )}
-          <div className="slip-row">
-            <span className="slip-label">Dispatch Schedule</span>
-            <span className="slip-value" style={{ fontWeight: "600" }}>
-              {dispatchDays.length > 0 ? dispatchDays.join(", ") : "Warehouse will confirm after payment"}
-            </span>
-          </div>
+          <div className="slip-row"><span className="slip-label">Destination</span><span className="slip-value" style={{ fontWeight: "600" }}>{buyer?.destinationMarket ?? "Choose a destination in your profile"}</span></div>
+          <div className="slip-row"><span className="slip-label">Next published delivery</span><span className="slip-value" style={{ fontWeight: "600" }}>{selectedRun === undefined ? (dispatchDays.length > 0 ? `No open run yet (${dispatchDays.join(", ")})` : "No open run yet") : new Date(selectedRun.deliveryDateAt).toLocaleDateString("en-GH", { dateStyle: "medium", timeZone: selectedRun.timezone })}</span></div>
+          {selectedRun !== undefined && <><div className="slip-row"><span className="slip-label">Orders and payment close</span><span className="slip-value">{new Date(selectedRun.orderCutoffAt).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short", timeZone: selectedRun.timezone })}</span></div><div className="slip-row"><span className="slip-label">Arrival / collection</span><span className="slip-value">{new Date(selectedRun.expectedArrivalStartAt).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit", timeZone: selectedRun.timezone })}–{new Date(selectedRun.expectedArrivalEndAt).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit", timeZone: selectedRun.timezone })}; {selectedRun.destinationInstructions}</span></div></>}
         </div>
       </div>
 
@@ -379,14 +395,14 @@ function InventorySummaryContent() {
         <button
           type="button"
           className="btn btn-primary btn-full"
-          disabled={!hasAvailableBatches || minPrice === undefined || maxPrice === undefined}
+          disabled={!hasAvailableBatches || minPrice === undefined || maxPrice === undefined || selectedRun === undefined}
           onClick={() =>
             router.push(
-              `/buyer/orders/create?warehouseId=${warehouseId}&cropType=${cropType}&grade=${grade}&unit=${unit}&minPrice=${minPrice}&maxPrice=${maxPrice}`
+              `/buyer/orders/create?run=${selectedRun?._id ?? ""}&warehouseId=${warehouseId}&cropType=${cropType}&grade=${grade}&unit=${unit}&minPrice=${minPrice}&maxPrice=${maxPrice}`
             )
           }
         >
-          <span>Continue to Place Order</span>
+          <span>{selectedRun === undefined ? "No accepting delivery run" : "Continue to Place Order"}</span>
         </button>
       </div>
 
