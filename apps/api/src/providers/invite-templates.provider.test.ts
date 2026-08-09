@@ -42,18 +42,6 @@ describe("InviteTemplatesProvider", () => {
     });
   });
 
-  it("centralizes warehouse-agent SMS invite copy", () => {
-    const provider = new InviteTemplatesProvider();
-
-    expect(
-      provider.warehouseAgentSms({
-        type: "warehouse_agent_invite",
-        inviteUrl: "https://app.example.test/invites/accept?token=sms",
-        expiresAt: Date.UTC(2026, 6, 7, 12, 0, 0)
-      })
-    ).toContain("warehouse agent invite");
-  });
-
   it("exposes role labels for every invitation type", () => {
     expect(roleLabelForInviteType("admin_invite")).toBe("admin");
     expect(roleLabelForInviteType("warehouse_manager_invite")).toBe("warehouse manager");

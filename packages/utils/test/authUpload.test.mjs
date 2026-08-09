@@ -20,7 +20,7 @@ test("invitation expiry and status resolution are deterministic", () => {
   );
   assert.throws(
     () => assertInvitationCanBeAccepted({ status: "revoked", expiresAt: 2_000, now: 1_500 }),
-    /not pending/,
+    /no longer active/,
   );
 });
 

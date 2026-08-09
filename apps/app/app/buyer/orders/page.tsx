@@ -20,6 +20,12 @@ type BuyerOrderListItem = {
   paymentStatus: string;
   status: string;
   createdAt: number;
+  deliveryDateSnapshot?: number;
+  orderCutoffSnapshot?: number;
+  expectedArrivalStartSnapshot?: number;
+  expectedArrivalEndSnapshot?: number;
+  paymentDeadline?: number;
+  fulfilmentInstructionsSnapshot?: string;
 };
 
 export default function OrdersListPage() {
@@ -111,7 +117,7 @@ export default function OrdersListPage() {
                   ORDER #{o._id.substring(0, 8).toUpperCase()}
                 </span>
                 <span className={`status-chip ${getStatusClass(o.status)}`}>
-                  {o.status.replace(/_/g, " ")}
+                  {buyerStatusLabel(o.status)}
                 </span>
               </div>
 
@@ -123,6 +129,8 @@ export default function OrdersListPage() {
                   <span>Market: {o.destinationMarket}</span>
                   <span>Submitted: {formattedDate}</span>
                   <span>Payment: {o.paymentStatus.replace(/_/g, " ")}</span>
+                  <span>Delivery: {o.deliveryDateSnapshot ? new Date(o.deliveryDateSnapshot).toLocaleDateString("en-GH", { dateStyle: "medium" }) : "Legacy order — operations will confirm"}</span>
+                  {o.paymentDeadline && <span>Pay by: {new Date(o.paymentDeadline).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short" })}</span>}
                 </div>
               </div>
 
@@ -166,4 +174,24 @@ export default function OrdersListPage() {
       <p className="timestamp">Connected · Last synced {new Date().toLocaleTimeString()}</p>
     </div>
   );
+}
+
+function buyerStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    submitted: "Order received",
+    awaiting_payment: "Payment needed",
+    confirmed: "Payment confirmed",
+    matched_to_inventory: "Stock matched",
+    reserved: "Stock reserved",
+    preparing: "Being prepared",
+    ready_for_dispatch: "Ready to leave warehouse",
+    in_transit: "On the way",
+    delivered: "Arrived at destination",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    unfulfilled: "Could not reserve stock",
+    disputed: "Support review",
+    draft: "Draft",
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
 }

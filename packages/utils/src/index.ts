@@ -1,9 +1,14 @@
 import type {
+  BuyerOrderPaymentStatus,
+  BuyerOrderStatus,
   FeeCalculationType,
   FeePayer,
   FeeRuleSnapshot,
   InventoryBatchStatus,
   InventoryReservationStatus,
+  InvitationChannel,
+  MarketDeliveryRunStatus,
+  PlatformInvitationType,
   PlatformInvitationStatus,
   SmsDeliveryStatus,
   SmsMessageKind,
@@ -105,6 +110,29 @@ export function roundMoneyAmount(amount: number, decimalPlaces = 2): number {
 
   const multiplier = 10 ** decimalPlaces;
   return Math.round((amount + Number.EPSILON) * multiplier) / multiplier;
+}
+
+export function isInvitationDeliveryAllowed(
+  type: PlatformInvitationType,
+  channel: InvitationChannel,
+): boolean {
+  if (type === "admin_invite" || type === "warehouse_manager_invite") {
+    return channel === "email";
+  }
+  return channel === "email" || channel === "manual_link";
+}
+
+export function assertInvitationDeliveryAllowed(
+  type: PlatformInvitationType,
+  channel: InvitationChannel,
+): void {
+  if (!isInvitationDeliveryAllowed(type, channel)) {
+    throw new Error(
+      type === "admin_invite" || type === "warehouse_manager_invite"
+        ? "Admin and warehouse-manager invitations must be delivered by email."
+        : "This invitation delivery method is not supported.",
+    );
+  }
 }
 
 export type FeeCalculationInput = {
@@ -656,6 +684,48 @@ export function calculateDispatchQuantityAggregation(
   };
 }
 
+export function assertDispatchRunGroupingCompatible(
+  marketDeliveryRunIds: readonly (string | undefined)[],
+): void {
+  if (marketDeliveryRunIds.length === 0) throw new Error("At least one buyer order is required.");
+  const groupingKeys = new Set(marketDeliveryRunIds.map((runId) => runId ?? "legacy"));
+  if (groupingKeys.size !== 1) {
+    throw new Error("Dispatch grouping cannot combine orders from incompatible market delivery runs.");
+  }
+}
+
+export function buildMarketRunBuyerNotification(input: {
+  event: "opened" | "cancelled" | "postponed";
+  runId: string;
+  destination: string;
+  deliveryLabel: string;
+  reason?: string | undefined;
+}): {
+  title: string;
+  message: string;
+  actionUrl: string;
+  actionRequired: boolean;
+  priority: "normal" | "high";
+  deduplicationKey: string;
+} {
+  const title = input.event === "opened"
+    ? "Orders open for a market delivery"
+    : input.event === "cancelled"
+      ? "Market delivery cancelled"
+      : "Market delivery postponed";
+  const message = input.event === "opened"
+    ? `Order by the published cutoff for delivery to ${input.destination} on ${input.deliveryLabel}.`
+    : `The ${input.deliveryLabel} delivery to ${input.destination} was ${input.event}.${input.reason?.trim() ? ` ${input.reason.trim()}` : ""}`;
+  return {
+    title,
+    message,
+    actionUrl: input.event === "opened" ? `/buyer/orders/create?run=${input.runId}` : "/buyer/orders",
+    actionRequired: input.event !== "opened",
+    priority: input.event === "opened" ? "normal" : "high",
+    deduplicationKey: `run:${input.runId}:${input.event}:in-app`,
+  };
+}
+
 export type DispatchTransportCostShare = {
   payer: FeePayer;
   buyerAmount: number;
@@ -733,8 +803,14 @@ export function assertInvitationCanBeAccepted(input: {
   now?: number;
 }): void {
   const effectiveStatus = resolveInvitationStatus(input.status, input.expiresAt, input.now);
-  if (effectiveStatus !== "pending") {
-    throw new Error("Invitation is not pending.");
+  if (effectiveStatus === "expired") {
+    throw new Error("This invitation has expired. Ask an administrator for a new invitation.");
+  }
+  if (effectiveStatus === "accepted") {
+    throw new Error("This invitation has already been used. Sign in with the account that accepted it or contact support.");
+  }
+  if (effectiveStatus === "revoked" || effectiveStatus === "cancelled") {
+    throw new Error("This invitation is no longer active. Ask an administrator for a new invitation.");
   }
 }
 
@@ -823,6 +899,30 @@ export function assertInviteTargetMatchesIdentity(input: {
     return;
   }
   throw new Error("Invitation target is required.");
+}
+
+export function assertInviteIdentityVerification(input: {
+  invitationType: PlatformInvitationType;
+  targetEmail?: string;
+  targetPhoneNumber?: string;
+  identityPhoneNumber?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+}): void {
+  const phonePrimary =
+    input.invitationType === "warehouse_agent_invite" || input.invitationType === "transporter_invite";
+  if (phonePrimary) {
+    if (input.identityPhoneNumber === undefined || input.phoneVerified !== true) {
+      throw new Error("Phone number must be verified to accept this invitation.");
+    }
+    return;
+  }
+  if (input.targetEmail !== undefined && input.emailVerified !== true) {
+    throw new Error("Invitation email must be verified.");
+  }
+  if (input.targetPhoneNumber !== undefined && input.phoneVerified !== true) {
+    throw new Error("Invitation phone number must be verified.");
+  }
 }
 
 export function buildUploadObjectKey(input: {
@@ -964,10 +1064,8 @@ export type RenderedSmsTemplate = {
 };
 
 const templateKeyByMessageKind: Partial<Record<SmsMessageKind, SmsTemplateKey>> = {
-  invite: "warehouse_agent_invite",
   notification: "generic_notification",
   transactional: "generic_notification",
-  warehouse_agent_invite: "warehouse_agent_invite",
   farmer_receipt: "farmer_receipt",
   storage_fee_reminder: "storage_fee_reminder",
   reservation_alert: "reservation_alert",
@@ -978,6 +1076,7 @@ const templateKeyByMessageKind: Partial<Record<SmsMessageKind, SmsTemplateKey>> 
   buyer_cancellation_update: "buyer_cancellation_update",
   dispatch_assignment: "dispatch_assignment",
   dispatch_status_update: "dispatch_status_update",
+  market_run_update: "generic_notification",
   dispute_update: "dispute_update",
 };
 
@@ -1015,12 +1114,6 @@ function renderKnownSmsTemplate(
   fallbackMessage: string,
 ): string {
   switch (templateKey) {
-    case "warehouse_agent_invite":
-      return compactTemplate([
-        "Kuapa Dwaso invite:",
-        readTemplateValue(data, "inviteUrl", fallbackMessage),
-        data.expiresAt === undefined ? undefined : `Expires ${formatSmsDate(data.expiresAt)}.`,
-      ]);
     case "farmer_receipt":
       return compactTemplate([
         "Kuapa receipt",
@@ -1178,4 +1271,386 @@ export function assertUploadMetadata(input: {
   if (!Number.isInteger(input.sizeBytes) || input.sizeBytes <= 0 || input.sizeBytes > maxSizeBytes) {
     throw new Error("Upload size is outside the allowed range.");
   }
+}
+
+export type MarketScheduleTimingInput = {
+  timezone: string;
+  deliveryWeekday: number;
+  cutoffDaysBefore: number;
+  cutoffLocalTime: string;
+  arrivalStartLocalTime: string;
+  arrivalEndLocalTime: string;
+  effectiveDate: string;
+  endDate?: string;
+};
+
+export type MarketRunOccurrence = {
+  deliveryDate: string;
+  deliveryDateAt: number;
+  orderCutoffAt: number;
+  expectedArrivalStartAt: number;
+  expectedArrivalEndAt: number;
+};
+
+function parseLocalDate(value: string, label: string): { year: number; month: number; day: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (match === null) {
+    throw new Error(`${label} must use YYYY-MM-DD.`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const roundTrip = new Date(Date.UTC(year, month - 1, day));
+  if (
+    roundTrip.getUTCFullYear() !== year ||
+    roundTrip.getUTCMonth() !== month - 1 ||
+    roundTrip.getUTCDate() !== day
+  ) {
+    throw new Error(`${label} is not a valid calendar date.`);
+  }
+  return { year, month, day };
+}
+
+function parseLocalTime(value: string, label: string): { hour: number; minute: number } {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  if (match === null) {
+    throw new Error(`${label} must use 24-hour HH:mm.`);
+  }
+  return { hour: Number(match[1]), minute: Number(match[2]) };
+}
+
+function timeZoneOffsetAt(timestamp: number, timezone: string): number {
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+  } catch {
+    throw new Error("Service timezone must be a valid IANA timezone.");
+  }
+  const values = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(timestamp))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  const asUtc = Date.UTC(
+    values.year ?? 0,
+    (values.month ?? 1) - 1,
+    values.day ?? 1,
+    values.hour ?? 0,
+    values.minute ?? 0,
+    values.second ?? 0,
+  );
+  return asUtc - Math.floor(timestamp / 1000) * 1000;
+}
+
+function zonedLocalTimestamp(
+  date: { year: number; month: number; day: number },
+  time: { hour: number; minute: number },
+  timezone: string,
+): number {
+  const desiredUtcShape = Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute);
+  let result = desiredUtcShape - timeZoneOffsetAt(desiredUtcShape, timezone);
+  result = desiredUtcShape - timeZoneOffsetAt(result, timezone);
+  return result;
+}
+
+function addCalendarDays(
+  date: { year: number; month: number; day: number },
+  days: number,
+): { year: number; month: number; day: number } {
+  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+export function calculateMarketRunOccurrence(
+  schedule: MarketScheduleTimingInput,
+  deliveryDate: string,
+): MarketRunOccurrence {
+  if (!Number.isInteger(schedule.deliveryWeekday) || schedule.deliveryWeekday < 0 || schedule.deliveryWeekday > 6) {
+    throw new Error("Delivery weekday must be between Sunday (0) and Saturday (6)." );
+  }
+  if (!Number.isInteger(schedule.cutoffDaysBefore) || schedule.cutoffDaysBefore < 0 || schedule.cutoffDaysBefore > 14) {
+    throw new Error("Cutoff days before delivery must be between 0 and 14.");
+  }
+  const date = parseLocalDate(deliveryDate, "Delivery date");
+  parseLocalDate(schedule.effectiveDate, "Effective date");
+  if (deliveryDate < schedule.effectiveDate || (schedule.endDate !== undefined && deliveryDate > schedule.endDate)) {
+    throw new Error("Delivery date is outside the schedule effective period.");
+  }
+  if (new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() !== schedule.deliveryWeekday) {
+    throw new Error("Delivery date does not match the schedule delivery weekday.");
+  }
+  const cutoffDate = addCalendarDays(date, -schedule.cutoffDaysBefore);
+  const cutoffTime = parseLocalTime(schedule.cutoffLocalTime, "Order cutoff time");
+  const arrivalStartTime = parseLocalTime(schedule.arrivalStartLocalTime, "Arrival start time");
+  const arrivalEndTime = parseLocalTime(schedule.arrivalEndLocalTime, "Arrival end time");
+  const occurrence = {
+    deliveryDate,
+    deliveryDateAt: zonedLocalTimestamp(date, { hour: 0, minute: 0 }, schedule.timezone),
+    orderCutoffAt: zonedLocalTimestamp(cutoffDate, cutoffTime, schedule.timezone),
+    expectedArrivalStartAt: zonedLocalTimestamp(date, arrivalStartTime, schedule.timezone),
+    expectedArrivalEndAt: zonedLocalTimestamp(date, arrivalEndTime, schedule.timezone),
+  };
+  if (occurrence.expectedArrivalEndAt <= occurrence.expectedArrivalStartAt) {
+    throw new Error("Expected arrival end must be after the arrival start.");
+  }
+  if (occurrence.orderCutoffAt >= occurrence.expectedArrivalStartAt) {
+    throw new Error("Order cutoff must be before the expected arrival window.");
+  }
+  return occurrence;
+}
+
+export type RunAggregationOrder = {
+  cropType: string;
+  unit: string;
+  requestedQuantity: number;
+  reservedQuantity: number;
+  paymentStatus: string;
+  reservationExpiresAt?: number;
+};
+
+export type RunAggregation = {
+  orderCount: number;
+  groupedTotals: Array<{
+    cropType: string;
+    unit: string;
+    requestedQuantity: number;
+    reservedQuantity: number;
+    paidQuantity: number;
+    unpaidQuantity: number;
+  }>;
+  buyersAwaitingPayment: number;
+  nextReservationExpiry?: number;
+  capacity: {
+    compatible: boolean;
+    configuredQuantity?: number;
+    configuredUnit?: string;
+    reservedQuantity?: number;
+    remainingQuantity?: number;
+    percentage?: number;
+  };
+  minimumLoad: {
+    compatible: boolean;
+    configuredQuantity?: number;
+    configuredUnit?: string;
+    reservedQuantity?: number;
+    percentage?: number;
+  };
+};
+
+function normalizedUnit(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function aggregateMarketRunOrders(
+  orders: readonly RunAggregationOrder[],
+  configuration: {
+    capacityQuantity?: number;
+    capacityUnit?: string;
+    minimumLoadQuantity?: number;
+    minimumLoadUnit?: string;
+  } = {},
+): RunAggregation {
+  const grouped = new Map<string, RunAggregation["groupedTotals"][number]>();
+  let buyersAwaitingPayment = 0;
+  const expiries: number[] = [];
+  for (const order of orders) {
+    if (!Number.isFinite(order.requestedQuantity) || order.requestedQuantity < 0 || !Number.isFinite(order.reservedQuantity) || order.reservedQuantity < 0) {
+      throw new Error("Run quantities must be finite non-negative numbers.");
+    }
+    const key = `${order.cropType.trim().toLowerCase()}|${normalizedUnit(order.unit)}`;
+    const current = grouped.get(key) ?? {
+      cropType: order.cropType.trim(),
+      unit: order.unit.trim(),
+      requestedQuantity: 0,
+      reservedQuantity: 0,
+      paidQuantity: 0,
+      unpaidQuantity: 0,
+    };
+    current.requestedQuantity += order.requestedQuantity;
+    current.reservedQuantity += order.reservedQuantity;
+    if (order.paymentStatus === "fully_paid") {
+      current.paidQuantity += order.requestedQuantity;
+    } else {
+      current.unpaidQuantity += order.requestedQuantity;
+      buyersAwaitingPayment += 1;
+    }
+    grouped.set(key, current);
+    if (order.reservationExpiresAt !== undefined) expiries.push(order.reservationExpiresAt);
+  }
+  const groupedTotals = [...grouped.values()].sort((a, b) =>
+    `${a.cropType}|${a.unit}`.localeCompare(`${b.cropType}|${b.unit}`),
+  );
+  const capacityUnit = configuration.capacityUnit?.trim();
+  const capacityCompatible =
+    configuration.capacityQuantity !== undefined &&
+    capacityUnit !== undefined &&
+    groupedTotals.every((group) => normalizedUnit(group.unit) === normalizedUnit(capacityUnit));
+  const minimumUnit = configuration.minimumLoadUnit?.trim();
+  const minimumCompatible =
+    configuration.minimumLoadQuantity !== undefined &&
+    minimumUnit !== undefined &&
+    groupedTotals.every((group) => normalizedUnit(group.unit) === normalizedUnit(minimumUnit));
+  const reservedTotal = groupedTotals.reduce((sum, group) => sum + group.reservedQuantity, 0);
+  return {
+    orderCount: orders.length,
+    groupedTotals,
+    buyersAwaitingPayment,
+    ...(expiries.length === 0 ? {} : { nextReservationExpiry: Math.min(...expiries) }),
+    capacity: {
+      compatible: capacityCompatible,
+      ...(configuration.capacityQuantity === undefined ? {} : { configuredQuantity: configuration.capacityQuantity }),
+      ...(capacityUnit === undefined ? {} : { configuredUnit: capacityUnit }),
+      ...(capacityCompatible
+        ? {
+            reservedQuantity: reservedTotal,
+            remainingQuantity: Math.max(0, configuration.capacityQuantity! - reservedTotal),
+            percentage: roundMoneyAmount((reservedTotal / configuration.capacityQuantity!) * 100, 1),
+          }
+        : {}),
+    },
+    minimumLoad: {
+      compatible: minimumCompatible,
+      ...(configuration.minimumLoadQuantity === undefined ? {} : { configuredQuantity: configuration.minimumLoadQuantity }),
+      ...(minimumUnit === undefined ? {} : { configuredUnit: minimumUnit }),
+      ...(minimumCompatible
+        ? {
+            reservedQuantity: reservedTotal,
+            percentage: roundMoneyAmount((reservedTotal / configuration.minimumLoadQuantity!) * 100, 1),
+          }
+        : {}),
+    },
+  };
+}
+
+export function assertOrderCanJoinMarketRun(input: {
+  runStatus: MarketDeliveryRunStatus;
+  now: number;
+  orderCutoffAt: number;
+  runOriginWarehouseId: string;
+  inventoryWarehouseIds: readonly string[];
+  runDestination: string;
+  orderDestination: string;
+  authorizedAfterCutoff?: boolean;
+  exceptionReason?: string;
+}): void {
+  if (input.runStatus !== "accepting_orders") {
+    throw new Error("This delivery run is not accepting orders.");
+  }
+  if (input.now >= input.orderCutoffAt && !(input.authorizedAfterCutoff === true && input.exceptionReason?.trim())) {
+    throw new Error("The published order cutoff has passed.");
+  }
+  if (input.inventoryWarehouseIds.some((warehouseId) => warehouseId !== input.runOriginWarehouseId)) {
+    throw new Error("Selected inventory does not come from the delivery run origin warehouse.");
+  }
+  if (input.runDestination.trim().toLowerCase() !== input.orderDestination.trim().toLowerCase()) {
+    throw new Error("Order destination does not match the delivery run destination.");
+  }
+}
+
+export function marketRunOrderCountsTowardReadiness(status: BuyerOrderStatus): boolean {
+  return status !== "cancelled" && status !== "unfulfilled" && status !== "completed";
+}
+
+export function shouldAdvanceMarketRunCutoff(input: {
+  status: MarketDeliveryRunStatus;
+  orderCutoffAt: number;
+  now: number;
+}): boolean {
+  return input.status === "accepting_orders" && input.orderCutoffAt <= input.now;
+}
+
+export function shouldExpireInventoryReservation(input: {
+  status: InventoryReservationStatus;
+  expiresAt?: number;
+  paymentStatus: BuyerOrderPaymentStatus;
+  now: number;
+}): boolean {
+  return (
+    (input.status === "active" || input.status === "partially_released") &&
+    input.expiresAt !== undefined &&
+    input.expiresAt <= input.now &&
+    input.paymentStatus !== "fully_paid"
+  );
+}
+
+export type ActualFinancialSummary = {
+  grossProduceValue: number;
+  farmerOwnedValue: number;
+  serviceFeeRevenue: number;
+  storageCharges: number;
+  transportCharges: number;
+  insuranceCharges: number;
+  buyerPaymentsCollected: number;
+  unpaidBuyerOrders: number;
+  farmerNetPayoutsDue: number;
+  payoutsPaid: number;
+  paymentFailures: number;
+  manualReviewAmounts: number;
+  disputedAmounts: number;
+};
+
+export function assertNotificationActionAllowed(input: {
+  actorUserId: string;
+  recipientUserId?: string | undefined;
+  action: "read" | "acknowledge" | "archive";
+  actionRequired?: boolean | undefined;
+  acknowledgedAt?: number | undefined;
+  expiresAt?: number | undefined;
+  now?: number | undefined;
+}): void {
+  if (input.recipientUserId !== input.actorUserId) {
+    throw new Error("You cannot change another user's notification.");
+  }
+  const now = input.now ?? Date.now();
+  if (input.action === "acknowledge") {
+    if (input.actionRequired !== true) throw new Error("This notification does not require acknowledgement.");
+    if (input.expiresAt !== undefined && input.expiresAt <= now) throw new Error("This notification has expired.");
+  }
+  if (input.action === "archive" && input.actionRequired === true && input.acknowledgedAt === undefined && (input.expiresAt === undefined || input.expiresAt > now)) {
+    throw new Error("A required action must be acknowledged before archiving.");
+  }
+}
+
+export function calculateActualFinancialSummary(input: {
+  sales: readonly { grossAmount: number; netAmountDueToFarmer: number; paymentStatus: string }[];
+  charges: readonly { amount: number; category: "service" | "storage" | "transport" | "insurance" }[];
+  buyerOrders: readonly { totalAmount?: number; paymentStatus: string }[];
+  payments: readonly { amount: number; status: string }[];
+  payouts: readonly { amount: number; status: string }[];
+}): ActualFinancialSummary {
+  const sum = (values: readonly number[]) => roundMoneyAmount(values.reduce((total, value) => total + value, 0));
+  const chargeTotal = (category: "service" | "storage" | "transport" | "insurance") =>
+    sum(input.charges.filter((charge) => charge.category === category).map((charge) => charge.amount));
+  return {
+    grossProduceValue: sum(input.sales.map((sale) => sale.grossAmount)),
+    farmerOwnedValue: sum(input.sales.map((sale) => sale.netAmountDueToFarmer)),
+    serviceFeeRevenue: chargeTotal("service"),
+    storageCharges: chargeTotal("storage"),
+    transportCharges: chargeTotal("transport"),
+    insuranceCharges: chargeTotal("insurance"),
+    buyerPaymentsCollected: sum(input.payments.filter((payment) => payment.status === "successful").map((payment) => payment.amount)),
+    unpaidBuyerOrders: sum(input.buyerOrders.filter((order) => order.paymentStatus !== "fully_paid").map((order) => order.totalAmount ?? 0)),
+    farmerNetPayoutsDue: sum(input.payouts.filter((payout) => payout.status !== "paid" && payout.status !== "cancelled").map((payout) => payout.amount)),
+    payoutsPaid: sum(input.payouts.filter((payout) => payout.status === "paid").map((payout) => payout.amount)),
+    paymentFailures: sum(input.payments.filter((payment) => payment.status === "failed").map((payment) => payment.amount)),
+    manualReviewAmounts: sum(input.payments.filter((payment) => payment.status === "manual_review").map((payment) => payment.amount)),
+    disputedAmounts: sum([
+      ...input.sales.filter((sale) => sale.paymentStatus === "disputed").map((sale) => sale.grossAmount),
+      ...input.buyerOrders.filter((order) => order.paymentStatus === "disputed").map((order) => order.totalAmount ?? 0),
+    ]),
+  };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { AlertTriangle, Bell, CheckCircle2, ChevronRight, Clock, MapPin, Truck } from "lucide-react";
@@ -32,6 +32,8 @@ export default function TransporterDashboard() {
   const { principal } = useAuth();
   const transporterProfileLink = principal?.profiles?.find((profile) => profile.profileType === "transporter");
   const transporterId = transporterProfileLink?.profileId as Id<"transporterProfiles"> | undefined;
+  const markNotificationRead = useMutation(api.notifications.markRead);
+  const acknowledgeNotification = useMutation(api.notifications.acknowledge);
 
   const profile = useQuery(
     api.transporters.getById,
@@ -179,6 +181,16 @@ export default function TransporterDashboard() {
                   <div className="row-info">
                     <span className="row-title">{notification.title}</span>
                     <span className="row-subtitle">{notification.message}</span>
+                    {notification.dueAt !== undefined && <span className="row-subtitle">Due {new Date(notification.dueAt).toLocaleString()}</span>}
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
+                      {notification.actionUrl !== undefined && <Link href={notification.actionUrl} className="btn btn-secondary">Open</Link>}
+                      {notification.status !== "read" && principal !== null && principal !== undefined && (
+                        <button type="button" className="btn btn-secondary" onClick={() => void markNotificationRead({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Mark read</button>
+                      )}
+                      {notification.actionRequired === true && notification.acknowledgedAt === undefined && principal !== null && principal !== undefined && (
+                        <button type="button" className="btn btn-primary" onClick={() => void acknowledgeNotification({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Acknowledge</button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {notification.status === "read" ? <CheckCircle2 size={18} /> : <Clock size={18} />}

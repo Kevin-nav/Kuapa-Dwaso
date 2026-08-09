@@ -6,6 +6,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { palette, interaction, status as statusTokens, gray } from "@kuapa-dwaso/design-tokens";
 
@@ -191,12 +192,9 @@ export function OtpInput({
   const prevErrorRef = useRef(hasError);
 
   /* Sync controlled value → internal digits */
-  useEffect(() => {
-    if (controlledValue === undefined) return;
-    setDigitsState(
-      Array.from({ length }, (_, i) => controlledValue[i] ?? ""),
-    );
-  }, [controlledValue, length]);
+  const currentDigits = controlledValue === undefined
+    ? digits
+    : Array.from({ length }, (_, i) => controlledValue[i] ?? "");
 
   useEffect(() => {
     if (hasError && !prevErrorRef.current) {
@@ -212,14 +210,14 @@ export function OtpInput({
   /* Helpers */
   const setDigits = useCallback(
     (next: string[]) => {
-      setDigitsState(next);
+      if (controlledValue === undefined) setDigitsState(next);
       const joined = next.join("");
       onChange?.(joined);
       if (joined.length === length && next.every((d) => DIGIT_RE.test(d))) {
         onComplete?.(joined);
       }
     },
-    [length, onChange, onComplete],
+    [controlledValue, length, onChange, onComplete],
   );
 
   const focusSlot = useCallback(
@@ -237,7 +235,7 @@ export function OtpInput({
 
       if (e.key === "Backspace") {
         e.preventDefault();
-        const next = [...digits];
+        const next = [...currentDigits];
         if (next[index] !== "") {
           next[index] = "";
           setDigits(next);
@@ -251,7 +249,7 @@ export function OtpInput({
 
       if (e.key === "Delete") {
         e.preventDefault();
-        const next = [...digits];
+        const next = [...currentDigits];
         next[index] = "";
         setDigits(next);
         return;
@@ -271,7 +269,7 @@ export function OtpInput({
 
       if (DIGIT_RE.test(e.key)) {
         e.preventDefault();
-        const next = [...digits];
+        const next = [...currentDigits];
         next[index] = e.key;
         setDigits(next);
         if (index < length - 1) {
@@ -279,7 +277,7 @@ export function OtpInput({
         }
       }
     },
-    [digits, disabled, focusSlot, length, setDigits],
+    [currentDigits, disabled, focusSlot, length, setDigits],
   );
 
   const handlePaste = useCallback(
@@ -292,7 +290,7 @@ export function OtpInput({
         .slice(0, length);
       if (pasted.length === 0) return;
 
-      const next = [...digits];
+      const next = [...currentDigits];
       let cursor = index;
       for (const ch of pasted) {
         if (cursor >= length) break;
@@ -302,7 +300,7 @@ export function OtpInput({
       setDigits(next);
       focusSlot(Math.min(cursor, length - 1));
     },
-    [digits, disabled, focusSlot, length, setDigits],
+    [currentDigits, disabled, focusSlot, length, setDigits],
   );
 
   const handleFocus = useCallback(
@@ -317,11 +315,11 @@ export function OtpInput({
   const handleBlur = useCallback(() => setFocusedIndex(-1), []);
 
   /* Render */
-  const slots: React.ReactNode[] = [];
+  const slots: ReactNode[] = [];
 
   for (let i = 0; i < length; i++) {
     const isFocused = focusedIndex === i;
-    const filled = DIGIT_RE.test(digits[i] ?? "");
+    const filled = DIGIT_RE.test(currentDigits[i] ?? "");
     const showCursor = isFocused && !filled && !disabled;
 
     slots.push(
@@ -342,7 +340,7 @@ export function OtpInput({
           maxLength={1}
           autoComplete={i === 0 ? autoComplete : "off"}
           aria-label={`Digit ${i + 1} of ${length}`}
-          value={digits[i] ?? ""}
+          value={currentDigits[i] ?? ""}
           disabled={disabled}
           readOnly={disabled}
           style={slotStyle(isFocused, hasError, disabled, filled)}

@@ -320,6 +320,24 @@ export const dispatchStatuses = [
 ] as const;
 export type DispatchStatus = (typeof dispatchStatuses)[number];
 
+export const marketServiceScheduleStatuses = ["draft", "active", "paused", "retired"] as const;
+export type MarketServiceScheduleStatus = (typeof marketServiceScheduleStatuses)[number];
+
+export const marketDeliveryRunStatuses = [
+  "draft",
+  "accepting_orders",
+  "cutoff_reached",
+  "ready",
+  "confirmed",
+  "cancelled",
+  "dispatched",
+  "completed",
+] as const;
+export type MarketDeliveryRunStatus = (typeof marketDeliveryRunStatuses)[number];
+
+export const notificationPriorities = ["low", "normal", "high", "urgent"] as const;
+export type NotificationPriority = (typeof notificationPriorities)[number];
+
 export const feeRuleStatuses = ["draft", "active", "inactive", "archived"] as const;
 export type FeeRuleStatus = (typeof feeRuleStatuses)[number];
 
@@ -355,11 +373,9 @@ export const smsProviders = ["mock", "arkesel"] as const;
 export type SmsProvider = (typeof smsProviders)[number];
 
 export const smsMessageKinds = [
-  "invite",
   "notification",
   "otp",
   "transactional",
-  "warehouse_agent_invite",
   "farmer_receipt",
   "storage_fee_reminder",
   "reservation_alert",
@@ -370,6 +386,7 @@ export const smsMessageKinds = [
   "buyer_cancellation_update",
   "dispatch_assignment",
   "dispatch_status_update",
+  "market_run_update",
   "dispute_update",
   "promotional",
 ] as const;
@@ -440,6 +457,8 @@ export const disputeEntityTypes = [
   "inventory_batch",
   "storage_receipt",
   "buyer_order",
+  "market_service_schedule",
+  "market_delivery_run",
   "sale_record",
   "dispatch",
   "storage_fee_ledger",
@@ -474,6 +493,8 @@ export const auditEntityTypes = [
   "sale_record",
   "sale_deduction",
   "dispatch",
+  "market_service_schedule",
+  "market_delivery_run",
   "dispute",
   "notification",
   "payment_transaction",
@@ -691,6 +712,15 @@ export type BuyerOrder = TimestampFields & {
   unit: string;
   preferredGrade?: ProduceGrade;
   requestedDeliveryDate?: number;
+  marketDeliveryRunId?: string;
+  deliveryDateSnapshot?: number;
+  orderCutoffSnapshot?: number;
+  expectedArrivalStartSnapshot?: number;
+  expectedArrivalEndSnapshot?: number;
+  fulfilmentInstructionsSnapshot?: string;
+  paymentDeadline?: number;
+  authorizedAfterCutoffByUserId?: string;
+  afterCutoffExceptionReason?: string;
   maxPricePerUnit?: number;
   matchedInventoryBatchIds: string[];
   subtotalAmount?: number;
@@ -782,6 +812,7 @@ export type SaleDeduction = {
 };
 
 export type Dispatch = TimestampFields & {
+  marketDeliveryRunId?: string;
   id: string;
   warehouseId: string;
   destination: string;
@@ -806,6 +837,54 @@ export type Dispatch = TimestampFields & {
   status: DispatchStatus;
 };
 
+export type MarketServiceSchedule = TimestampFields & {
+  id: string;
+  originWarehouseId: string;
+  destinationName: string;
+  destinationInstructions: string;
+  timezone: string;
+  deliveryWeekday: number;
+  cutoffDaysBefore: number;
+  cutoffLocalTime: string;
+  arrivalStartLocalTime: string;
+  arrivalEndLocalTime: string;
+  minimumLoadQuantity?: number;
+  minimumLoadUnit?: string;
+  capacityQuantity?: number;
+  capacityUnit?: string;
+  status: MarketServiceScheduleStatus;
+  effectiveDate: string;
+  endDate?: string;
+  createdByUserId: string;
+  updatedByUserId: string;
+};
+
+export type MarketDeliveryRun = TimestampFields & {
+  id: string;
+  scheduleId: string;
+  originWarehouseId: string;
+  destinationName: string;
+  destinationInstructions: string;
+  timezone: string;
+  deliveryDate: string;
+  deliveryDateAt: number;
+  orderCutoffAt: number;
+  expectedArrivalStartAt: number;
+  expectedArrivalEndAt: number;
+  status: MarketDeliveryRunStatus;
+  minimumLoadQuantity?: number;
+  minimumLoadUnit?: string;
+  capacityQuantity?: number;
+  capacityUnit?: string;
+  buyerOrderIds: string[];
+  dispatchIds: string[];
+  cancellationReason?: string;
+  postponementReason?: string;
+  postponedFromRunId?: string;
+  createdByUserId: string;
+  updatedByUserId: string;
+};
+
 export type Notification = {
   id: string;
   recipientId?: string;
@@ -819,6 +898,16 @@ export type Notification = {
   templateData?: Record<string, string | number | boolean | undefined>;
   relatedEntityType?: AuditEntityType;
   relatedEntityId?: string;
+  marketDeliveryRunId?: string;
+  actionUrl?: string;
+  actionRequired?: boolean;
+  priority?: NotificationPriority;
+  dueAt?: number;
+  acknowledgedAt?: number;
+  acknowledgedByUserId?: string;
+  deduplicationKey?: string;
+  escalationLevel?: number;
+  expiresAt?: number;
   status: NotificationStatus;
   createdAt: number;
   updatedAt?: number;
@@ -827,7 +916,6 @@ export type Notification = {
 };
 
 export const smsTemplateKeys = [
-  "warehouse_agent_invite",
   "farmer_receipt",
   "storage_fee_reminder",
   "reservation_alert",
@@ -1039,7 +1127,7 @@ export const platformInvitationTypes = [
 ] as const;
 export type PlatformInvitationType = (typeof platformInvitationTypes)[number];
 
-export const invitationChannels = ["email", "sms"] as const;
+export const invitationChannels = ["email", "manual_link"] as const;
 export type InvitationChannel = (typeof invitationChannels)[number];
 
 export const platformInvitationStatuses = [

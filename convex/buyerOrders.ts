@@ -10,23 +10,30 @@ import {
   allocateInventoryReservations,
   calculateBuyerOrderCharges,
   calculateReservableBatchQuantity,
+  assertOrderCanJoinMarketRun,
   inventoryBatchStatusesVisibleToBuyers,
+  shouldExpireInventoryReservation,
 } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { listApplicableFeeRules, snapshotFeeRule } from "./feeRules";
 import { insertNotificationRecord } from "./notifications";
 import {
   assertAllowed,
   auditSnapshot,
   buyerOrderScopeTarget,
+  cleanOptionalText,
   getActor,
   insertAuditLog,
   omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  warehouseScopeTarget,
+  systemAuditActor,
+  type AuditActor,
   type Actor,
 } from "./workflowHelpers";
 
@@ -254,7 +261,7 @@ async function findReservableBatches(
 async function recomputeBatchStatus(
   ctx: MutationCtx,
   inventoryBatchId: Id<"inventoryBatches">,
-  actor: Actor,
+  actor: AuditActor,
 ): Promise<void> {
   const batch = await ctx.db.get(inventoryBatchId);
   if (batch === null) {
@@ -320,14 +327,33 @@ async function insertBuyerOrderNotification(
   orderId: Id<"buyerOrders">,
   title: string,
   message: string,
+  options: { actionRequired?: boolean; dueAt?: number; priority?: "low" | "normal" | "high" | "urgent" } = {},
 ): Promise<void> {
   await insertNotificationRecord(ctx, {
     recipientId: buyer._id,
     recipientUserId: buyer.userId,
     recipientRole: "buyer",
+    channel: "in_app",
+    title,
+    message,
+    messageKind: "buyer_order_update",
+    relatedEntityType: "buyer_order",
+    relatedEntityId: orderId,
+    actionUrl: `/buyer/orders/${orderId}`,
+    actionRequired: options.actionRequired,
+    priority: options.priority ?? "normal",
+    dueAt: options.dueAt,
+    deduplicationKey: `buyer-order:${orderId}:${title.toLowerCase().replace(/\s+/g, "-")}:in-app`,
+  });
+  await insertNotificationRecord(ctx, {
+    recipientId: buyer.phoneNumber,
+    recipientUserId: buyer.userId,
+    recipientRole: "buyer",
     channel: "sms",
     title,
     message,
+    messageKind: "buyer_order_update",
+    templateKey: "generic_notification",
     relatedEntityType: "buyer_order",
     relatedEntityId: orderId,
   });
@@ -490,6 +516,8 @@ export const create = mutation({
     requestedDeliveryDate: v.optional(v.number()),
     maxPricePerUnit: v.optional(v.number()),
     reservationExpiresAt: v.optional(v.number()),
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
+    afterCutoffExceptionReason: v.optional(v.string()),
     clientRequestId: v.optional(v.string()),
   },
   returns: v.id("buyerOrders"),
@@ -508,8 +536,28 @@ export const create = mutation({
     const destinationMarket = cleanText(args.destinationMarket, "Destination market");
     const cropType = cleanText(args.cropType, "Crop type");
     const unit = cleanText(args.unit, "Unit");
+    assertAllowed(actor.role !== "buyer" || args.marketDeliveryRunId !== undefined, "Choose an available market delivery run before placing this order.");
+    const run = args.marketDeliveryRunId === undefined ? null : await ctx.db.get(args.marketDeliveryRunId);
+    if (args.marketDeliveryRunId !== undefined) assertAllowed(run !== null, "Market delivery run was not found.");
     if (actor.role === "admin") {
-      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", { destinationMarket });
+      await requireAdminPermission(ctx, args.actorUserId, "orders:manage", run === null
+        ? { destinationMarket }
+        : { ...(await warehouseScopeTarget(ctx, run.originWarehouseId)), destinationMarket });
+    }
+    if (args.marketDeliveryRunId !== undefined) {
+      assertAllowed(run !== null, "Market delivery run was not found.");
+      assertOrderCanJoinMarketRun({
+        runStatus: run.status,
+        now: Date.now(),
+        orderCutoffAt: run.orderCutoffAt,
+        runOriginWarehouseId: String(run.originWarehouseId),
+        inventoryWarehouseIds: [String(args.warehouseId ?? run.originWarehouseId)],
+        runDestination: run.destinationName,
+        orderDestination: destinationMarket,
+        authorizedAfterCutoff: actor.role === "admin" && cleanOptionalText(args.afterCutoffExceptionReason) !== undefined,
+        ...(args.afterCutoffExceptionReason === undefined ? {} : { exceptionReason: args.afterCutoffExceptionReason }),
+      });
+      assertAllowed(args.warehouseId === undefined || args.warehouseId === run.originWarehouseId, "Order warehouse does not match the delivery run origin.");
     }
     assertPositiveNumber(args.requestedQuantity, "Requested quantity");
     if (args.maxPricePerUnit !== undefined) {
@@ -523,6 +571,13 @@ export const create = mutation({
     }
 
     const now = Date.now();
+    const isAuthorizedAfterCutoff = run !== null && now >= run.orderCutoffAt && actor.role === "admin" && cleanOptionalText(args.afterCutoffExceptionReason) !== undefined;
+    const effectiveReservationExpiry = run === null
+      ? args.reservationExpiresAt
+      : isAuthorizedAfterCutoff
+        ? Math.min(args.reservationExpiresAt ?? run.expectedArrivalStartAt, run.expectedArrivalStartAt)
+        : Math.min(args.reservationExpiresAt ?? run.orderCutoffAt, run.orderCutoffAt);
+    const paymentDeadline = run === null ? args.reservationExpiresAt : effectiveReservationExpiry;
     const orderId = await ctx.db.insert("buyerOrders", omitUndefinedValues({
       buyerId: args.buyerId,
       destinationMarket,
@@ -531,6 +586,15 @@ export const create = mutation({
       unit,
       preferredGrade: args.preferredGrade,
       requestedDeliveryDate: args.requestedDeliveryDate,
+      marketDeliveryRunId: run?._id,
+      deliveryDateSnapshot: run?.deliveryDateAt,
+      orderCutoffSnapshot: run?.orderCutoffAt,
+      expectedArrivalStartSnapshot: run?.expectedArrivalStartAt,
+      expectedArrivalEndSnapshot: run?.expectedArrivalEndAt,
+      fulfilmentInstructionsSnapshot: run?.destinationInstructions,
+      paymentDeadline,
+      authorizedAfterCutoffByUserId: isAuthorizedAfterCutoff ? actor._id : undefined,
+      afterCutoffExceptionReason: isAuthorizedAfterCutoff ? cleanOptionalText(args.afterCutoffExceptionReason) : undefined,
       maxPricePerUnit: args.maxPricePerUnit,
       matchedInventoryBatchIds: [],
       paymentStatus: "awaiting_payment",
@@ -538,18 +602,25 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     }));
+    if (run !== null) {
+      await ctx.db.patch(run._id, {
+        buyerOrderIds: run.buyerOrderIds.includes(orderId) ? run.buyerOrderIds : [...run.buyerOrderIds, orderId],
+        updatedAt: now,
+      });
+    }
     await insertBuyerOrderNotification(
       ctx,
       buyer,
       orderId,
       "Order submitted",
       `Your order for ${args.requestedQuantity} ${unit} of ${cropType} has been submitted.`,
+      { actionRequired: true, ...(paymentDeadline === undefined ? {} : { dueAt: paymentDeadline }), priority: "high" },
     );
 
     const candidates = await findReservableBatches(ctx, omitUndefinedValues({
       cropType,
       unit,
-      warehouseId: args.warehouseId,
+      warehouseId: run?.originWarehouseId ?? args.warehouseId,
       destinationMarket,
       preferredGrade: args.preferredGrade,
       maxPricePerUnit: args.maxPricePerUnit,
@@ -620,7 +691,7 @@ export const create = mutation({
         quantityReleased: 0,
         quantityFulfilled: 0,
         unit: batch.unit,
-        expiresAt: args.reservationExpiresAt,
+        expiresAt: effectiveReservationExpiry,
         status: "active",
         createdAt: now,
         updatedAt: now,
@@ -718,6 +789,7 @@ export const create = mutation({
       orderId,
       "Order reserved",
       `Your order for ${args.requestedQuantity} ${unit} of ${cropType} has been reserved for ${destinationMarket}.`,
+      { actionRequired: true, ...(paymentDeadline === undefined ? {} : { dueAt: paymentDeadline }), priority: "high" },
     );
     await insertAuditLog(ctx, {
       actor,
@@ -728,6 +800,13 @@ export const create = mutation({
       after: afterOrder === null ? undefined : auditSnapshot(afterOrder),
       metadata: { clientRequestId: args.clientRequestId },
     });
+    if (effectiveReservationExpiry !== undefined) {
+      await ctx.scheduler.runAt(
+        Math.max(effectiveReservationExpiry, now),
+        internal.buyerOrders.expireOrderReservations,
+        { orderId },
+      );
+    }
 
     return orderId;
   },
@@ -931,6 +1010,103 @@ export const releaseReservations = mutation({
   },
 });
 
+async function expireReservationRecords(
+  ctx: MutationCtx,
+  reservations: readonly Doc<"inventoryReservations">[],
+  actor: AuditActor,
+  now: number,
+): Promise<number> {
+  const touchedOrders = new Set<Id<"buyerOrders">>();
+  let expiredCount = 0;
+
+  for (const reservation of reservations) {
+    const order = await ctx.db.get(reservation.buyerOrderId);
+    if (
+      order === null ||
+      !shouldExpireInventoryReservation({
+        status: reservation.status,
+        ...(reservation.expiresAt === undefined ? {} : { expiresAt: reservation.expiresAt }),
+        paymentStatus: order.paymentStatus,
+        now,
+      })
+    ) {
+      continue;
+    }
+    assertAllowed(
+      canTransitionInventoryReservationStatus(reservation.status, "expired"),
+      "Reservation cannot expire from its current status.",
+    );
+    await ctx.db.patch(reservation._id, {
+      quantityReleased: reservation.quantityReserved - reservation.quantityFulfilled,
+      status: "expired",
+      updatedAt: now,
+    });
+    const after = await ctx.db.get(reservation._id);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "inventory_reservation.expired",
+      entityType: "inventory_reservation",
+      entityId: reservation._id,
+      before: auditSnapshot(reservation),
+      after: after === null ? undefined : auditSnapshot(after),
+    });
+    await recomputeBatchStatus(ctx, reservation.inventoryBatchId, actor);
+    touchedOrders.add(reservation.buyerOrderId);
+    expiredCount += 1;
+  }
+
+  for (const orderId of touchedOrders) {
+    const order = await ctx.db.get(orderId);
+    if (
+      order === null ||
+      order.paymentStatus === "fully_paid" ||
+      !canTransitionBuyerOrderStatus(order.status, "unfulfilled")
+    ) {
+      continue;
+    }
+    await ctx.db.patch(orderId, {
+      status: "unfulfilled",
+      updatedAt: now,
+    });
+    const buyer = await ctx.db.get(order.buyerId);
+    if (buyer !== null) {
+      await insertBuyerOrderNotification(
+        ctx,
+        buyer,
+        orderId,
+        "Reservation expired",
+        `Your reservation for ${order.requestedQuantity} ${order.unit} of ${order.cropType} has expired.`,
+      );
+    }
+    const after = await ctx.db.get(orderId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "buyer_order.reservation_expired",
+      entityType: "buyer_order",
+      entityId: orderId,
+      before: auditSnapshot(order),
+      after: after === null ? undefined : auditSnapshot(after),
+    });
+  }
+
+  return expiredCount;
+}
+
+async function listDueReservations(ctx: MutationCtx, now: number, limit: number) {
+  const active = await ctx.db
+    .query("inventoryReservations")
+    .withIndex("by_status_expires_at", (q) => q.eq("status", "active").lte("expiresAt", now))
+    .take(limit);
+  const partiallyReleased = await ctx.db
+    .query("inventoryReservations")
+    .withIndex("by_status_expires_at", (q) => q.eq("status", "partially_released").lte("expiresAt", now))
+    .take(limit);
+  return [...active, ...partiallyReleased]
+    .filter((reservation) => reservation.expiresAt !== undefined)
+    .sort((left, right) => (left.expiresAt ?? 0) - (right.expiresAt ?? 0))
+    .slice(0, limit);
+}
+
 export const expireReservations = mutation({
   args: {
     actorUserId: v.id("users"),
@@ -944,74 +1120,35 @@ export const expireReservations = mutation({
     await requireAdminPermission(ctx, args.actorUserId, "orders:manage", {});
     const now = args.now ?? Date.now();
     const limit = Math.min(args.limit ?? 50, 100);
-    const active = await ctx.db
+    return await expireReservationRecords(ctx, await listDueReservations(ctx, now, limit), actor, now);
+  },
+});
+
+export const expireOrderReservations = internalMutation({
+  args: { orderId: v.id("buyerOrders") },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const reservations = await ctx.db
       .query("inventoryReservations")
-      .withIndex("by_status_expires_at", (q) => q.eq("status", "active"))
-      .take(limit);
-    const partiallyReleased = await ctx.db
-      .query("inventoryReservations")
-      .withIndex("by_status_expires_at", (q) => q.eq("status", "partially_released"))
-      .take(limit);
-    const expirable = [...active, ...partiallyReleased]
-      .filter((reservation) => reservation.expiresAt !== undefined && reservation.expiresAt <= now)
-      .slice(0, limit);
-    const touchedOrders = new Set<Id<"buyerOrders">>();
+      .withIndex("by_order", (q) => q.eq("buyerOrderId", args.orderId))
+      .collect();
+    return await expireReservationRecords(ctx, reservations, systemAuditActor, now);
+  },
+});
 
-    for (const reservation of expirable) {
-      assertAllowed(
-        canTransitionInventoryReservationStatus(reservation.status, "expired"),
-        "Reservation cannot expire from its current status.",
-      );
-      await ctx.db.patch(reservation._id, {
-        quantityReleased:
-          reservation.quantityReserved - reservation.quantityFulfilled,
-        status: "expired",
-        updatedAt: now,
-      });
-      const after = await ctx.db.get(reservation._id);
-      await insertAuditLog(ctx, {
-        actor,
-        action: "inventory_reservation.expired",
-        entityType: "inventory_reservation",
-        entityId: reservation._id,
-        before: auditSnapshot(reservation),
-        after: after === null ? undefined : auditSnapshot(after),
-      });
-      await recomputeBatchStatus(ctx, reservation.inventoryBatchId, actor);
-      touchedOrders.add(reservation.buyerOrderId);
-    }
-
-    for (const orderId of touchedOrders) {
-      const order = await ctx.db.get(orderId);
-      if (order === null || !canTransitionBuyerOrderStatus(order.status, "unfulfilled")) {
-        continue;
-      }
-      await ctx.db.patch(orderId, {
-        status: "unfulfilled",
-        updatedAt: now,
-      });
-      const buyer = await ctx.db.get(order.buyerId);
-      if (buyer !== null) {
-        await insertBuyerOrderNotification(
-          ctx,
-          buyer,
-          orderId,
-          "Reservation expired",
-          `Your reservation for ${order.requestedQuantity} ${order.unit} of ${order.cropType} has expired.`,
-        );
-      }
-      const after = await ctx.db.get(orderId);
-      await insertAuditLog(ctx, {
-        actor,
-        action: "buyer_order.reservation_expired",
-        entityType: "buyer_order",
-        entityId: orderId,
-        before: auditSnapshot(order),
-        after: after === null ? undefined : auditSnapshot(after),
-      });
-    }
-
-    return expirable.length;
+export const expireDueReservations = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const limit = Math.min(args.limit ?? 100, 200);
+    return await expireReservationRecords(
+      ctx,
+      await listDueReservations(ctx, now, limit),
+      systemAuditActor,
+      now,
+    );
   },
 });
 
@@ -1037,6 +1174,20 @@ export const getById = query({
       );
       if (actor.role === "admin") {
         await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+      } else {
+        const warehouseIds = new Set<Id<"warehouses">>();
+        if (order.marketDeliveryRunId !== undefined) {
+          const run = await ctx.db.get(order.marketDeliveryRunId);
+          if (run !== null) warehouseIds.add(run.originWarehouseId);
+        }
+        for (const batchId of order.matchedInventoryBatchIds) {
+          const batch = await ctx.db.get(batchId);
+          if (batch !== null) warehouseIds.add(batch.warehouseId);
+        }
+        assertAllowed(warehouseIds.size > 0, "Warehouse agents cannot view an unscoped legacy order.");
+        for (const warehouseId of warehouseIds) {
+          await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, warehouseId);
+        }
       }
     }
 
@@ -1052,9 +1203,11 @@ export const getById = query({
       .query("paymentTransactions")
       .withIndex("by_order", (q) => q.eq("buyerOrderId", args.buyerOrderId))
       .collect();
+    const marketDeliveryRun = order.marketDeliveryRunId === undefined ? null : await ctx.db.get(order.marketDeliveryRunId);
 
     return {
       ...order,
+      marketDeliveryRun,
       buyer,
       reservations,
       charges,
@@ -1140,7 +1293,29 @@ export const listForOperations = query({
         continue;
       }
       if (actor.role === "admin") {
-        await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+        try {
+          await requireAdminPermission(ctx, args.actorUserId, "orders:read", await buyerOrderScopeTarget(ctx, order));
+        } catch {
+          continue;
+        }
+      } else {
+        const run = order.marketDeliveryRunId === undefined
+          ? null
+          : await ctx.db.get(order.marketDeliveryRunId);
+        const warehouseIds = new Set<Id<"warehouses">>();
+        if (run !== null) warehouseIds.add(run.originWarehouseId);
+        for (const batchId of order.matchedInventoryBatchIds) {
+          const batch = await ctx.db.get(batchId);
+          if (batch !== null) warehouseIds.add(batch.warehouseId);
+        }
+        if (warehouseIds.size === 0) continue;
+        try {
+          for (const warehouseId of warehouseIds) {
+            await requireWarehouseAgentAssignedToWarehouse(ctx, args.actorUserId, warehouseId);
+          }
+        } catch {
+          continue;
+        }
       }
       results.push(order);
       if (results.length >= limit) {

@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertArkeselWebhookSignature,
   normalizeArkeselDeliveryReport,
-  SmsInviteProvider,
+  TransactionalSmsProvider,
 } from "./sms.provider.js";
 
-describe("SmsInviteProvider", () => {
+describe("TransactionalSmsProvider", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
@@ -24,9 +24,9 @@ describe("SmsInviteProvider", () => {
 
   it("uses the deterministic mock provider by default", async () => {
     delete process.env.SMS_PROVIDER;
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
-    await expect(provider.sendInviteSms({ to: "050 000 0000", message: "Invite" })).resolves.toMatchObject({
+    await expect(provider.sendSms({ to: "050 000 0000", message: "Payment update", kind: "transactional" })).resolves.toMatchObject({
       provider: "mock",
       messageId: expect.stringMatching(/^mock-sms-/),
       providerMessageId: expect.stringMatching(/^mock-sms-/),
@@ -38,7 +38,7 @@ describe("SmsInviteProvider", () => {
 
   it("fails closed when an unsupported SMS provider is requested", async () => {
     process.env.SMS_PROVIDER = "real-provider";
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(provider.sendSms({ to: "+233500000000", message: "OTP", kind: "otp" })).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -63,7 +63,7 @@ describe("SmsInviteProvider", () => {
         }),
       }),
     );
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(
       provider.sendSms({
@@ -116,7 +116,7 @@ describe("SmsInviteProvider", () => {
       }),
     );
 
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(
       provider.sendSms({
@@ -137,7 +137,7 @@ describe("SmsInviteProvider", () => {
     process.env.SMS_PROVIDER = "arkesel";
     process.env.ARKESEL_SMS_API_KEY = "ark_test";
     process.env.SMS_FROM_NAME = "Kuapa-Dwaso!";
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(provider.sendSms({ to: "+233500000000", message: "Invite" })).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -156,7 +156,7 @@ describe("SmsInviteProvider", () => {
         json: async () => ({ code: "422", message: "Validation Errors" }),
       }),
     );
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(provider.sendSms({ to: "+233500000000", message: "Invite" })).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -167,7 +167,7 @@ describe("SmsInviteProvider", () => {
   });
 
   it("rejects invalid phone numbers before provider dispatch", async () => {
-    const provider = new SmsInviteProvider();
+    const provider = new TransactionalSmsProvider();
 
     await expect(provider.sendSms({ to: "12345", message: "Invite" })).rejects.toBeInstanceOf(BadRequestException);
   });

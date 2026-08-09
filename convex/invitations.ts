@@ -1,5 +1,7 @@
 import {
+  assertInviteIdentityVerification,
   assertInvitationCanBeAccepted,
+  assertInvitationDeliveryAllowed,
   assertInviteTargetMatchesIdentity,
   normalizeEmailAddress,
   normalizePhoneNumber,
@@ -8,6 +10,7 @@ import {
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
+import { insertNotificationRecord } from "./notifications";
 import {
   adminScopeTarget,
   assertAllowed,
@@ -25,7 +28,7 @@ const invitationType = v.union(
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite"),
 );
-const invitationChannel = v.union(v.literal("email"), v.literal("sms"));
+const invitationChannel = v.union(v.literal("email"), v.literal("manual_link"));
 const invitationStatus = v.union(
   v.literal("pending"),
   v.literal("accepted"),
@@ -159,12 +162,30 @@ async function upsertFirebaseUser(
         ? "verified"
         : "pending";
 
-  if (existing !== null) {
-    await ctx.db.patch(existing._id, omitUndefinedValues({
+  const existingByPhone =
+    phoneNumber === undefined
+      ? null
+      : await ctx.db.query("users").withIndex("by_phone_number", (q) => q.eq("phoneNumber", phoneNumber)).first();
+  const existingByEmail =
+    email === undefined
+      ? null
+      : await ctx.db.query("users").withIndex("by_email", (q) => q.eq("email", email)).first();
+  const identityOwner =
+    (args.identity.phoneVerified === true ? existingByPhone : null) ??
+    (args.identity.emailVerified === true ? existingByEmail : null);
+  assertAllowed(
+    existing === null || identityOwner === null || existing._id === identityOwner._id,
+    "This verified identity is already linked to another account. Sign in to that account or contact support.",
+  );
+  const linkedExisting = existing ?? identityOwner;
+
+  if (linkedExisting !== null) {
+    await ctx.db.patch(linkedExisting._id, omitUndefinedValues({
+      authProviderId: args.identity.authProviderId,
       authProvider: "firebase",
       phoneNumber,
       email,
-      name: cleanOptionalText(args.identity.displayName) ?? existing.name,
+      name: cleanOptionalText(args.identity.displayName) ?? linkedExisting.name,
       role: args.role,
       status: mfaStatus === "pending" && args.role === "admin" ? "pending" : "active",
       authMethods: authMethodsForIdentity({
@@ -179,7 +200,7 @@ async function upsertFirebaseUser(
       onboardingState: "complete",
       updatedAt: now,
     }));
-    return existing._id;
+    return linkedExisting._id;
   }
 
   return await ctx.db.insert("users", omitUndefinedValues({
@@ -230,14 +251,29 @@ export const create = mutation({
       args.targetEmail === undefined ? undefined : normalizeEmailAddress(args.targetEmail);
     const targetPhoneNumber =
       args.targetPhoneNumber === undefined ? undefined : normalizePhoneNumber(args.targetPhoneNumber);
-    assertAllowed(
-      (args.type !== "admin_invite" && args.type !== "warehouse_manager_invite") || args.channel === "email",
-      "Admin and warehouse-manager invitations must be delivered by email.",
-    );
-    assertAllowed(
-      args.channel === "email" ? targetEmail !== undefined : targetPhoneNumber !== undefined,
-      "Invitation target must match its delivery channel.",
-    );
+    assertInvitationDeliveryAllowed(args.type, args.channel);
+    const phonePrimary = args.type === "warehouse_agent_invite" || args.type === "transporter_invite";
+    assertAllowed(args.channel !== "email" || targetEmail !== undefined, "Email invitation requires a target email address.");
+    assertAllowed(!phonePrimary || targetPhoneNumber !== undefined, "Warehouse-agent and transporter invitations require the phone number that will be verified at acceptance.");
+    assertAllowed(args.channel !== "manual_link" || targetPhoneNumber !== undefined, "Manual-link invitations require a target phone number.");
+    if (args.type === "warehouse_manager_invite") {
+      assertAllowed(
+        args.pendingAdminRoleAssignment?.roleKey === "warehouse_manager" &&
+          args.pendingAdminRoleAssignment.scopeType === "warehouse" &&
+          args.pendingAdminRoleAssignment.scopeId !== undefined,
+        "Warehouse-manager invitations require a warehouse-scoped warehouse_manager assignment.",
+      );
+    }
+    if (args.type === "admin_invite") {
+      assertAllowed(args.pendingAdminRoleAssignment !== undefined, "Admin invitations require an initial role assignment.");
+      assertAllowed(args.pendingAdminRoleAssignment.roleKey !== "warehouse_manager", "Use a warehouse-manager invitation for that role.");
+    }
+    if (args.type === "admin_invite" || args.type === "warehouse_manager_invite") {
+      assertAllowed(
+        args.mfaRequirement === undefined || args.mfaRequirement === "totp_required" || args.mfaRequirement === "required",
+        "Privileged invitations require MFA.",
+      );
+    }
 
     await requireAdminPermission(ctx, args.actorUserId, "invitations:manage", adminScopeTarget({
       warehouseId:
@@ -294,6 +330,19 @@ export const create = mutation({
       entityId: invitationId,
       after: after === null ? undefined : auditSnapshot(after),
     });
+    await insertNotificationRecord(ctx, {
+      recipientUserId: args.actorUserId,
+      recipientRole: "admin",
+      channel: "in_app",
+      title: "Invitation created",
+      message: `${args.type.replaceAll("_", " ")} is ready for ${args.channel === "email" ? "email delivery" : "secure in-person sharing"}.`,
+      relatedEntityType: "platform_invitation",
+      relatedEntityId: invitationId,
+      actionUrl: "/access",
+      priority: "normal",
+      deduplicationKey: `invitation-created:${invitationId}`,
+      expiresAt: args.expiresAt,
+    });
     return invitationId;
   },
 });
@@ -322,13 +371,11 @@ export const accept = mutation({
       expiresAt: invitation.expiresAt,
     });
 
-    assertInviteTargetMatchesIdentity(omitUndefinedValues({
-      targetEmail: invitation.targetEmail,
-      targetPhoneNumber: invitation.targetPhoneNumber,
-      identityEmail: args.identity.email,
-      identityPhoneNumber: args.identity.phoneNumber,
-    }));
     if (invitation.type === "admin_invite" || invitation.type === "warehouse_manager_invite") {
+      assertInviteTargetMatchesIdentity(omitUndefinedValues({
+        targetEmail: invitation.targetEmail,
+        identityEmail: args.identity.email,
+      }));
       assertAllowed(invitation.targetEmail !== undefined, "Privileged invitations must target an email address.");
       assertAllowed(args.identity.email !== undefined, "Privileged invite acceptance requires a Firebase email identity.");
       assertAllowed(
@@ -343,18 +390,20 @@ export const accept = mutation({
     // phone identity is present for these types.
     const isPhonePrimaryInvite =
       invitation.type === "warehouse_agent_invite" || invitation.type === "transporter_invite";
-    if (!isPhonePrimaryInvite && invitation.targetEmail !== undefined && args.identity.phoneNumber === undefined) {
-      assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
-    }
     if (isPhonePrimaryInvite) {
-      // Phone-primary invites always require a verified phone, regardless of delivery channel.
-      assertAllowed(
-        args.identity.phoneNumber !== undefined && args.identity.phoneVerified === true,
-        "Phone number must be verified to accept this invitation.",
-      );
-    } else if (invitation.targetPhoneNumber !== undefined) {
-      assertAllowed(args.identity.phoneVerified === true, "Invitation phone number must be verified.");
+      assertInviteTargetMatchesIdentity(omitUndefinedValues({
+        targetPhoneNumber: invitation.targetPhoneNumber,
+        identityPhoneNumber: args.identity.phoneNumber,
+      }));
     }
+    assertInviteIdentityVerification(omitUndefinedValues({
+      invitationType: invitation.type,
+      targetEmail: invitation.targetEmail,
+      targetPhoneNumber: invitation.targetPhoneNumber,
+      identityPhoneNumber: args.identity.phoneNumber,
+      emailVerified: args.identity.emailVerified,
+      phoneVerified: args.identity.phoneVerified,
+    }));
     const mfaRequired = invitation.mfaRequirement !== "not_required";
     assertAllowed(!mfaRequired || args.identity.mfaSatisfied === true, "Required MFA has not been satisfied.");
     assertAllowed(
@@ -386,6 +435,15 @@ export const accept = mutation({
         userId,
         updatedAt: now,
       });
+    } else if (invitation.type === "transporter_invite" && invitation.linkedProfileId !== undefined) {
+      const transporterId = invitation.linkedProfileId as Id<"transporterProfiles">;
+      const transporter = await ctx.db.get(transporterId);
+      assertAllowed(transporter !== null, "Linked transporter profile was not found.");
+      assertAllowed(
+        phoneNumbersMatch(transporter.phoneNumber, args.identity.phoneNumber ?? ""),
+        "Transporter invite phone does not match the linked profile.",
+      );
+      await ctx.db.patch(transporterId, { userId, updatedAt: now });
     }
 
     if (invitation.pendingAdminRoleAssignment !== undefined) {
@@ -405,7 +463,12 @@ export const accept = mutation({
     }
 
     if (profileId !== undefined) {
-      await ctx.db.insert("profileLinks", {
+      const existingProfileLink = await ctx.db
+        .query("profileLinks")
+        .withIndex("by_profile", (q) => q.eq("profileType", invitation.intendedProfileType).eq("profileId", profileId!))
+        .first();
+      if (existingProfileLink === null) {
+        await ctx.db.insert("profileLinks", {
         userId,
         profileType: invitation.intendedProfileType,
         profileId,
@@ -415,7 +478,22 @@ export const accept = mutation({
         invitationId: invitation._id,
         createdAt: now,
         updatedAt: now,
-      });
+        });
+      } else {
+        assertAllowed(existingProfileLink.userId === userId, "This profile is already linked to another user.");
+        assertAllowed(
+          ["pending", "rejected", "revoked", "linked"].includes(existingProfileLink.status),
+          "This profile link is blocked and cannot be accepted.",
+        );
+        if (existingProfileLink.status !== "linked") {
+          await ctx.db.patch(existingProfileLink._id, {
+            status: "linked",
+            linkedByUserId: invitation.invitedByUserId,
+            invitationId: invitation._id,
+            updatedAt: now,
+          });
+        }
+      }
     }
 
     await ctx.db.patch(invitation._id, {
@@ -433,6 +511,30 @@ export const accept = mutation({
       entityId: invitation._id,
       before: auditSnapshot(invitation),
       after: after === null ? undefined : auditSnapshot(after),
+    });
+    await insertNotificationRecord(ctx, {
+      recipientUserId: userId,
+      recipientRole: invitation.intendedRole,
+      channel: "in_app",
+      title: "Invitation accepted",
+      message: "Your verified identity is linked. Continue to your assigned workspace.",
+      relatedEntityType: "platform_invitation",
+      relatedEntityId: invitation._id,
+      actionUrl: "/",
+      priority: "normal",
+      deduplicationKey: `invitation-accepted:${invitation._id}:${userId}`,
+    });
+    await insertNotificationRecord(ctx, {
+      recipientUserId: invitation.invitedByUserId,
+      recipientRole: "admin",
+      channel: "in_app",
+      title: "Invitation accepted",
+      message: "The invited person verified their identity and joined the assigned workspace.",
+      relatedEntityType: "platform_invitation",
+      relatedEntityId: invitation._id,
+      actionUrl: "/access",
+      priority: "normal",
+      deduplicationKey: `invitation-accepted-admin:${invitation._id}`,
     });
 
     const result: {

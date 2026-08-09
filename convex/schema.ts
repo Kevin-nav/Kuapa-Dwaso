@@ -238,14 +238,34 @@ const notificationStatus = v.union(
   v.literal("failed"),
   v.literal("archived")
 );
+const notificationPriority = v.union(
+  v.literal("low"),
+  v.literal("normal"),
+  v.literal("high"),
+  v.literal("urgent")
+);
+const marketServiceScheduleStatus = v.union(
+  v.literal("draft"),
+  v.literal("active"),
+  v.literal("paused"),
+  v.literal("retired")
+);
+const marketDeliveryRunStatus = v.union(
+  v.literal("draft"),
+  v.literal("accepting_orders"),
+  v.literal("cutoff_reached"),
+  v.literal("ready"),
+  v.literal("confirmed"),
+  v.literal("cancelled"),
+  v.literal("dispatched"),
+  v.literal("completed")
+);
 
 const smsProvider = v.union(v.literal("mock"), v.literal("arkesel"));
 const smsMessageKind = v.union(
-  v.literal("invite"),
   v.literal("notification"),
   v.literal("otp"),
   v.literal("transactional"),
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),
@@ -256,8 +276,11 @@ const smsMessageKind = v.union(
   v.literal("buyer_cancellation_update"),
   v.literal("dispatch_assignment"),
   v.literal("dispatch_status_update"),
+  v.literal("market_run_update"),
   v.literal("dispute_update"),
-  v.literal("promotional")
+  v.literal("promotional"),
+  v.literal("invite"),
+  v.literal("warehouse_agent_invite")
 );
 const smsDeliveryStatus = v.union(
   v.literal("pending"),
@@ -329,7 +352,7 @@ const platformInvitationType = v.union(
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite")
 );
-const invitationChannel = v.union(v.literal("email"), v.literal("sms"));
+const invitationChannel = v.union(v.literal("email"), v.literal("manual_link"), v.literal("sms"));
 const platformInvitationStatus = v.union(
   v.literal("pending"),
   v.literal("accepted"),
@@ -368,7 +391,6 @@ const uploadRelatedEntityType = v.union(
 const actorRole = v.union(marketplaceRole, v.literal("system"));
 const genericRecord = v.record(v.string(), v.any());
 const smsTemplateKey = v.union(
-  v.literal("warehouse_agent_invite"),
   v.literal("farmer_receipt"),
   v.literal("storage_fee_reminder"),
   v.literal("reservation_alert"),
@@ -380,7 +402,8 @@ const smsTemplateKey = v.union(
   v.literal("dispatch_assignment"),
   v.literal("dispatch_status_update"),
   v.literal("dispute_update"),
-  v.literal("generic_notification")
+  v.literal("generic_notification"),
+  v.literal("warehouse_agent_invite")
 );
 
 const feeRuleScope = v.object({
@@ -801,6 +824,64 @@ export default defineSchema({
     .index("by_warehouse_status_date", ["warehouseId", "status", "feeDate"])
     .index("by_status_date", ["status", "feeDate"]),
 
+  marketServiceSchedules: defineTable({
+    originWarehouseId: v.id("warehouses"),
+    destinationName: v.string(),
+    destinationInstructions: v.string(),
+    timezone: v.string(),
+    deliveryWeekday: v.number(),
+    cutoffDaysBefore: v.number(),
+    cutoffLocalTime: v.string(),
+    arrivalStartLocalTime: v.string(),
+    arrivalEndLocalTime: v.string(),
+    minimumLoadQuantity: v.optional(v.number()),
+    minimumLoadUnit: v.optional(v.string()),
+    capacityQuantity: v.optional(v.number()),
+    capacityUnit: v.optional(v.string()),
+    status: marketServiceScheduleStatus,
+    effectiveDate: v.string(),
+    endDate: v.optional(v.string()),
+    createdByUserId: v.id("users"),
+    updatedByUserId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_warehouse_status", ["originWarehouseId", "status"])
+    .index("by_destination_status", ["destinationName", "status"])
+    .index("by_status", ["status"]),
+
+  marketDeliveryRuns: defineTable({
+    scheduleId: v.id("marketServiceSchedules"),
+    originWarehouseId: v.id("warehouses"),
+    destinationName: v.string(),
+    destinationInstructions: v.string(),
+    timezone: v.string(),
+    deliveryDate: v.string(),
+    deliveryDateAt: v.number(),
+    orderCutoffAt: v.number(),
+    expectedArrivalStartAt: v.number(),
+    expectedArrivalEndAt: v.number(),
+    status: marketDeliveryRunStatus,
+    minimumLoadQuantity: v.optional(v.number()),
+    minimumLoadUnit: v.optional(v.string()),
+    capacityQuantity: v.optional(v.number()),
+    capacityUnit: v.optional(v.string()),
+    buyerOrderIds: v.array(v.id("buyerOrders")),
+    dispatchIds: v.array(v.id("dispatches")),
+    cancellationReason: v.optional(v.string()),
+    postponementReason: v.optional(v.string()),
+    postponedFromRunId: v.optional(v.id("marketDeliveryRuns")),
+    createdByUserId: v.id("users"),
+    updatedByUserId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_schedule_delivery_date", ["scheduleId", "deliveryDate"])
+    .index("by_warehouse_status_date", ["originWarehouseId", "status", "deliveryDateAt"])
+    .index("by_destination_status_date", ["destinationName", "status", "deliveryDateAt"])
+    .index("by_status_date", ["status", "deliveryDateAt"])
+    .index("by_status_order_cutoff", ["status", "orderCutoffAt"]),
+
   buyerOrders: defineTable({
     buyerId: v.id("buyers"),
     destinationMarket: v.string(),
@@ -809,6 +890,15 @@ export default defineSchema({
     unit: v.string(),
     preferredGrade: v.optional(produceGrade),
     requestedDeliveryDate: v.optional(v.number()),
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
+    deliveryDateSnapshot: v.optional(v.number()),
+    orderCutoffSnapshot: v.optional(v.number()),
+    expectedArrivalStartSnapshot: v.optional(v.number()),
+    expectedArrivalEndSnapshot: v.optional(v.number()),
+    fulfilmentInstructionsSnapshot: v.optional(v.string()),
+    paymentDeadline: v.optional(v.number()),
+    authorizedAfterCutoffByUserId: v.optional(v.id("users")),
+    afterCutoffExceptionReason: v.optional(v.string()),
     maxPricePerUnit: v.optional(v.number()),
     matchedInventoryBatchIds: v.array(v.id("inventoryBatches")),
     subtotalAmount: v.optional(v.number()),
@@ -824,6 +914,8 @@ export default defineSchema({
     .index("by_buyer_status", ["buyerId", "status"])
     .index("by_status", ["status"])
     .index("by_payment_status", ["paymentStatus"])
+    .index("by_market_delivery_run", ["marketDeliveryRunId"])
+    .index("by_market_delivery_run_status", ["marketDeliveryRunId", "status"])
     .index("by_destination_status", ["destinationMarket", "status"]),
 
   buyerOrderCharges: defineTable({
@@ -942,6 +1034,7 @@ export default defineSchema({
     .index("by_status_created_at", ["status", "createdAt"]),
 
   dispatches: defineTable({
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
     warehouseId: v.id("warehouses"),
     destination: v.string(),
     transporterId: v.optional(v.id("transporterProfiles")),
@@ -968,6 +1061,7 @@ export default defineSchema({
   })
     .index("by_warehouse_status", ["warehouseId", "status"])
     .index("by_status", ["status"])
+    .index("by_market_delivery_run", ["marketDeliveryRunId"])
     .index("by_destination_status", ["destination", "status"])
     .index("by_transporter_status", ["transporterId", "status"])
     .index("by_warehouse_destination_status", ["warehouseId", "destination", "status"]),
@@ -986,6 +1080,16 @@ export default defineSchema({
     templateData: v.optional(genericRecord),
     relatedEntityType: v.optional(v.string()),
     relatedEntityId: v.optional(v.string()),
+    marketDeliveryRunId: v.optional(v.id("marketDeliveryRuns")),
+    actionUrl: v.optional(v.string()),
+    actionRequired: v.optional(v.boolean()),
+    priority: v.optional(notificationPriority),
+    dueAt: v.optional(v.number()),
+    acknowledgedAt: v.optional(v.number()),
+    acknowledgedByUserId: v.optional(v.id("users")),
+    deduplicationKey: v.optional(v.string()),
+    escalationLevel: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
@@ -994,6 +1098,8 @@ export default defineSchema({
     .index("by_recipient_status", ["recipientUserId", "status"])
     .index("by_role_status", ["recipientRole", "status"])
     .index("by_status", ["status"])
+    .index("by_recipient_deduplication", ["recipientUserId", "deduplicationKey"])
+    .index("by_market_delivery_run", ["marketDeliveryRunId"])
     .index("by_related_entity", ["relatedEntityType", "relatedEntityId"]),
 
   smsDeliveries: defineTable({

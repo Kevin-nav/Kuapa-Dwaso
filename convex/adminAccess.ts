@@ -41,6 +41,7 @@ const adminAccessGroupStatus = v.union(
   v.literal("inactive"),
   v.literal("deactivated"),
 );
+const privilegedMfaRequirement = v.union(v.literal("totp_required"), v.literal("required"));
 
 const adminPermissionKey = v.union(
   v.literal("adminAccess:manage"),
@@ -68,6 +69,10 @@ const adminPermissionKey = v.union(
   v.literal("payouts:manage"),
   v.literal("dispatches:read"),
   v.literal("dispatches:manage"),
+  v.literal("marketSchedules:read"),
+  v.literal("marketSchedules:manage"),
+  v.literal("marketRuns:read"),
+  v.literal("marketRuns:manage"),
   v.literal("transporters:read"),
   v.literal("transporters:manage"),
   v.literal("disputes:read"),
@@ -173,6 +178,39 @@ export const bootstrapFirstPlatformOwner = mutation({
       metadata: { reason: args.reason, bootstrap: true },
     });
     return assignmentId;
+  },
+});
+
+/** A verified platform owner can re-enrol a legacy admin that predates MFA fields. */
+export const recoverLegacyAdminMfa = mutation({
+  args: {
+    actorUserId: v.id("users"),
+    adminUserId: v.id("users"),
+    mfaRequirement: privilegedMfaRequirement,
+  },
+  returns: v.id("users"),
+  handler: async (ctx, args) => {
+    const actor = await requireAccessManager(ctx, args.actorUserId);
+    const target = await requireAdminTarget(ctx, args.adminUserId);
+    assertAllowed(
+      target.mfaRequirement === undefined || target.mfaStatus === undefined,
+      "MFA recovery is only available for legacy admin accounts.",
+    );
+    const now = Date.now();
+    await ctx.db.patch(target._id, {
+      mfaRequirement: args.mfaRequirement,
+      mfaStatus: "pending",
+      updatedAt: now,
+    });
+    await insertAuditLog(ctx, {
+      actor,
+      action: "admin_access.legacy_mfa_recovery_started",
+      entityType: "user",
+      entityId: target._id,
+      before: auditSnapshot(target),
+      after: auditSnapshot((await ctx.db.get(target._id))!),
+    });
+    return target._id;
   },
 });
 

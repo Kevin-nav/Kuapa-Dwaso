@@ -6,14 +6,14 @@ import { ConvexPlatformProvider } from "../../providers/convex-platform.provider
 import {
   assertArkeselWebhookSignature,
   normalizeArkeselDeliveryReport,
-  SmsInviteProvider,
+  TransactionalSmsProvider,
 } from "../../providers/sms.provider.js";
 
 @Controller("sms/webhooks")
 export class SmsWebhooksController {
   constructor(
     private readonly convex: ConvexPlatformProvider,
-    private readonly sms: SmsInviteProvider,
+    private readonly sms: TransactionalSmsProvider,
   ) {}
 
   @Post("deliveries/process")
@@ -60,7 +60,7 @@ export class SmsWebhooksController {
       }));
 
       try {
-        const smsInput: Parameters<SmsInviteProvider["sendSms"]>[0] = {
+        const smsInput: Parameters<TransactionalSmsProvider["sendSms"]>[0] = {
           to: notification.recipient,
           message: rendered.message,
           kind: rendered.messageKind,

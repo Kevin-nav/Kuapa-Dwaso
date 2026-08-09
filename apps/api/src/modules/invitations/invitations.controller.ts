@@ -1,5 +1,6 @@
 import { Body, Controller, Headers, HttpException, HttpStatus, Post, Get, Param, UseGuards, UnauthorizedException, BadRequestException, NotFoundException } from "@nestjs/common";
 import type { AdminRoleKey, AdminScopeType, InvitationChannel, MfaRequirement, PlatformInvitationType } from "@kuapa-dwaso/types";
+import { assertInvitationDeliveryAllowed } from "@kuapa-dwaso/utils";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
 import { RequirePermissions, RoleGuard } from "../../guards/role.guard.js";
@@ -11,7 +12,6 @@ import { FirebaseAdminTokenVerifier } from "../../providers/firebase-auth.provid
 import { InviteTemplatesProvider } from "../../providers/invite-templates.provider.js";
 import { InviteTokenProvider } from "../../providers/invite-token.provider.js";
 import { InMemoryRateLimitProvider } from "../../providers/rate-limit.provider.js";
-import { SmsInviteProvider } from "../../providers/sms.provider.js";
 
 type CreateInviteBody = {
   type: PlatformInvitationType;
@@ -42,7 +42,6 @@ export class InvitationsController {
     private readonly email: ResendEmailProvider,
     private readonly firebase: FirebaseAdminTokenVerifier,
     private readonly rateLimits: InMemoryRateLimitProvider,
-    private readonly sms: SmsInviteProvider,
     private readonly templates: InviteTemplatesProvider,
     private readonly tokens: InviteTokenProvider
   ) {}
@@ -53,7 +52,7 @@ export class InvitationsController {
   async createInvite(
     @CurrentPrincipal() principal: AuthPrincipal,
     @Body() body: CreateInviteBody
-  ): Promise<{ invitationId: string; deliveryProvider: string; messageId?: string }> {
+  ): Promise<{ invitationId: string; deliveryProvider: string; messageId?: string; manualInviteUrl?: string }> {
     if (principal.userId === undefined) {
       throw new UnauthorizedException("Convex user profile is required.");
     }
@@ -70,15 +69,39 @@ export class InvitationsController {
       );
     }
 
-    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.channel !== "email") {
-      throw new BadRequestException("Admin and warehouse-manager invitations must be delivered by email.");
+    try {
+      assertInvitationDeliveryAllowed(body.type, body.channel);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "Invalid invitation delivery mode.");
+    }
+    const phonePrimary = body.type === "warehouse_agent_invite" || body.type === "transporter_invite";
+    if (phonePrimary && (body.targetPhoneNumber === undefined || body.targetPhoneNumber.trim().length === 0)) {
+      throw new BadRequestException("Warehouse-agent and transporter invitations require the phone number that will be verified at acceptance.");
+    }
+    if (body.channel === "manual_link" && (body.targetPhoneNumber === undefined || body.targetPhoneNumber.trim().length === 0)) {
+      throw new BadRequestException("Manual-link invitations require a target phone number.");
+    }
+    if (body.type === "warehouse_manager_invite" && (
+      body.pendingAdminRoleAssignment?.roleKey !== "warehouse_manager" ||
+      body.pendingAdminRoleAssignment.scopeType !== "warehouse" ||
+      body.pendingAdminRoleAssignment.scopeId === undefined
+    )) {
+      throw new BadRequestException("Warehouse-manager invitations require a warehouse-scoped warehouse_manager assignment.");
+    }
+    if (body.type === "admin_invite" && body.pendingAdminRoleAssignment === undefined) {
+      throw new BadRequestException("Admin invitations require an initial role assignment.");
+    }
+    if (body.type === "admin_invite" && body.pendingAdminRoleAssignment?.roleKey === "warehouse_manager") {
+      throw new BadRequestException("Use a warehouse-manager invitation for that role.");
+    }
+    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.mfaRequirement !== undefined && body.mfaRequirement !== "totp_required" && body.mfaRequirement !== "required") {
+      throw new BadRequestException("Privileged invitations require MFA.");
     }
 
     const token = this.tokens.createToken();
     const expiresAt = body.expiresAt ?? Date.now() + 7 * 24 * 60 * 60 * 1000;
     const inviteUrl = this.templates.buildInviteUrl(token.rawToken);
     let delivery: { provider: string; messageId?: string };
-    let smsDelivery: Awaited<ReturnType<SmsInviteProvider["sendInviteSms"]>> | undefined;
 
     if (body.channel === "email") {
       const targetEmail = requireValue(body.targetEmail, "targetEmail");
@@ -94,16 +117,7 @@ export class InvitationsController {
         html: template.html
       });
     } else {
-      const targetPhoneNumber = requireValue(body.targetPhoneNumber, "targetPhoneNumber");
-      smsDelivery = await this.sms.sendInviteSms({
-        to: targetPhoneNumber,
-        message: this.templates.warehouseAgentSms({
-          inviteUrl,
-          type: body.type,
-          expiresAt
-        })
-      });
-      delivery = smsDelivery;
+      delivery = { provider: "manual_secure_link" };
     }
 
     const createInvitationArgs: Parameters<ConvexPlatformProvider["createInvitation"]>[0] = {
@@ -133,38 +147,15 @@ export class InvitationsController {
     }
 
     const invitationId = await this.convex.createInvitation(createInvitationArgs);
-    if (smsDelivery !== undefined) {
-      await Promise.all(
-        smsDelivery.recipients.map((recipient) => {
-          const recordArgs: Parameters<ConvexPlatformProvider["recordSmsSend"]>[0] = {
-            provider: smsDelivery.provider,
-            providerMessageId: smsDelivery.recipientMessageIds[recipient] ?? smsDelivery.providerMessageId,
-            recipient,
-            status: smsDelivery.status,
-            messageKind: "invite",
-            relatedEntityType: "platform_invitation",
-            relatedEntityId: invitationId
-          };
-          if (smsDelivery.creditsUsed !== undefined) {
-            recordArgs.creditsUsed = smsDelivery.creditsUsed;
-          }
-          if (smsDelivery.rawCode !== undefined) {
-            recordArgs.rawCode = smsDelivery.rawCode;
-          }
-          if (smsDelivery.rawMessage !== undefined) {
-            recordArgs.rawMessage = smsDelivery.rawMessage;
-          }
-          return this.convex.recordSmsSend(recordArgs);
-        })
-      );
-    }
-
-    const response: { invitationId: string; deliveryProvider: string; messageId?: string } = {
+    const response: { invitationId: string; deliveryProvider: string; messageId?: string; manualInviteUrl?: string } = {
       invitationId,
       deliveryProvider: delivery.provider
     };
     if (delivery.messageId !== undefined) {
       response.messageId = delivery.messageId;
+    }
+    if (body.channel === "manual_link") {
+      response.manualInviteUrl = inviteUrl;
     }
     return response;
   }

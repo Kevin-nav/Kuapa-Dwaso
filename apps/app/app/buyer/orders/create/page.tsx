@@ -1,367 +1,121 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, CalendarDays, Clock3, MapPin, ShoppingCart } from "lucide-react";
 import { api } from "@convex/_generated/api";
-import { useAuth } from "@/app/auth/AuthProvider";
-import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, ShoppingCart } from "lucide-react";
-import type { FormEvent } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
+import { useAuth } from "@/app/auth/AuthProvider";
 
-type BuyerProfile = {
-  destinationMarket?: string;
-  buyerType?: "market_trader" | "aggregator" | "processor" | "retailer" | "wholesaler" | "exporter" | "institution";
+type BuyerProfile = { destinationMarket?: string };
+type MarketRun = {
+  _id: Id<"marketDeliveryRuns">;
+  originWarehouseId: Id<"warehouses">;
+  destinationName: string;
+  destinationInstructions: string;
+  timezone: string;
+  deliveryDateAt: number;
+  orderCutoffAt: number;
+  expectedArrivalStartAt: number;
+  expectedArrivalEndAt: number;
+  status: string;
 };
-
-type WarehouseSummary = {
-  _id: string;
-  name: string;
-  dispatchDays?: string[];
-};
-
-type InventoryBatchSummary = {
+type Inventory = {
+  inventoryBatchId: Id<"inventoryBatches">;
+  cropType: string;
+  unit: string;
+  grade: ProduceGrade;
   availableQuantity: number;
+  askingPricePerUnit?: number;
+  warehouseName: string;
 };
 
 function CreateOrderContent() {
   const { principal } = useAuth();
-  const searchParams = useSearchParams();
   const router = useRouter();
-
+  const searchParams = useSearchParams();
   const createOrder = useMutation(api.buyerOrders.create);
-
-  const warehouseId = searchParams.get("warehouseId") || "";
-  const cropType = searchParams.get("cropType") || "";
-  const preferredGrade = (searchParams.get("grade") || "mixed") as ProduceGrade;
-  const unit = searchParams.get("unit") || "bags";
-  const defaultMaxPrice = searchParams.get("maxPrice") || "";
-
-  const buyerProfile = principal?.profiles?.find((p) => p.profileType === "buyer");
+  const buyerProfile = principal?.profiles?.find((profile) => profile.profileType === "buyer");
   const buyerId = buyerProfile?.profileId as Id<"buyers"> | undefined;
-
-  // Retrieve Buyer Details
-  const buyer = useQuery(
-    api.buyers.getById,
-    principal !== null && principal !== undefined && buyerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, buyerId }
-      : "skip"
-  ) as BuyerProfile | null | undefined;
-
-  const warehouses = useQuery(api.warehouses.list, {}) as WarehouseSummary[] | undefined;
-  const warehouse = warehouses?.find((w) => w._id === warehouseId);
-  const isInstitution = buyer?.buyerType === "institution";
-  const dispatchOptions = nextDispatchDates(warehouse?.dispatchDays ?? []);
-
-  // Form states
-  const [quantity, setQuantity] = useState<string>("");
-  const [destinationMarket, setDestinationMarket] = useState<string>("");
-  const [maxPrice, setMaxPrice] = useState<string>(defaultMaxPrice);
-  const [deliveryDate, setDeliveryDate] = useState<string>("");
+  const actorUserId = principal?.userId as Id<"users"> | undefined;
+  const buyer = useQuery(api.buyers.getById, actorUserId !== undefined && buyerId !== undefined ? { actorUserId, buyerId } : "skip") as BuyerProfile | null | undefined;
+  const runs = useQuery(api.marketDeliveryRuns.listUpcomingForBuyer, actorUserId === undefined ? "skip" : { actorUserId, ...(buyer?.destinationMarket ? { destinationName: buyer.destinationMarket } : {}), limit: 20 }) as MarketRun[] | undefined;
+  const [runId, setRunId] = useState(searchParams.get("run") ?? "");
+  const selectedRun = runs?.find((run) => run._id === runId) ?? (runId === "" ? runs?.[0] : undefined);
+  const effectiveRunId = selectedRun?._id ?? "";
+  const inventory = useQuery(api.buyerOrders.listAvailableInventory, selectedRun === undefined ? "skip" : { warehouseId: selectedRun.originWarehouseId, destinationMarket: selectedRun.destinationName, limit: 200 }) as Inventory[] | undefined;
+  const initialOffering = [searchParams.get("cropType"), searchParams.get("unit"), searchParams.get("grade")].filter(Boolean).join("|");
+  const [offering, setOffering] = useState(initialOffering);
+  const [quantity, setQuantity] = useState("");
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice") ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
 
-  const inventory = useQuery(
-    api.buyerOrders.listAvailableInventory,
-    principal !== null && principal !== undefined && warehouseId && cropType
-      ? {
-          warehouseId: warehouseId as Id<"warehouses">,
-          cropType,
-          unit,
-          destinationMarket: destinationMarket.trim() || buyer?.destinationMarket || "Makola Market",
-          grade: preferredGrade,
-          ...(maxPrice ? { maximumPricePerUnit: Number(maxPrice) } : {}),
-        }
-      : "skip"
-  ) as InventoryBatchSummary[] | undefined;
+  const offerings = useMemo(() => {
+    const unique = new Map<string, Inventory>();
+    for (const item of inventory ?? []) unique.set(`${item.cropType}|${item.unit}|${item.grade}`, item);
+    return [...unique.entries()];
+  }, [inventory]);
+  const effectiveOffering = offering || offerings[0]?.[0] || "";
+  const [cropType = "", unit = "", grade = "mixed"] = effectiveOffering.split("|");
+  const compatibleInventory = (inventory ?? []).filter((item) => item.cropType === cropType && item.unit === unit && item.grade === grade);
+  const availableQuantity = compatibleInventory.reduce((total, item) => total + item.availableQuantity, 0);
+  const requestedQuantity = Number(quantity);
+  const explicitMaxPrice = Number(maxPrice);
+  const estimatedUnitPrice = explicitMaxPrice || compatibleInventory.find((item) => item.askingPricePerUnit !== undefined)?.askingPricePerUnit || 0;
 
-  const formattedMarketString = destinationMarket.trim() || buyer?.destinationMarket || "Makola Market";
-
-  const numQuantity = Number(quantity);
-  const numPrice = Number(maxPrice);
-  const estimatedCost = numQuantity && numPrice ? numQuantity * numPrice : 0;
-  const availableQuantity = inventory?.reduce((sum, item) => sum + item.availableQuantity, 0) ?? 0;
-  const hasInventoryResult = inventory !== undefined;
-  const hasSufficientInventory = !hasInventoryResult || availableQuantity >= numQuantity;
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!principal?.userId || !buyerId) {
-      setError("User session or buyer profile not found. Please log in.");
-      return;
-    }
-    if (!quantity || numQuantity <= 0) {
-      setError("Please enter a valid positive quantity.");
-      return;
-    }
-    if (!isInstitution && dispatchOptions.length > 0 && !deliveryDate) {
-      setError("Choose one of this warehouse's scheduled dispatch days.");
-      return;
-    }
-
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (actorUserId === undefined || buyerId === undefined || selectedRun === undefined) return setError("Choose an available delivery run and sign in again if needed.");
+    if (!cropType || !unit || requestedQuantity <= 0) return setError("Choose produce and enter a valid quantity.");
     setIsSubmitting(true);
-    setError(null);
-
+    setError(undefined);
     try {
-      const orderArgs = {
-        actorUserId: principal.userId as Id<"users">,
+      const orderId = await createOrder({
+        actorUserId,
         buyerId,
-        destinationMarket: formattedMarketString.trim(),
+        marketDeliveryRunId: selectedRun._id,
+        warehouseId: selectedRun.originWarehouseId,
+        destinationMarket: selectedRun.destinationName,
         cropType,
-        requestedQuantity: numQuantity,
+        requestedQuantity,
         unit,
-        ...(warehouseId ? { warehouseId: warehouseId as Id<"warehouses"> } : {}),
-        preferredGrade,
-        ...(deliveryDate ? { requestedDeliveryDate: new Date(deliveryDate).getTime() } : {}),
-        ...(numPrice ? { maxPricePerUnit: numPrice } : {}),
-      };
-      const orderId = await createOrder(orderArgs);
-
-      // Redirect to the newly created order status page
-      router.push(`/buyer/orders/${orderId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit order. Please check inventory stock.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const formattedEstimate = estimatedCost > 0
-    ? `GHS ${estimatedCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-    : "GHS 0.00";
-
-  return (
-    <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "20px" }}>
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        style={{
-          alignSelf: "flex-start",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "8px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontSize: "1rem",
-          fontWeight: "700",
-          color: "var(--color-primary)",
-          padding: "8px 0",
-        }}
-      >
-        <ArrowLeft size={18} />
-        <span>Back to Summary</span>
-      </button>
-
-      {/* Header */}
-      <div>
-        <p className="eyebrow">Purchase Request</p>
-        <h1>Create Produce Order</h1>
-        <p style={{ marginBottom: "10px" }}>
-          Fill out the quantity and delivery schedule. The platform will automatically lock matches from available warehouse batches.
-        </p>
-      </div>
-
-      {error && (
-        <div className="attention-card" style={{ borderColor: "var(--color-danger-border)", backgroundColor: "var(--color-danger-bg)", color: "var(--color-danger)" }}>
-          <div className="attention-body">
-            <span className="attention-title">Order Failed</span>
-            <span className="attention-text">{error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={(e) => { void handleSubmit(e); }} className="auth-card" style={{ width: "100%", gap: "16px" }}>
-        <div style={{ display: "flex", gap: "10px", backgroundColor: "var(--color-bg)", padding: "12px", borderRadius: "10px" }}>
-          <div>
-            <span style={{ fontSize: "1.4rem" }}>
-              {cropType === "Maize" ? "🌽" : cropType === "Cassava" ? "🍠" : "🌾"}
-            </span>
-          </div>
-          <div>
-            <div style={{ fontWeight: "700", color: "var(--color-ink)", fontSize: "0.95rem" }}>
-              {cropType} · Grade {preferredGrade}
-            </div>
-            <div style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-              Warehouse: {warehouse?.name || "Selected warehouse"}
-            </div>
-          </div>
-        </div>
-
-        {hasInventoryResult && (
-          <div className="attention-card" style={{ backgroundColor: hasSufficientInventory ? "var(--color-info-bg)" : "var(--color-danger-bg)", borderColor: hasSufficientInventory ? "var(--color-info-border)" : "var(--color-danger-border)" }}>
-            <div className="attention-body">
-              <span className="attention-title">
-                {availableQuantity.toLocaleString()} {unit} currently reservable
-              </span>
-              <span className="attention-text">
-                {hasSufficientInventory
-                  ? "Your order can be filled from currently buyer-visible inventory."
-                  : "Requested quantity is higher than current reservable stock. Reduce the quantity or choose another listing."}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <div className="field-stack">
-          <label htmlFor="quantity">Requested Quantity ({unit})</label>
-          <input
-            type="number"
-            id="quantity"
-            className="form-input"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder="e.g. 50"
-            min="1"
-            disabled={isSubmitting}
-            required
-          />
-        </div>
-
-        <div className="field-stack">
-          <label htmlFor="maxPrice">Maximum Price Per {unit.slice(0, -1)} (GHS)</label>
-          <input
-            type="number"
-            id="maxPrice"
-            className="form-input"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-            placeholder="e.g. 130"
-            min="1"
-            disabled={isSubmitting}
-          />
-          <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
-            {defaultMaxPrice ? `Defaults to current warehouse asking price: GHS ${defaultMaxPrice}` : "Leave blank to use the current warehouse asking prices."}
-          </span>
-        </div>
-
-        <div className="field-stack">
-          <label htmlFor="destinationMarket">Destination Market Delivery</label>
-          <input
-            type="text"
-            id="destinationMarket"
-            className="form-input"
-            value={formattedMarketString}
-            onChange={(e) => setDestinationMarket(e.target.value)}
-            placeholder="e.g. Makola Market, Accra"
-            disabled={isSubmitting}
-            required
-          />
-        </div>
-
-        <div className="field-stack">
-          <label htmlFor="deliveryDate">{isInstitution ? "Requested delivery date" : "Warehouse dispatch"}</label>
-          {isInstitution ? (
-            <>
-              <input type="date" id="deliveryDate" className="form-input" value={deliveryDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isSubmitting} />
-              <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>Institutional bulk orders are fulfilled on demand, subject to stock and transport confirmation.</span>
-            </>
-          ) : dispatchOptions.length > 0 ? (
-            <>
-              <select id="deliveryDate" className="form-select" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} disabled={isSubmitting} required>
-                <option value="">Choose a dispatch day</option>
-                {dispatchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-              <span style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>Market orders can be placed anytime. Goods leave in the evening and are expected at {formattedMarketString} the following morning.</span>
-            </>
-          ) : (
-            <div className="attention-card"><div className="attention-body"><span className="attention-title">Dispatch confirmation required</span><span className="attention-text">This warehouse has not published dispatch days yet. Submit your order and operations will confirm the next run.</span></div></div>
-          )}
-        </div>
-
-        {/* Live Form Review Section */}
-        {numQuantity > 0 && (
-          <div
-            style={{
-              border: "1.5px solid var(--color-line)",
-              borderRadius: "12px",
-              padding: "14px",
-              backgroundColor: "var(--color-bg)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            <div style={{ fontWeight: "700", color: "var(--color-ink)", fontSize: "0.875rem" }}>
-              Order Review Summary
-            </div>
-            <div style={{ fontSize: "0.875rem", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "var(--color-text-muted)" }}>Requested:</span>
-              <strong style={{ color: "var(--color-ink)" }}>
-                {numQuantity} {unit} of {cropType} (Grade {preferredGrade})
-              </strong>
-            </div>
-            <div style={{ fontSize: "0.875rem", display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "var(--color-text-muted)" }}>Destination:</span>
-              <strong style={{ color: "var(--color-ink)" }}>{formattedMarketString}</strong>
-            </div>
-            {deliveryDate && (
-              <div style={{ fontSize: "0.875rem", display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--color-text-muted)" }}>Deliver by:</span>
-                <strong style={{ color: "var(--color-ink)" }}>{new Date(deliveryDate).toLocaleDateString()}</strong>
-              </div>
-            )}
-
-            <div style={{ borderTop: "1px dashed var(--color-line)", margin: "4px 0" }} />
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: "600", fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
-                Est. Purchase Cost:
-              </span>
-              <span className="card-math" style={{ fontSize: "1.1rem" }}>
-                {formattedEstimate}
-              </span>
-            </div>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="btn btn-primary btn-full"
-          disabled={isSubmitting || (numQuantity > 0 && !hasSufficientInventory)}
-          style={{ marginTop: "10px" }}
-        >
-          <ShoppingCart size={18} />
-          <span>{isSubmitting ? "Submitting Order..." : "Request Produce"}</span>
-        </button>
-      </form>
-    </div>
-  );
-}
-
-const weekdayIndex: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-
-function nextDispatchDates(days: string[]): { value: string; label: string }[] {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  const options: { value: string; label: string; time: number }[] = [];
-  for (let week = 0; week < 3; week += 1) {
-    for (const day of days) {
-      const target = weekdayIndex[day.trim().toLowerCase()];
-      if (target === undefined) continue;
-      let offset = (target - today.getDay() + 7) % 7 + week * 7;
-      if (offset === 0) offset = 7;
-      const departure = new Date(today);
-      departure.setDate(today.getDate() + offset);
-      const arrival = new Date(departure);
-      arrival.setDate(departure.getDate() + 1);
-      options.push({
-        value: departure.toISOString().slice(0, 10),
-        label: `${departure.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} evening → ${arrival.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} morning`,
-        time: departure.getTime(),
+        preferredGrade: grade as ProduceGrade,
+        reservationExpiresAt: selectedRun.orderCutoffAt,
+        ...(maxPrice.trim() !== "" && explicitMaxPrice > 0 ? { maxPricePerUnit: explicitMaxPrice } : {}),
       });
-    }
+      router.push(`/buyer/orders/${orderId}`);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Your order could not be placed. Your selections are still here; check your connection and try again.");
+    } finally { setIsSubmitting(false); }
   }
-  return [...options].sort((left, right) => left.time - right.time).slice(0, 6).map(({ value, label }) => ({ value, label }));
+
+  return <div style={{ display: "grid", gap: 18 }}>
+    <button type="button" onClick={() => router.back()} className="btn btn-secondary" style={{ justifySelf: "start" }}><ArrowLeft size={18} /> Back</button>
+    <header><p className="eyebrow">Scheduled market delivery</p><h1>Place an order for a published run</h1><p>Your produce is reserved from the run&apos;s origin warehouse. Pay before the shown deadline so operations can prepare the load.</p></header>
+    {error && <div className="attention-card" role="alert"><div className="attention-body"><strong className="attention-title">Please check this order</strong><span className="attention-text">{error}</span></div></div>}
+    {runs !== undefined && runs.length === 0 && <div className="attention-card"><div className="attention-body"><strong className="attention-title">No run is accepting orders for {buyer?.destinationMarket ?? "your destination"}</strong><span className="attention-text">A new published delivery day will appear here when operations opens one.</span></div></div>}
+    {(runs ?? []).length > 0 && <form onSubmit={(event) => void submit(event)} className="auth-card" style={{ width: "100%", gap: 16 }}>
+      <div className="field-stack"><label htmlFor="run">Delivery destination and day</label><select id="run" className="form-select" value={effectiveRunId} onChange={(event) => setRunId(event.target.value)} required>{(runs ?? []).map((run) => <option key={run._id} value={run._id}>{run.destinationName} · {date(run.deliveryDateAt, run.timezone)}</option>)}</select></div>
+      {selectedRun && <section style={promiseStyle} aria-label="Published delivery promise"><PromiseRow icon={<MapPin size={17} />} label="Deliver to" value={selectedRun.destinationName} /><PromiseRow icon={<CalendarDays size={17} />} label="Expected arrival" value={`${date(selectedRun.deliveryDateAt, selectedRun.timezone)}, ${time(selectedRun.expectedArrivalStartAt, selectedRun.timezone)}–${time(selectedRun.expectedArrivalEndAt, selectedRun.timezone)}`} /><PromiseRow icon={<Clock3 size={17} />} label="Orders and payment close" value={dateTime(selectedRun.orderCutoffAt, selectedRun.timezone)} /><p style={{ margin: 0, fontSize: 13 }}><strong>Collection:</strong> {selectedRun.destinationInstructions}</p></section>}
+      <div className="field-stack"><label htmlFor="produce">Eligible warehouse inventory</label><select id="produce" className="form-select" value={effectiveOffering} onChange={(event) => setOffering(event.target.value)} required><option value="">Choose produce</option>{offerings.map(([key, item]) => <option key={key} value={key}>{item.cropType} · grade {item.grade} · {item.unit}</option>)}</select><span className="field-help">{inventory === undefined ? "Checking reservable stock…" : `${availableQuantity.toLocaleString()} ${unit || "units"} currently reservable for this run.`}</span></div>
+      <div className="field-stack"><label htmlFor="quantity">Quantity ({unit || "unit"})</label><input id="quantity" type="number" min="0.01" step="any" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="form-input" required /></div>
+      <div className="field-stack"><label htmlFor="price">Maximum price per {unit || "unit"} (GHS, optional)</label><input id="price" type="number" min="0.01" step="any" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} className="form-input" /></div>
+      {requestedQuantity > 0 && <section style={reviewStyle}><strong>Order check</strong><span>{requestedQuantity} {unit} of {cropType}, grade {grade}</span><span>Estimated produce value: {estimatedUnitPrice > 0 ? `GHS ${(requestedQuantity * estimatedUnitPrice).toLocaleString()}` : "confirmed after matching"}</span><span>Reservation/payment deadline: {selectedRun ? dateTime(selectedRun.orderCutoffAt, selectedRun.timezone) : "choose a run"}</span></section>}
+      <button className="btn btn-primary btn-full" disabled={isSubmitting || requestedQuantity <= 0 || requestedQuantity > availableQuantity}><ShoppingCart size={18} />{isSubmitting ? "Reserving…" : "Reserve for this delivery run"}</button>
+      {requestedQuantity > availableQuantity && requestedQuantity > 0 && <span style={{ color: "var(--color-danger)", fontSize: 13 }}>Reduce the quantity to the stock currently available for this run.</span>}
+    </form>}
+  </div>;
 }
 
-export default function CreateOrderPage() {
-  return (
-    <Suspense fallback={<div className="skeleton" style={{ width: "100%", height: "320px", borderRadius: "16px" }} />}>
-      <CreateOrderContent />
-    </Suspense>
-  );
-}
+function PromiseRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) { return <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 7, alignItems: "start" }}>{icon}<span style={{ fontSize: 13 }}><strong>{label}:</strong> {value}</span></div>; }
+function date(value: number, timezone: string) { return new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeZone: timezone }).format(value); }
+function time(value: number, timezone: string) { return new Intl.DateTimeFormat("en-GH", { timeStyle: "short", timeZone: timezone }).format(value); }
+function dateTime(value: number, timezone: string) { return new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short", timeZone: timezone }).format(value); }
+const promiseStyle = { display: "grid", gap: 10, padding: 14, borderRadius: 10, background: "var(--color-info-bg)", border: "1px solid var(--color-info-border)" } as const;
+const reviewStyle = { display: "grid", gap: 6, padding: 14, borderRadius: 10, background: "var(--color-bg)", border: "1px solid var(--color-line)", fontSize: 13 } as const;
+
+export default function CreateOrderPage() { return <Suspense fallback={<div className="skeleton" style={{ height: 320, borderRadius: 16 }} />}><CreateOrderContent /></Suspense>; }
