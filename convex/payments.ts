@@ -1,3 +1,4 @@
+import { isActiveReservationStatus } from "@kuapa-dwaso/permissions";
 import { roundMoneyAmount } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -876,6 +877,15 @@ async function reconcileSuccessfulBuyerPayment(
     status: order.status === "awaiting_payment" || order.status === "submitted" ? "confirmed" : order.status,
     updatedAt: now,
   });
+  const reservations = await ctx.db
+    .query("inventoryReservations")
+    .withIndex("by_order", (q) => q.eq("buyerOrderId", order._id))
+    .collect();
+  for (const reservation of reservations) {
+    if (isActiveReservationStatus(reservation.status) && reservation.expiresAt !== undefined) {
+      await ctx.db.patch(reservation._id, { expiresAt: undefined, updatedAt: now });
+    }
+  }
   const buyer = await ctx.db.get(order.buyerId);
   await insertNotificationRecord(ctx, {
     recipientId: order.buyerId,

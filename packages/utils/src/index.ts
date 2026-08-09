@@ -1,4 +1,6 @@
 import type {
+  BuyerOrderPaymentStatus,
+  BuyerOrderStatus,
   FeeCalculationType,
   FeePayer,
   FeeRuleSnapshot,
@@ -899,6 +901,30 @@ export function assertInviteTargetMatchesIdentity(input: {
   throw new Error("Invitation target is required.");
 }
 
+export function assertInviteIdentityVerification(input: {
+  invitationType: PlatformInvitationType;
+  targetEmail?: string;
+  targetPhoneNumber?: string;
+  identityPhoneNumber?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+}): void {
+  const phonePrimary =
+    input.invitationType === "warehouse_agent_invite" || input.invitationType === "transporter_invite";
+  if (phonePrimary) {
+    if (input.identityPhoneNumber === undefined || input.phoneVerified !== true) {
+      throw new Error("Phone number must be verified to accept this invitation.");
+    }
+    return;
+  }
+  if (input.targetEmail !== undefined && input.emailVerified !== true) {
+    throw new Error("Invitation email must be verified.");
+  }
+  if (input.targetPhoneNumber !== undefined && input.phoneVerified !== true) {
+    throw new Error("Invitation phone number must be verified.");
+  }
+}
+
 export function buildUploadObjectKey(input: {
   environment: string;
   purpose: UploadAssetPurpose;
@@ -1533,6 +1559,32 @@ export function assertOrderCanJoinMarketRun(input: {
   if (input.runDestination.trim().toLowerCase() !== input.orderDestination.trim().toLowerCase()) {
     throw new Error("Order destination does not match the delivery run destination.");
   }
+}
+
+export function marketRunOrderCountsTowardReadiness(status: BuyerOrderStatus): boolean {
+  return status !== "cancelled" && status !== "unfulfilled" && status !== "completed";
+}
+
+export function shouldAdvanceMarketRunCutoff(input: {
+  status: MarketDeliveryRunStatus;
+  orderCutoffAt: number;
+  now: number;
+}): boolean {
+  return input.status === "accepting_orders" && input.orderCutoffAt <= input.now;
+}
+
+export function shouldExpireInventoryReservation(input: {
+  status: InventoryReservationStatus;
+  expiresAt?: number;
+  paymentStatus: BuyerOrderPaymentStatus;
+  now: number;
+}): boolean {
+  return (
+    (input.status === "active" || input.status === "partially_released") &&
+    input.expiresAt !== undefined &&
+    input.expiresAt <= input.now &&
+    input.paymentStatus !== "fully_paid"
+  );
 }
 
 export type ActualFinancialSummary = {

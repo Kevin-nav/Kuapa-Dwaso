@@ -19,7 +19,11 @@ export const run = internalMutation({
       if (marketRun.orderCutoffAt <= now || marketRun.orderCutoffAt > reminderEnd) continue;
       for (const orderId of marketRun.buyerOrderIds) {
         const order = await ctx.db.get(orderId);
-        if (order === null || ["cancelled", "completed"].includes(order.status)) continue;
+        if (
+          order === null ||
+          order.paymentStatus === "fully_paid" ||
+          ["cancelled", "unfulfilled", "completed"].includes(order.status)
+        ) continue;
         const buyer = await ctx.db.get(order.buyerId);
         if (buyer?.userId === undefined) continue;
         await insertNotificationRecord(ctx, {
@@ -32,7 +36,7 @@ export const run = internalMutation({
           relatedEntityId: marketRun._id,
           marketDeliveryRunId: marketRun._id,
           actionUrl: `/buyer/orders/${order._id}`,
-          actionRequired: order.paymentStatus !== "fully_paid",
+          actionRequired: true,
           priority: "high",
           dueAt: marketRun.orderCutoffAt,
           deduplicationKey: `run-cutoff-24h:${marketRun._id}:${buyer._id}`,
@@ -50,7 +54,7 @@ export const run = internalMutation({
       for (const reservation of reservations) {
         if (reservation.expiresAt === undefined) continue;
         const order = await ctx.db.get(reservation.buyerOrderId);
-        if (order === null) continue;
+        if (order === null || order.paymentStatus === "fully_paid") continue;
         const buyer = await ctx.db.get(order.buyerId);
         if (buyer?.userId === undefined) continue;
         const common = {

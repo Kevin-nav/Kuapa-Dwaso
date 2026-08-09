@@ -9,6 +9,16 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 export type Actor = Doc<"users"> & { role: MarketplaceRole };
 
+export type AuditActor = Pick<Actor, "_id" | "role"> | {
+  _id: "system";
+  role: "system";
+};
+
+export const systemAuditActor: AuditActor = {
+  _id: "system",
+  role: "system",
+};
+
 export type AdminScopeGrant = {
   roleKey: AdminRoleKey;
   permissions: readonly AdminPermissionKey[];
@@ -388,7 +398,7 @@ export async function requireWarehouseAgentAssignedToWarehouse(
 export async function insertAuditLog(
   ctx: MutationCtx,
   args: {
-    actor: Actor;
+    actor: AuditActor;
     action: string;
     entityType: string;
     entityId: string;
@@ -399,7 +409,7 @@ export async function insertAuditLog(
 ): Promise<void> {
   const auditLog: {
     actorId: string;
-    actorRole: MarketplaceRole;
+    actorRole: MarketplaceRole | "system";
     action: string;
     entityType: string;
     entityId: string;

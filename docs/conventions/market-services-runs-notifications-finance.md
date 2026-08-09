@@ -18,8 +18,16 @@ confirmed -> dispatched -> completed
 draft/accepting_orders/cutoff_reached/ready/confirmed -> cancelled
 ```
 
+Each run schedules its exact cutoff transition when it is created or rescheduled,
+with an hourly recovery job for missed work. A run cannot be opened after its
+published cutoff. Moving a run to `ready` requires every active order to remain
+fully reserved and fully paid. Capacity, minimum-load, or unit-policy exceptions
+require an explicit audited operational override.
+
 Postponement cancels the original run with a reason and creates a linked dated
-replacement. A physical `dispatch` is created only from compatible confirmed
+replacement. Active orders and reservations move to that replacement with its
+new promise snapshots and deadline; terminal orders remain on the original run.
+A run with a linked dispatch cannot be postponed. A physical `dispatch` is created only from compatible confirmed
 run orders and links back to that run. Legacy orders and dispatches without a
 run remain readable, but they are never mixed into a run dispatch.
 
@@ -44,7 +52,8 @@ acknowledgement, deduplication key, escalation level, expiry, and related run.
 Only the recipient can mark one read, acknowledge it, or archive it. A required
 action cannot be archived before acknowledgement unless it has expired.
 Hourly idempotent reminders cover approaching run cutoffs and reservation
-expiry. SMS remains concise and transactional; detailed instructions and the
+expiry. Unpaid reservations expire automatically at their deadline, while a
+successful payment removes the reservation expiry. SMS remains concise and transactional; detailed instructions and the
 durable action always remain in the application.
 
 ## Actual financial definitions

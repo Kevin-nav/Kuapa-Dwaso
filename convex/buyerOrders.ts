@@ -12,11 +12,13 @@ import {
   calculateReservableBatchQuantity,
   assertOrderCanJoinMarketRun,
   inventoryBatchStatusesVisibleToBuyers,
+  shouldExpireInventoryReservation,
 } from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { listApplicableFeeRules, snapshotFeeRule } from "./feeRules";
 import { insertNotificationRecord } from "./notifications";
 import {
@@ -30,6 +32,8 @@ import {
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
+  systemAuditActor,
+  type AuditActor,
   type Actor,
 } from "./workflowHelpers";
 
@@ -257,7 +261,7 @@ async function findReservableBatches(
 async function recomputeBatchStatus(
   ctx: MutationCtx,
   inventoryBatchId: Id<"inventoryBatches">,
-  actor: Actor,
+  actor: AuditActor,
 ): Promise<void> {
   const batch = await ctx.db.get(inventoryBatchId);
   if (batch === null) {
@@ -796,6 +800,13 @@ export const create = mutation({
       after: afterOrder === null ? undefined : auditSnapshot(afterOrder),
       metadata: { clientRequestId: args.clientRequestId },
     });
+    if (effectiveReservationExpiry !== undefined) {
+      await ctx.scheduler.runAt(
+        Math.max(effectiveReservationExpiry, now),
+        internal.buyerOrders.expireOrderReservations,
+        { orderId },
+      );
+    }
 
     return orderId;
   },
@@ -999,6 +1010,102 @@ export const releaseReservations = mutation({
   },
 });
 
+async function expireReservationRecords(
+  ctx: MutationCtx,
+  reservations: readonly Doc<"inventoryReservations">[],
+  actor: AuditActor,
+  now: number,
+): Promise<number> {
+  const touchedOrders = new Set<Id<"buyerOrders">>();
+  let expiredCount = 0;
+
+  for (const reservation of reservations) {
+    const order = await ctx.db.get(reservation.buyerOrderId);
+    if (
+      order === null ||
+      !shouldExpireInventoryReservation({
+        status: reservation.status,
+        ...(reservation.expiresAt === undefined ? {} : { expiresAt: reservation.expiresAt }),
+        paymentStatus: order.paymentStatus,
+        now,
+      })
+    ) {
+      continue;
+    }
+    assertAllowed(
+      canTransitionInventoryReservationStatus(reservation.status, "expired"),
+      "Reservation cannot expire from its current status.",
+    );
+    await ctx.db.patch(reservation._id, {
+      quantityReleased: reservation.quantityReserved - reservation.quantityFulfilled,
+      status: "expired",
+      updatedAt: now,
+    });
+    const after = await ctx.db.get(reservation._id);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "inventory_reservation.expired",
+      entityType: "inventory_reservation",
+      entityId: reservation._id,
+      before: auditSnapshot(reservation),
+      after: after === null ? undefined : auditSnapshot(after),
+    });
+    await recomputeBatchStatus(ctx, reservation.inventoryBatchId, actor);
+    touchedOrders.add(reservation.buyerOrderId);
+    expiredCount += 1;
+  }
+
+  for (const orderId of touchedOrders) {
+    const order = await ctx.db.get(orderId);
+    if (
+      order === null ||
+      order.paymentStatus === "fully_paid" ||
+      !canTransitionBuyerOrderStatus(order.status, "unfulfilled")
+    ) {
+      continue;
+    }
+    await ctx.db.patch(orderId, {
+      status: "unfulfilled",
+      updatedAt: now,
+    });
+    const buyer = await ctx.db.get(order.buyerId);
+    if (buyer !== null) {
+      await insertBuyerOrderNotification(
+        ctx,
+        buyer,
+        orderId,
+        "Reservation expired",
+        `Your reservation for ${order.requestedQuantity} ${order.unit} of ${order.cropType} has expired.`,
+      );
+    }
+    const after = await ctx.db.get(orderId);
+    await insertAuditLog(ctx, {
+      actor,
+      action: "buyer_order.reservation_expired",
+      entityType: "buyer_order",
+      entityId: orderId,
+      before: auditSnapshot(order),
+      after: after === null ? undefined : auditSnapshot(after),
+    });
+  }
+
+  return expiredCount;
+}
+
+async function listDueReservations(ctx: MutationCtx, now: number, limit: number) {
+  const active = await ctx.db
+    .query("inventoryReservations")
+    .withIndex("by_status_expires_at", (q) => q.eq("status", "active").lte("expiresAt", now))
+    .take(limit);
+  const partiallyReleased = await ctx.db
+    .query("inventoryReservations")
+    .withIndex("by_status_expires_at", (q) => q.eq("status", "partially_released").lte("expiresAt", now))
+    .take(limit);
+  return [...active, ...partiallyReleased]
+    .sort((left, right) => (left.expiresAt ?? 0) - (right.expiresAt ?? 0))
+    .slice(0, limit);
+}
+
 export const expireReservations = mutation({
   args: {
     actorUserId: v.id("users"),
@@ -1012,74 +1119,35 @@ export const expireReservations = mutation({
     await requireAdminPermission(ctx, args.actorUserId, "orders:manage", {});
     const now = args.now ?? Date.now();
     const limit = Math.min(args.limit ?? 50, 100);
-    const active = await ctx.db
+    return await expireReservationRecords(ctx, await listDueReservations(ctx, now, limit), actor, now);
+  },
+});
+
+export const expireOrderReservations = internalMutation({
+  args: { orderId: v.id("buyerOrders") },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const reservations = await ctx.db
       .query("inventoryReservations")
-      .withIndex("by_status_expires_at", (q) => q.eq("status", "active"))
-      .take(limit);
-    const partiallyReleased = await ctx.db
-      .query("inventoryReservations")
-      .withIndex("by_status_expires_at", (q) => q.eq("status", "partially_released"))
-      .take(limit);
-    const expirable = [...active, ...partiallyReleased]
-      .filter((reservation) => reservation.expiresAt !== undefined && reservation.expiresAt <= now)
-      .slice(0, limit);
-    const touchedOrders = new Set<Id<"buyerOrders">>();
+      .withIndex("by_order", (q) => q.eq("buyerOrderId", args.orderId))
+      .collect();
+    return await expireReservationRecords(ctx, reservations, systemAuditActor, now);
+  },
+});
 
-    for (const reservation of expirable) {
-      assertAllowed(
-        canTransitionInventoryReservationStatus(reservation.status, "expired"),
-        "Reservation cannot expire from its current status.",
-      );
-      await ctx.db.patch(reservation._id, {
-        quantityReleased:
-          reservation.quantityReserved - reservation.quantityFulfilled,
-        status: "expired",
-        updatedAt: now,
-      });
-      const after = await ctx.db.get(reservation._id);
-      await insertAuditLog(ctx, {
-        actor,
-        action: "inventory_reservation.expired",
-        entityType: "inventory_reservation",
-        entityId: reservation._id,
-        before: auditSnapshot(reservation),
-        after: after === null ? undefined : auditSnapshot(after),
-      });
-      await recomputeBatchStatus(ctx, reservation.inventoryBatchId, actor);
-      touchedOrders.add(reservation.buyerOrderId);
-    }
-
-    for (const orderId of touchedOrders) {
-      const order = await ctx.db.get(orderId);
-      if (order === null || !canTransitionBuyerOrderStatus(order.status, "unfulfilled")) {
-        continue;
-      }
-      await ctx.db.patch(orderId, {
-        status: "unfulfilled",
-        updatedAt: now,
-      });
-      const buyer = await ctx.db.get(order.buyerId);
-      if (buyer !== null) {
-        await insertBuyerOrderNotification(
-          ctx,
-          buyer,
-          orderId,
-          "Reservation expired",
-          `Your reservation for ${order.requestedQuantity} ${order.unit} of ${order.cropType} has expired.`,
-        );
-      }
-      const after = await ctx.db.get(orderId);
-      await insertAuditLog(ctx, {
-        actor,
-        action: "buyer_order.reservation_expired",
-        entityType: "buyer_order",
-        entityId: orderId,
-        before: auditSnapshot(order),
-        after: after === null ? undefined : auditSnapshot(after),
-      });
-    }
-
-    return expirable.length;
+export const expireDueReservations = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const limit = Math.min(args.limit ?? 100, 200);
+    return await expireReservationRecords(
+      ctx,
+      await listDueReservations(ctx, now, limit),
+      systemAuditActor,
+      now,
+    );
   },
 });
 

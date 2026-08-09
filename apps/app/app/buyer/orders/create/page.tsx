@@ -64,7 +64,8 @@ function CreateOrderContent() {
   const compatibleInventory = (inventory ?? []).filter((item) => item.cropType === cropType && item.unit === unit && item.grade === grade);
   const availableQuantity = compatibleInventory.reduce((total, item) => total + item.availableQuantity, 0);
   const requestedQuantity = Number(quantity);
-  const estimatedUnitPrice = Number(maxPrice) || compatibleInventory.find((item) => item.askingPricePerUnit !== undefined)?.askingPricePerUnit || 0;
+  const explicitMaxPrice = Number(maxPrice);
+  const estimatedUnitPrice = explicitMaxPrice || compatibleInventory.find((item) => item.askingPricePerUnit !== undefined)?.askingPricePerUnit || 0;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -84,7 +85,7 @@ function CreateOrderContent() {
         unit,
         preferredGrade: grade as ProduceGrade,
         reservationExpiresAt: selectedRun.orderCutoffAt,
-        ...(estimatedUnitPrice > 0 ? { maxPricePerUnit: estimatedUnitPrice } : {}),
+        ...(maxPrice.trim() !== "" && explicitMaxPrice > 0 ? { maxPricePerUnit: explicitMaxPrice } : {}),
       });
       router.push(`/buyer/orders/${orderId}`);
     } catch (submitError) {

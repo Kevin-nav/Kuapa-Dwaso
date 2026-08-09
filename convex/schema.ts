@@ -876,7 +876,8 @@ export default defineSchema({
     .index("by_schedule_delivery_date", ["scheduleId", "deliveryDate"])
     .index("by_warehouse_status_date", ["originWarehouseId", "status", "deliveryDateAt"])
     .index("by_destination_status_date", ["destinationName", "status", "deliveryDateAt"])
-    .index("by_status_date", ["status", "deliveryDateAt"]),
+    .index("by_status_date", ["status", "deliveryDateAt"])
+    .index("by_status_order_cutoff", ["status", "orderCutoffAt"]),
 
   buyerOrders: defineTable({
     buyerId: v.id("buyers"),

@@ -1,9 +1,16 @@
 import { canTransitionMarketDeliveryRunStatus, isActiveReservationStatus } from "@kuapa-dwaso/permissions";
-import { aggregateMarketRunOrders, buildMarketRunBuyerNotification, calculateMarketRunOccurrence } from "@kuapa-dwaso/utils";
+import {
+  aggregateMarketRunOrders,
+  buildMarketRunBuyerNotification,
+  calculateMarketRunOccurrence,
+  marketRunOrderCountsTowardReadiness,
+  shouldAdvanceMarketRunCutoff,
+} from "@kuapa-dwaso/utils";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 import {
   adminAccessHasPermissionForScope,
@@ -16,6 +23,7 @@ import {
   omitUndefinedValues,
   requireAdminPermission,
   requireWarehouseAgentAssignedToWarehouse,
+  systemAuditActor,
   warehouseScopeTarget,
 } from "./workflowHelpers";
 
@@ -61,7 +69,7 @@ async function insertRun(
   const timing = timingForSchedule(schedule, deliveryDate);
   assertAllowed(timing.expectedArrivalEndAt > Date.now(), "Delivery run must be upcoming.");
   const now = Date.now();
-  return await ctx.db.insert("marketDeliveryRuns", omitUndefinedValues({
+  const runId = await ctx.db.insert("marketDeliveryRuns", omitUndefinedValues({
     scheduleId: schedule._id,
     originWarehouseId: schedule.originWarehouseId,
     destinationName: schedule.destinationName,
@@ -81,6 +89,8 @@ async function insertRun(
     createdAt: now,
     updatedAt: now,
   }));
+  await ctx.scheduler.runAt(timing.orderCutoffAt, internal.marketDeliveryRuns.advanceRunCutoff, { runId });
+  return runId;
 }
 
 export const createFromSchedule = mutation({
@@ -153,6 +163,146 @@ async function notifyBuyersForRun(
   }
 }
 
+async function advanceRunToCutoff(
+  ctx: MutationCtx,
+  run: Doc<"marketDeliveryRuns">,
+  now: number,
+): Promise<boolean> {
+  if (!shouldAdvanceMarketRunCutoff({ status: run.status, orderCutoffAt: run.orderCutoffAt, now })) {
+    return false;
+  }
+  await ctx.db.patch(run._id, { status: "cutoff_reached", updatedAt: now });
+  const after = await ctx.db.get(run._id);
+  await insertAuditLog(ctx, {
+    actor: systemAuditActor,
+    action: "market_delivery_run.cutoff_reached",
+    entityType: "market_delivery_run",
+    entityId: run._id,
+    before: auditSnapshot(run),
+    after: after === null ? undefined : auditSnapshot(after),
+  });
+  return true;
+}
+
+export const advanceRunCutoff = internalMutation({
+  args: { runId: v.id("marketDeliveryRuns") },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    return run === null ? false : await advanceRunToCutoff(ctx, run, Date.now());
+  },
+});
+
+export const advanceExpiredCutoffs = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const limit = Math.min(args.limit ?? 100, 200);
+    const runs = await ctx.db
+      .query("marketDeliveryRuns")
+      .withIndex("by_status_order_cutoff", (q) =>
+        q.eq("status", "accepting_orders").lte("orderCutoffAt", now),
+      )
+      .take(limit);
+    let advanced = 0;
+    for (const run of runs) {
+      if (await advanceRunToCutoff(ctx, run, now)) advanced += 1;
+    }
+    return advanced;
+  },
+});
+
+async function buildRunReadiness(
+  ctx: QueryCtx | MutationCtx,
+  run: Doc<"marketDeliveryRuns">,
+) {
+  const orders = (
+    await ctx.db
+      .query("buyerOrders")
+      .withIndex("by_market_delivery_run", (q) => q.eq("marketDeliveryRunId", run._id))
+      .collect()
+  ).filter((order) => marketRunOrderCountsTowardReadiness(order.status));
+  const aggregationInputs = [];
+  const blockers = [];
+  const reservationShortfalls = [];
+  for (const order of orders) {
+    const reservations = await ctx.db
+      .query("inventoryReservations")
+      .withIndex("by_order", (q) => q.eq("buyerOrderId", order._id))
+      .collect();
+    const activeReservations = reservations.filter((reservation) => isActiveReservationStatus(reservation.status));
+    const reservedQuantity = activeReservations.reduce(
+      (total, reservation) =>
+        total + reservation.quantityReserved - reservation.quantityReleased - reservation.quantityFulfilled,
+      0,
+    );
+    const expiries = activeReservations.flatMap((reservation) =>
+      reservation.expiresAt === undefined ? [] : [reservation.expiresAt],
+    );
+    aggregationInputs.push({
+      cropType: order.cropType,
+      unit: order.unit,
+      requestedQuantity: order.requestedQuantity,
+      reservedQuantity,
+      paymentStatus: order.paymentStatus,
+      ...(expiries.length === 0 ? {} : { reservationExpiresAt: Math.min(...expiries) }),
+    });
+    if (reservedQuantity < order.requestedQuantity) {
+      reservationShortfalls.push({
+        buyerOrderId: order._id,
+        requestedQuantity: order.requestedQuantity,
+        reservedQuantity,
+        unit: order.unit,
+      });
+    }
+    if (order.paymentStatus !== "fully_paid") {
+      const buyer = await ctx.db.get(order.buyerId);
+      blockers.push({
+        buyerOrderId: order._id,
+        buyerName: buyer?.displayName ?? buyer?.fullName ?? "Buyer",
+        paymentStatus: order.paymentStatus,
+        paymentDeadline: order.paymentDeadline,
+        reservationExpiry: expiries.length === 0 ? undefined : Math.min(...expiries),
+      });
+    }
+  }
+  const aggregation = aggregateMarketRunOrders(
+    aggregationInputs,
+    omitUndefinedValues({
+      capacityQuantity: run.capacityQuantity,
+      capacityUnit: run.capacityUnit,
+      minimumLoadQuantity: run.minimumLoadQuantity,
+      minimumLoadUnit: run.minimumLoadUnit,
+    }),
+  );
+  const operationalIssues: string[] = [];
+  if (run.capacityQuantity !== undefined) {
+    if (!aggregation.capacity.compatible) {
+      operationalIssues.push("Configured capacity is not compatible with all order units.");
+    } else if ((aggregation.capacity.reservedQuantity ?? 0) > run.capacityQuantity) {
+      operationalIssues.push("Reserved load exceeds the configured capacity.");
+    }
+  }
+  if (run.minimumLoadQuantity !== undefined) {
+    if (!aggregation.minimumLoad.compatible) {
+      operationalIssues.push("Configured minimum load is not compatible with all order units.");
+    } else if ((aggregation.minimumLoad.reservedQuantity ?? 0) < run.minimumLoadQuantity) {
+      operationalIssues.push("Reserved load is below the configured minimum.");
+    }
+  }
+  const dispatches = await Promise.all(run.dispatchIds.map((dispatchId) => ctx.db.get(dispatchId)));
+  return {
+    ...run,
+    aggregation,
+    blockers,
+    reservationShortfalls,
+    operationalIssues,
+    linkedDispatches: dispatches.filter((dispatch) => dispatch !== null),
+    operationalConfirmationRequired: operationalIssues.length > 0,
+  };
+}
+
 export const updateStatus = mutation({
   args: { actorUserId: v.id("users"), runId: v.id("marketDeliveryRuns"), status: runStatus, reason: v.optional(v.string()) },
   returns: v.id("marketDeliveryRuns"),
@@ -162,9 +312,18 @@ export const updateStatus = mutation({
     assertAllowed(run !== null, "Market delivery run was not found.");
     await requireAdminPermission(ctx, args.actorUserId, "marketRuns:manage", await warehouseScopeTarget(ctx, run.originWarehouseId));
     assertAllowed(canTransitionMarketDeliveryRunStatus(run.status, args.status), "Market delivery run status transition is not allowed.");
+    if (args.status === "accepting_orders") assertAllowed(Date.now() < run.orderCutoffAt, "The published order cutoff has already passed.");
     if (args.status === "cutoff_reached") assertAllowed(Date.now() >= run.orderCutoffAt, "The published order cutoff has not been reached.");
     if (args.status === "cancelled") assertAllowed(cleanOptionalText(args.reason) !== undefined, "A cancellation reason is required.");
-    if (args.status === "ready") assertAllowed(run.buyerOrderIds.length > 0, "A run with no orders cannot be marked ready.");
+    if (args.status === "ready") {
+      const readiness = await buildRunReadiness(ctx, run);
+      assertAllowed(readiness.aggregation.orderCount > 0, "A run with no active orders cannot be marked ready.");
+      assertAllowed(readiness.blockers.length === 0, "Every active run order must be fully paid before the run can be marked ready.");
+      assertAllowed(readiness.reservationShortfalls.length === 0, "Every active run order must remain fully reserved before the run can be marked ready.");
+      if (readiness.operationalConfirmationRequired) {
+        assertAllowed(cleanOptionalText(args.reason) !== undefined, "Explain the operational readiness override before marking this run ready.");
+      }
+    }
     await ctx.db.patch(args.runId, omitUndefinedValues({
       status: args.status,
       cancellationReason: args.status === "cancelled" ? cleanOptionalText(args.reason) : undefined,
@@ -199,6 +358,7 @@ export const editUnstarted = mutation({
       updatedByUserId: args.actorUserId,
       updatedAt: Date.now(),
     });
+    await ctx.scheduler.runAt(timing.orderCutoffAt, internal.marketDeliveryRuns.advanceRunCutoff, { runId: args.runId });
     const after = await ctx.db.get(args.runId);
     await insertAuditLog(ctx, { actor, action: "market_delivery_run.edited", entityType: "market_delivery_run", entityId: args.runId, before: auditSnapshot(run), after: after === null ? undefined : auditSnapshot(after) });
     return args.runId;
@@ -216,16 +376,73 @@ export const postpone = mutation({
     const reason = cleanOptionalText(args.reason);
     assertAllowed(reason !== undefined, "A postponement reason is required.");
     await requireAdminPermission(ctx, args.actorUserId, "marketRuns:manage", await warehouseScopeTarget(ctx, run.originWarehouseId));
+    assertAllowed(run.dispatchIds.length === 0, "A run with a linked dispatch cannot be postponed.");
     const schedule = await ctx.db.get(run.scheduleId);
     assertAllowed(schedule !== null, "Source market schedule was not found.");
     const replacementId = await insertRun(ctx, args.actorUserId, schedule, args.newDeliveryDate, run._id);
-    await ctx.db.patch(run._id, { status: "cancelled", postponementReason: reason, cancellationReason: `Postponed: ${reason}`, updatedByUserId: args.actorUserId, updatedAt: Date.now() });
     const replacement = await ctx.db.get(replacementId);
+    assertAllowed(replacement !== null, "Replacement market delivery run was not found.");
+    if (run.status !== "draft") {
+      assertAllowed(replacement.orderCutoffAt > Date.now(), "The replacement run must have a future order cutoff.");
+    }
+    const linkedOrders = await ctx.db
+      .query("buyerOrders")
+      .withIndex("by_market_delivery_run", (q) => q.eq("marketDeliveryRunId", run._id))
+      .collect();
+    const migratedOrders = linkedOrders.filter((order) => marketRunOrderCountsTowardReadiness(order.status));
+    const now = Date.now();
+    for (const order of migratedOrders) {
+      await ctx.db.patch(order._id, {
+        marketDeliveryRunId: replacementId,
+        deliveryDateSnapshot: replacement.deliveryDateAt,
+        orderCutoffSnapshot: replacement.orderCutoffAt,
+        expectedArrivalStartSnapshot: replacement.expectedArrivalStartAt,
+        expectedArrivalEndSnapshot: replacement.expectedArrivalEndAt,
+        fulfilmentInstructionsSnapshot: replacement.destinationInstructions,
+        paymentDeadline: replacement.orderCutoffAt,
+        updatedAt: now,
+      });
+      const reservations = await ctx.db
+        .query("inventoryReservations")
+        .withIndex("by_order", (q) => q.eq("buyerOrderId", order._id))
+        .collect();
+      for (const reservation of reservations) {
+        if (!isActiveReservationStatus(reservation.status)) continue;
+        await ctx.db.patch(reservation._id, {
+          expiresAt: order.paymentStatus === "fully_paid" ? undefined : replacement.orderCutoffAt,
+          updatedAt: now,
+        });
+      }
+      if (order.paymentStatus !== "fully_paid") {
+        await ctx.scheduler.runAt(
+          replacement.orderCutoffAt,
+          internal.buyerOrders.expireOrderReservations,
+          { orderId: order._id },
+        );
+      }
+    }
+    const remainingOrderIds = linkedOrders
+      .filter((order) => !marketRunOrderCountsTowardReadiness(order.status))
+      .map((order) => order._id);
+    await ctx.db.patch(run._id, {
+      status: "cancelled",
+      buyerOrderIds: remainingOrderIds,
+      postponementReason: reason,
+      cancellationReason: `Postponed: ${reason}`,
+      updatedByUserId: args.actorUserId,
+      updatedAt: now,
+    });
+    if (run.status !== "draft") {
+      await ctx.db.patch(replacementId, {
+        status: "accepting_orders",
+        buyerOrderIds: migratedOrders.map((order) => order._id),
+        updatedAt: now,
+      });
+    }
     const after = await ctx.db.get(run._id);
-    await insertAuditLog(ctx, { actor, action: "market_delivery_run.postponed", entityType: "market_delivery_run", entityId: run._id, before: auditSnapshot(run), after: after === null ? undefined : auditSnapshot(after), metadata: { replacementRunId: replacementId, reason } });
-    if (after !== null) await notifyBuyersForRun(ctx, after, "postponed", reason);
-    if (replacement !== null && run.status !== "draft") {
-      await ctx.db.patch(replacementId, { status: "accepting_orders", updatedAt: Date.now() });
+    await insertAuditLog(ctx, { actor, action: "market_delivery_run.postponed", entityType: "market_delivery_run", entityId: run._id, before: auditSnapshot(run), after: after === null ? undefined : auditSnapshot(after), metadata: { replacementRunId: replacementId, reason, migratedOrderCount: migratedOrders.length } });
+    await notifyBuyersForRun(ctx, run, "postponed", reason);
+    if (run.status !== "draft") {
       await notifyBuyersForRun(ctx, { ...replacement, status: "accepting_orders" }, "opened");
     }
     return replacementId;
@@ -288,22 +505,6 @@ export const getReadiness = query({
       assertAllowed(actor.role === "admin", "Only operations users can inspect run readiness.");
       await requireAdminPermission(ctx, args.actorUserId, "marketRuns:read", await warehouseScopeTarget(ctx, run.originWarehouseId));
     }
-    const orders = await ctx.db.query("buyerOrders").withIndex("by_market_delivery_run", (q) => q.eq("marketDeliveryRunId", run._id)).collect();
-    const aggregationInputs = [];
-    const blockers = [];
-    for (const order of orders) {
-      const reservations = await ctx.db.query("inventoryReservations").withIndex("by_order", (q) => q.eq("buyerOrderId", order._id)).collect();
-      const activeReservations = reservations.filter((reservation) => isActiveReservationStatus(reservation.status));
-      const reservedQuantity = activeReservations.reduce((total, reservation) => total + reservation.quantityReserved - reservation.quantityReleased - reservation.quantityFulfilled, 0);
-      const expiries = activeReservations.flatMap((reservation) => reservation.expiresAt === undefined ? [] : [reservation.expiresAt]);
-      aggregationInputs.push({ cropType: order.cropType, unit: order.unit, requestedQuantity: order.requestedQuantity, reservedQuantity, paymentStatus: order.paymentStatus, ...(expiries.length === 0 ? {} : { reservationExpiresAt: Math.min(...expiries) }) });
-      if (order.paymentStatus !== "fully_paid") {
-        const buyer = await ctx.db.get(order.buyerId);
-        blockers.push({ buyerOrderId: order._id, buyerName: buyer?.displayName ?? buyer?.fullName ?? "Buyer", paymentStatus: order.paymentStatus, paymentDeadline: order.paymentDeadline, reservationExpiry: expiries.length === 0 ? undefined : Math.min(...expiries) });
-      }
-    }
-    const aggregation = aggregateMarketRunOrders(aggregationInputs, omitUndefinedValues({ capacityQuantity: run.capacityQuantity, capacityUnit: run.capacityUnit, minimumLoadQuantity: run.minimumLoadQuantity, minimumLoadUnit: run.minimumLoadUnit }));
-    const dispatches = await Promise.all(run.dispatchIds.map((dispatchId) => ctx.db.get(dispatchId)));
-    return { ...run, aggregation, blockers, linkedDispatches: dispatches.filter((dispatch) => dispatch !== null), operationalConfirmationRequired: !aggregation.capacity.compatible || !aggregation.minimumLoad.compatible };
+    return await buildRunReadiness(ctx, run);
   },
 });

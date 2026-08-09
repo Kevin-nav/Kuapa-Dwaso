@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregateMarketRunOrders,
+  assertInviteIdentityVerification,
   assertNotificationActionAllowed,
   assertInvitationDeliveryAllowed,
   assertDispatchRunGroupingCompatible,
@@ -10,6 +11,9 @@ import {
   buildMarketRunBuyerNotification,
   calculateMarketRunOccurrence,
   isInvitationDeliveryAllowed,
+  marketRunOrderCountsTowardReadiness,
+  shouldAdvanceMarketRunCutoff,
+  shouldExpireInventoryReservation,
 } from "../src/index.ts";
 
 test("invitation delivery combinations are role safe", () => {
@@ -27,6 +31,31 @@ test("invitation delivery combinations are role safe", () => {
     () => assertInvitationDeliveryAllowed("admin_invite", "manual_link"),
     /must be delivered by email/,
   );
+});
+
+test("privileged invitation acceptance always requires a verified email", () => {
+  assert.throws(
+    () => assertInviteIdentityVerification({
+      invitationType: "admin_invite",
+      targetEmail: "admin@example.com",
+      identityPhoneNumber: "+233201234567",
+      phoneVerified: true,
+      emailVerified: false,
+    }),
+    /email must be verified/,
+  );
+  assert.doesNotThrow(() => assertInviteIdentityVerification({
+    invitationType: "warehouse_manager_invite",
+    targetEmail: "manager@example.com",
+    identityPhoneNumber: "+233201234567",
+    emailVerified: true,
+  }));
+  assert.doesNotThrow(() => assertInviteIdentityVerification({
+    invitationType: "warehouse_agent_invite",
+    targetPhoneNumber: "+233201234567",
+    identityPhoneNumber: "+233201234567",
+    phoneVerified: true,
+  }));
 });
 
 test("notification actions belong to the recipient and required actions need acknowledgement", () => {
@@ -97,6 +126,22 @@ test("run assignment enforces cutoff, origin, destination, and open state", () =
   assert.throws(() => assertOrderCanJoinMarketRun({ ...valid, inventoryWarehouseIds: ["warehouse-b"] }), /origin/);
   assert.throws(() => assertOrderCanJoinMarketRun({ ...valid, orderDestination: "Another market" }), /destination/);
   assert.throws(() => assertOrderCanJoinMarketRun({ ...valid, runStatus: "cancelled" }), /not accepting/);
+});
+
+test("scheduled run lifecycle advances at cutoff and expires only unpaid reservations", () => {
+  assert.equal(shouldAdvanceMarketRunCutoff({ status: "accepting_orders", orderCutoffAt: 100, now: 100 }), true);
+  assert.equal(shouldAdvanceMarketRunCutoff({ status: "draft", orderCutoffAt: 100, now: 100 }), false);
+  assert.equal(shouldAdvanceMarketRunCutoff({ status: "accepting_orders", orderCutoffAt: 101, now: 100 }), false);
+  assert.equal(shouldExpireInventoryReservation({ status: "active", expiresAt: 100, paymentStatus: "awaiting_payment", now: 100 }), true);
+  assert.equal(shouldExpireInventoryReservation({ status: "active", expiresAt: 100, paymentStatus: "fully_paid", now: 100 }), false);
+  assert.equal(shouldExpireInventoryReservation({ status: "expired", expiresAt: 100, paymentStatus: "awaiting_payment", now: 100 }), false);
+});
+
+test("cancelled, unfulfilled, and completed orders do not count toward run readiness", () => {
+  assert.equal(marketRunOrderCountsTowardReadiness("reserved"), true);
+  assert.equal(marketRunOrderCountsTowardReadiness("cancelled"), false);
+  assert.equal(marketRunOrderCountsTowardReadiness("unfulfilled"), false);
+  assert.equal(marketRunOrderCountsTowardReadiness("completed"), false);
 });
 
 test("dispatch grouping preserves delivery-run and legacy boundaries", () => {

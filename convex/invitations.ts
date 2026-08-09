@@ -1,4 +1,5 @@
 import {
+  assertInviteIdentityVerification,
   assertInvitationCanBeAccepted,
   assertInvitationDeliveryAllowed,
   assertInviteTargetMatchesIdentity,
@@ -393,18 +394,14 @@ export const accept = mutation({
         identityPhoneNumber: args.identity.phoneNumber,
       }));
     }
-    if (!isPhonePrimaryInvite && invitation.targetEmail !== undefined && args.identity.phoneNumber === undefined) {
-      assertAllowed(args.identity.emailVerified === true, "Invitation email must be verified.");
-    }
-    if (isPhonePrimaryInvite) {
-      // Phone-primary invites always require a verified phone, regardless of delivery channel.
-      assertAllowed(
-        args.identity.phoneNumber !== undefined && args.identity.phoneVerified === true,
-        "Phone number must be verified to accept this invitation.",
-      );
-    } else if (invitation.targetPhoneNumber !== undefined) {
-      assertAllowed(args.identity.phoneVerified === true, "Invitation phone number must be verified.");
-    }
+    assertInviteIdentityVerification(omitUndefinedValues({
+      invitationType: invitation.type,
+      targetEmail: invitation.targetEmail,
+      targetPhoneNumber: invitation.targetPhoneNumber,
+      identityPhoneNumber: args.identity.phoneNumber,
+      emailVerified: args.identity.emailVerified,
+      phoneVerified: args.identity.phoneVerified,
+    }));
     const mfaRequired = invitation.mfaRequirement !== "not_required";
     assertAllowed(!mfaRequired || args.identity.mfaSatisfied === true, "Required MFA has not been satisfied.");
     assertAllowed(
