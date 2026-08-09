@@ -9,7 +9,17 @@ if (process.env.KUAPA_DWASO_NEXT_ENV_LOADED !== "true") {
 }
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@kuapa-dwaso/design-tokens", "@kuapa-dwaso/ui"]
+  transpilePackages: [
+    "@kuapa-dwaso/config",
+    "@kuapa-dwaso/design-tokens",
+    "@kuapa-dwaso/ui",
+  ],
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "media.kuapadwaso.com" },
+      { protocol: "https", hostname: "images.kuapadwaso.com" },
+    ],
+  },
 };
 
 export default nextConfig;

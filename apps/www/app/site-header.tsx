@@ -3,14 +3,21 @@
 import { useEffect, useState } from "react";
 
 const navLinks = [
-  ["How it works", "#how"],
-  ["Warehouse model", "#warehouse"],
-  ["Who it is for", "#buyers"],
+  ["How it works", "/#how"],
+  ["Warehouse model", "/#warehouse"],
+  ["Who it is for", "/#buyers"],
+  ["Blog", "/blog"],
 ] as const;
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+    <svg
+      viewBox="0 0 120 120"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
       <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
       <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
       <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
@@ -51,9 +58,15 @@ export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
       }`}
     >
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
-        <a href="/" className="flex items-center gap-2.5" aria-label="Kuapa Dwaso home">
+        <a
+          href="/"
+          className="flex items-center gap-2.5"
+          aria-label="Kuapa Dwaso home"
+        >
           <Logo className="h-8 w-8" />
-          <span className="font-display text-lg font-bold text-brand-ink">Kuapa Dwaso</span>
+          <span className="font-display text-lg font-bold text-brand-ink">
+            Kuapa Dwaso
+          </span>
         </a>
 
         <div className="hidden items-center gap-6 md:flex">
@@ -77,13 +90,19 @@ export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
         </div>
 
         <div className="flex items-center gap-4 md:hidden">
+          <a href="/blog" className="text-sm font-bold text-brand-ink/72">
+            Blog
+          </a>
           <a
             href={loginHref}
             className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
           >
             Log in
           </a>
-          <a href={joinHref} className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white">
+          <a
+            href={joinHref}
+            className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white"
+          >
             Join
           </a>
         </div>

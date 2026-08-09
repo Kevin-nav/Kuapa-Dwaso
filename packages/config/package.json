@@ -1,6 +1,19 @@
 {
   "name": "@kuapa-dwaso/config",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No shared config tests configured yet.\"",
+    "format": "prettier --check ."
+  },
+  "devDependencies": {
+    "@kuapa-dwaso/typescript-config": "workspace:*",
+    "typescript": "^6.0.3"
+  }
 }
-

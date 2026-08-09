@@ -1,11 +1,17 @@
 import Image from "next/image";
+import { officialContactEmail, officialContactHref } from "@kuapa-dwaso/config";
 import { SiteHeader, Logo } from "./site-header";
+import { getLatestPosts } from "./blog/data";
+import { StoryCard } from "./blog/story-card";
 
 const proofPoints = [
   ["Warehouse-verified", "Produce is received, weighed, graded, and recorded"],
   ["Storage receipts", "Farmers get clear records for every inventory batch"],
   ["Published cutoffs", "Traders know when orders close and payment is due"],
-  ["Scheduled delivery", "Confirmed orders move to selected market destinations"],
+  [
+    "Scheduled delivery",
+    "Confirmed orders move to selected market destinations",
+  ],
 ] as const;
 
 const steps = [
@@ -56,20 +62,34 @@ const audiences = [
 ] as const;
 
 function getAppAuthHref() {
-  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.kuapadwaso.com";
+  const appUrl =
+    process.env.PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "https://app.kuapadwaso.com";
 
   return new URL("/signup", appUrl).toString();
 }
 
 function getAppLoginHref() {
-  const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://app.kuapadwaso.com";
+  const appUrl =
+    process.env.PUBLIC_APP_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    "https://app.kuapadwaso.com";
 
   return new URL("/", appUrl).toString();
 }
 
-export default function LandingPage({ searchParams }: { searchParams: { token?: string } }) {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ token?: string }>;
+}) {
   const appAuthHref = getAppAuthHref();
   const appLoginHref = getAppLoginHref();
+  const [params, latestPosts] = await Promise.all([
+    searchParams,
+    getLatestPosts(3),
+  ]);
 
   return (
     <div className="min-h-screen bg-brand-surface text-brand-ink">
@@ -79,7 +99,12 @@ export default function LandingPage({ searchParams }: { searchParams: { token?: 
         <ProofBar />
         <WarehouseSection />
         <HowItWorks />
-        <AudienceCards appAuthHref={appAuthHref} appLoginHref={appLoginHref} {...(searchParams.token === undefined ? {} : { inviteToken: searchParams.token })} />
+        <AudienceCards
+          appAuthHref={appAuthHref}
+          appLoginHref={appLoginHref}
+          {...(params.token === undefined ? {} : { inviteToken: params.token })}
+        />
+        <LatestStories posts={latestPosts} />
         <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
@@ -87,9 +112,52 @@ export default function LandingPage({ searchParams }: { searchParams: { token?: 
   );
 }
 
+function LatestStories({
+  posts,
+}: {
+  posts: Awaited<ReturnType<typeof getLatestPosts>>;
+}) {
+  if (posts.length === 0) return null;
+  return (
+    <section className="bg-[#f4f2e9] py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <div className="flex items-end justify-between gap-5">
+          <div>
+            <p className="eyebrow">From the field</p>
+            <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
+              Latest stories
+            </h2>
+          </div>
+          <a
+            className="hidden font-bold text-brand-field sm:block"
+            href="/blog"
+          >
+            Visit the blog →
+          </a>
+        </div>
+        <div className="blog-related__grid mt-10">
+          {posts.map((post) => (
+            <StoryCard key={post._id} post={post} />
+          ))}
+        </div>
+        <a
+          className="mt-7 inline-block font-bold text-brand-field sm:hidden"
+          href="/blog"
+        >
+          Visit the blog →
+        </a>
+      </div>
+    </section>
+  );
+}
 
-
-function HeroSection({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
+function HeroSection({
+  appAuthHref,
+  appLoginHref,
+}: {
+  appAuthHref: string;
+  appLoginHref: string;
+}) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
@@ -109,16 +177,18 @@ function HeroSection({ appAuthHref, appLoginHref }: { appAuthHref: string; appLo
       />
       <div className="relative mx-auto w-full max-w-6xl px-5 pb-14 pt-28 sm:px-6 sm:pb-20 sm:pt-40">
         <div className="max-w-xl">
-          <p className="eyebrow text-brand-gold">Warehouse-based produce aggregation</p>
+          <p className="eyebrow text-brand-gold">
+            Warehouse-based produce aggregation
+          </p>
           <h1 className="mt-4 font-display text-[length:var(--text-hero)] font-bold leading-[1.05] text-white">
             Store locally.
             <br />
             <span className="text-[#7dd8a0]">Sell from verified stock.</span>
           </h1>
           <p className="mt-6 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
-            Traders place orders before a published cutoff. Kuapa Dwaso aggregates
-            confirmed orders and delivers produce to selected market destinations
-            on scheduled days.
+            Traders place orders before a published cutoff. Kuapa Dwaso
+            aggregates confirmed orders and delivers produce to selected market
+            destinations on scheduled days.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <a href={appAuthHref} className="btn-primary">
@@ -143,8 +213,12 @@ function ProofBar() {
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-5 gap-y-8 px-5 py-9 sm:px-6 sm:py-10 md:grid-cols-4">
         {proofPoints.map(([title, sub]) => (
           <div key={title}>
-            <p className="font-display text-lg font-bold text-brand-ink">{title}</p>
-            <p className="mt-1 text-sm leading-relaxed text-brand-ink/60">{sub}</p>
+            <p className="font-display text-lg font-bold text-brand-ink">
+              {title}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-brand-ink/60">
+              {sub}
+            </p>
           </div>
         ))}
       </div>
@@ -157,7 +231,9 @@ function WarehouseSection() {
     <section id="warehouse" className="bg-brand-ink py-20 text-white sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-2 lg:gap-16">
         <div>
-          <p className="eyebrow text-[#7dd8a0]">The warehouse is the trust point</p>
+          <p className="eyebrow text-[#7dd8a0]">
+            The warehouse is the trust point
+          </p>
           <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
             Every batch has a place, an owner, a status, and a fee record.
           </h2>
@@ -199,7 +275,9 @@ function HowItWorks() {
                 <h3 className="font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
                   {step.title}
                 </h3>
-                <p className="mt-2 text-base leading-relaxed text-brand-ink/70">{step.body}</p>
+                <p className="mt-2 text-base leading-relaxed text-brand-ink/70">
+                  {step.body}
+                </p>
               </div>
             </li>
           ))}
@@ -209,7 +287,15 @@ function HowItWorks() {
   );
 }
 
-function AudienceCards({ appAuthHref, appLoginHref, inviteToken }: { appAuthHref: string; appLoginHref: string; inviteToken?: string }) {
+function AudienceCards({
+  appAuthHref,
+  appLoginHref,
+  inviteToken,
+}: {
+  appAuthHref: string;
+  appLoginHref: string;
+  inviteToken?: string;
+}) {
   return (
     <section id="buyers" className="bg-brand-surface py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
@@ -219,9 +305,24 @@ function AudienceCards({ appAuthHref, appLoginHref, inviteToken }: { appAuthHref
         </h2>
         <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
           {audiences.map((audience) => (
-            <a key={audience.title} href={audience.title === "For Invited Staff" ? new URL(`/invites/accept${inviteToken === undefined ? "" : `?token=${encodeURIComponent(inviteToken)}`}`, appLoginHref).toString() : audience.href} className="audience-card">
-              <h3 className="font-display text-xl font-semibold text-brand-ink">{audience.title}</h3>
-              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">{audience.body}</p>
+            <a
+              key={audience.title}
+              href={
+                audience.title === "For Invited Staff"
+                  ? new URL(
+                      `/invites/accept${inviteToken === undefined ? "" : `?token=${encodeURIComponent(inviteToken)}`}`,
+                      appLoginHref,
+                    ).toString()
+                  : audience.href
+              }
+              className="audience-card"
+            >
+              <h3 className="font-display text-xl font-semibold text-brand-ink">
+                {audience.title}
+              </h3>
+              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
+                {audience.body}
+              </p>
               <span className="card-arrow">
                 Learn more
                 <ArrowIcon />
@@ -229,19 +330,41 @@ function AudienceCards({ appAuthHref, appLoginHref, inviteToken }: { appAuthHref
             </a>
           ))}
           <a id="access" href={appLoginHref} className="audience-card">
-            <h3 className="font-display text-xl font-semibold text-brand-ink">For Existing Users</h3>
-            <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">Log in once and Kuapa Dwaso routes your verified identity to the right workspace.</p>
-            <span className="card-arrow">Log in<ArrowIcon /></span>
+            <h3 className="font-display text-xl font-semibold text-brand-ink">
+              For Existing Users
+            </h3>
+            <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
+              Log in once and Kuapa Dwaso routes your verified identity to the
+              right workspace.
+            </p>
+            <span className="card-arrow">
+              Log in
+              <ArrowIcon />
+            </span>
           </a>
         </div>
-        <p className="mt-6 text-sm text-brand-ink/60">New farmers, traders, and partners can register for the pilot. Staff access is invitation-only.</p>
-        <a href={appAuthHref} className="mt-4 inline-flex font-bold text-brand-field">Register for the pilot</a>
+        <p className="mt-6 text-sm text-brand-ink/60">
+          New farmers, traders, and partners can register for the pilot. Staff
+          access is invitation-only.
+        </p>
+        <a
+          href={appAuthHref}
+          className="mt-4 inline-flex font-bold text-brand-field"
+        >
+          Register for the pilot
+        </a>
       </div>
     </section>
   );
 }
 
-function FinalCta({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
+function FinalCta({
+  appAuthHref,
+  appLoginHref,
+}: {
+  appAuthHref: string;
+  appLoginHref: string;
+}) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
@@ -276,7 +399,9 @@ function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
           <div className="md:col-span-1">
             <a href="/" className="flex items-center gap-2.5">
               <Logo className="h-8 w-8" />
-              <span className="font-display text-lg font-bold text-white">Kuapa Dwaso</span>
+              <span className="font-display text-lg font-bold text-white">
+                Kuapa Dwaso
+              </span>
             </a>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
               Warehouse-based produce aggregation and scheduled market delivery
@@ -298,7 +423,8 @@ function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
             links={[
               ["About", "#how"],
               ["Partners", "#warehouse"],
-              ["Contact", appAuthHref],
+              ["Blog", "/blog"],
+              ["Contact", officialContactHref],
               ["Join the pilot", appAuthHref],
             ]}
           />
@@ -316,6 +442,12 @@ function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-white/45">
+          <a
+            className="mb-3 inline-block font-semibold text-white/70 hover:text-white"
+            href={officialContactHref}
+          >
+            {officialContactEmail}
+          </a>
           <p>Copyright 2026 Kuapa Dwaso. All rights reserved.</p>
         </div>
       </div>
@@ -332,7 +464,9 @@ function FooterLinks({
 }) {
   return (
     <div>
-      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">{title}</h3>
+      <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
+        {title}
+      </h3>
       <ul className="mt-4 space-y-3 text-sm text-white/65">
         {links.map(([label, href]) => (
           <li key={href}>
@@ -346,12 +480,22 @@ function FooterLinks({
   );
 }
 
-
-
 function ArrowIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M2 8h11M9 3.5 13.5 8 9 12.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M2 8h11M9 3.5 13.5 8 9 12.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

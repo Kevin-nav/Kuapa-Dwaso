@@ -78,6 +78,9 @@ importers:
       '@kuapa-dwaso/utils':
         specifier: workspace:*
         version: link:../../packages/utils
+      '@kuapa-dwaso/validators':
+        specifier: workspace:*
+        version: link:../../packages/validators
       '@next/env':
         specifier: ^16.2.9
         version: 16.2.9
@@ -286,15 +289,24 @@ importers:
 
   apps/www:
     dependencies:
+      '@kuapa-dwaso/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@kuapa-dwaso/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@kuapa-dwaso/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@kuapa-dwaso/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@next/env':
         specifier: ^16.2.9
         version: 16.2.9
+      convex:
+        specifier: 1.41.0
+        version: 1.41.0(react@19.2.7)
       gsap:
         specifier: ^3.12.5
         version: 3.15.0
@@ -339,7 +351,14 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/config: {}
+  packages/config:
+    devDependencies:
+      '@kuapa-dwaso/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/dashboard-ui:
     dependencies:
@@ -510,6 +529,9 @@ importers:
       '@kuapa-dwaso/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@types/node':
+        specifier: ^26.0.0
+        version: 26.0.0
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
