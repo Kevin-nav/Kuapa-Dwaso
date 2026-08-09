@@ -278,7 +278,9 @@ const smsMessageKind = v.union(
   v.literal("dispatch_status_update"),
   v.literal("market_run_update"),
   v.literal("dispute_update"),
-  v.literal("promotional")
+  v.literal("promotional"),
+  v.literal("invite"),
+  v.literal("warehouse_agent_invite")
 );
 const smsDeliveryStatus = v.union(
   v.literal("pending"),
@@ -350,7 +352,7 @@ const platformInvitationType = v.union(
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite")
 );
-const invitationChannel = v.union(v.literal("email"), v.literal("manual_link"));
+const invitationChannel = v.union(v.literal("email"), v.literal("manual_link"), v.literal("sms"));
 const platformInvitationStatus = v.union(
   v.literal("pending"),
   v.literal("accepted"),
@@ -400,7 +402,8 @@ const smsTemplateKey = v.union(
   v.literal("dispatch_assignment"),
   v.literal("dispatch_status_update"),
   v.literal("dispute_update"),
-  v.literal("generic_notification")
+  v.literal("generic_notification"),
+  v.literal("warehouse_agent_invite")
 );
 
 const feeRuleScope = v.object({

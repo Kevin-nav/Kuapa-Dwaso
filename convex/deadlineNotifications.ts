@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 
@@ -6,6 +7,7 @@ const REMINDER_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Hourly, idempotent reminders. Detailed instructions remain in-app; SMS is only a concise alert. */
 export const run = internalMutation({
   args: {},
+  returns: v.object({ created: v.number(), checkedAt: v.number() }),
   handler: async (ctx) => {
     const now = Date.now();
     const reminderEnd = now + REMINDER_WINDOW_MS;
@@ -13,8 +15,8 @@ export const run = internalMutation({
 
     const runs = await ctx.db
       .query("marketDeliveryRuns")
-      .withIndex("by_status_date", (q) => q.eq("status", "accepting_orders"))
-      .collect();
+      .withIndex("by_status_order_cutoff", (q) => q.eq("status", "accepting_orders").gt("orderCutoffAt", now).lte("orderCutoffAt", reminderEnd))
+      .take(100);
     for (const marketRun of runs) {
       if (marketRun.orderCutoffAt <= now || marketRun.orderCutoffAt > reminderEnd) continue;
       for (const orderId of marketRun.buyerOrderIds) {
@@ -26,7 +28,7 @@ export const run = internalMutation({
         ) continue;
         const buyer = await ctx.db.get(order.buyerId);
         if (buyer?.userId === undefined) continue;
-        await insertNotificationRecord(ctx, {
+        const notificationId = await insertNotificationRecord(ctx, {
           recipientUserId: buyer.userId,
           recipientRole: "buyer",
           channel: "in_app",
@@ -42,7 +44,8 @@ export const run = internalMutation({
           deduplicationKey: `run-cutoff-24h:${marketRun._id}:${buyer._id}`,
           expiresAt: marketRun.orderCutoffAt,
         });
-        created += 1;
+        const notification = await ctx.db.get(notificationId);
+        if (notification?.createdAt === now) created += 1;
       }
     }
 
@@ -67,7 +70,7 @@ export const run = internalMutation({
           dueAt: reservation.expiresAt,
           expiresAt: reservation.expiresAt,
         };
-        await insertNotificationRecord(ctx, {
+        const inAppNotificationId = await insertNotificationRecord(ctx, {
           ...common,
           channel: "in_app",
           message: "Pay by the stated deadline to keep your reserved produce on this delivery run.",
@@ -76,8 +79,10 @@ export const run = internalMutation({
           priority: "urgent",
           deduplicationKey: `reservation-expiry-24h:${reservation._id}`,
         });
+        const inAppNotification = await ctx.db.get(inAppNotificationId);
+        if (inAppNotification?.createdAt === now) created += 1;
         if (buyer.phoneNumber !== undefined) {
-          await insertNotificationRecord(ctx, {
+          const smsNotificationId = await insertNotificationRecord(ctx, {
             ...common,
             recipientId: buyer.phoneNumber,
             channel: "sms",
@@ -86,8 +91,9 @@ export const run = internalMutation({
             templateKey: "generic_notification",
             deduplicationKey: `reservation-expiry-24h-sms:${reservation._id}`,
           });
+          const smsNotification = await ctx.db.get(smsNotificationId);
+          if (smsNotification?.createdAt === now) created += 1;
         }
-        created += 1;
       }
     }
 

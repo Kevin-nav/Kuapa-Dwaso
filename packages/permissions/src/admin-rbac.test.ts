@@ -72,3 +72,10 @@ test("warehouse scope grants never match another warehouse", () => {
   assert.equal(adminScopeMatchesTarget(managerGrant, { warehouseId: "warehouse-b" }), false);
   assert.equal(adminScopeMatchesTarget(managerGrant, { destinationMarket: "Tarkwa" }), false);
 });
+
+test("incomplete scoped grants and targets never authorize a match", () => {
+  for (const scopeType of ["region", "district", "destination_market"] as const) {
+    assert.equal(adminScopeMatchesTarget({ scopeType }, {}), false);
+    assert.equal(adminScopeMatchesTarget({ scopeType, scopeValue: "  " }, { region: "ashanti", district: "kumasi", destinationMarket: "makola" }), false);
+  }
+});

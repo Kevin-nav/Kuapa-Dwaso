@@ -78,6 +78,9 @@ export class InvitationsController {
     if (phonePrimary && (body.targetPhoneNumber === undefined || body.targetPhoneNumber.trim().length === 0)) {
       throw new BadRequestException("Warehouse-agent and transporter invitations require the phone number that will be verified at acceptance.");
     }
+    if (body.channel === "manual_link" && (body.targetPhoneNumber === undefined || body.targetPhoneNumber.trim().length === 0)) {
+      throw new BadRequestException("Manual-link invitations require a target phone number.");
+    }
     if (body.type === "warehouse_manager_invite" && (
       body.pendingAdminRoleAssignment?.roleKey !== "warehouse_manager" ||
       body.pendingAdminRoleAssignment.scopeType !== "warehouse" ||
@@ -85,7 +88,13 @@ export class InvitationsController {
     )) {
       throw new BadRequestException("Warehouse-manager invitations require a warehouse-scoped warehouse_manager assignment.");
     }
-    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.mfaRequirement === "not_required") {
+    if (body.type === "admin_invite" && body.pendingAdminRoleAssignment === undefined) {
+      throw new BadRequestException("Admin invitations require an initial role assignment.");
+    }
+    if (body.type === "admin_invite" && body.pendingAdminRoleAssignment?.roleKey === "warehouse_manager") {
+      throw new BadRequestException("Use a warehouse-manager invitation for that role.");
+    }
+    if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.mfaRequirement !== undefined && body.mfaRequirement !== "totp_required" && body.mfaRequirement !== "required") {
       throw new BadRequestException("Privileged invitations require MFA.");
     }
 

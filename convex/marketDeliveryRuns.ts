@@ -109,15 +109,27 @@ export const createFromSchedule = mutation({
   },
 });
 
-async function notifyBuyersForRun(
+async function scheduleBuyerNotifications(
   ctx: MutationCtx,
   run: Doc<"marketDeliveryRuns">,
   event: "opened" | "cancelled" | "postponed",
   reason?: string,
 ): Promise<void> {
-  const buyers = event === "opened"
-    ? await ctx.db.query("buyers").withIndex("by_destination_market", (q) => q.eq("destinationMarket", run.destinationName)).collect()
-    : await Promise.all(run.buyerOrderIds.map(async (orderId) => {
+  await ctx.scheduler.runAfter(0, internal.marketDeliveryRuns.notifyBuyersBatch, { runId: run._id, event, offset: 0, ...(reason === undefined ? {} : { reason }) });
+}
+
+export const notifyBuyersBatch = internalMutation({
+  args: { runId: v.id("marketDeliveryRuns"), event: v.union(v.literal("opened"), v.literal("cancelled"), v.literal("postponed")), reason: v.optional(v.string()), offset: v.number(), cursor: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+  const run = await ctx.db.get(args.runId);
+  if (run === null) return null;
+  const openedPage = args.event === "opened"
+    ? await ctx.db.query("buyers").withIndex("by_destination_market", (q) => q.eq("destinationMarket", run.destinationName)).paginate({ cursor: args.cursor ?? null, numItems: 50 })
+    : undefined;
+  const buyers = args.event === "opened"
+    ? openedPage!.page
+    : await Promise.all(run.buyerOrderIds.slice(args.offset, args.offset + 50).map(async (orderId) => {
         const order = await ctx.db.get(orderId);
         return order === null ? null : await ctx.db.get(order.buyerId);
       }));
@@ -125,7 +137,7 @@ async function notifyBuyersForRun(
   for (const buyer of buyers) if (buyer !== null && buyer.userId !== undefined) unique.set(String(buyer._id), buyer);
   const deliveryLabel = new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeZone: run.timezone }).format(new Date(run.expectedArrivalStartAt));
   for (const buyer of unique.values()) {
-    const notification = buildMarketRunBuyerNotification({ event, runId: run._id, destination: run.destinationName, deliveryLabel, reason });
+    const notification = buildMarketRunBuyerNotification({ event: args.event, runId: run._id, destination: run.destinationName, deliveryLabel, reason: args.reason });
     await insertNotificationRecord(ctx, {
       recipientId: buyer._id,
       recipientUserId: buyer.userId,
@@ -140,11 +152,11 @@ async function notifyBuyersForRun(
       actionUrl: notification.actionUrl,
       actionRequired: notification.actionRequired,
       priority: notification.priority,
-      dueAt: event === "opened" ? run.orderCutoffAt : undefined,
+      dueAt: args.event === "opened" ? run.orderCutoffAt : undefined,
       deduplicationKey: notification.deduplicationKey,
       expiresAt: run.expectedArrivalEndAt + 7 * 86_400_000,
     });
-    if (event !== "opened") {
+    if (args.event !== "opened" && buyer.phoneNumber !== undefined) {
       await insertNotificationRecord(ctx, {
         recipientId: buyer.phoneNumber,
         recipientUserId: buyer.userId,
@@ -157,11 +169,18 @@ async function notifyBuyersForRun(
         relatedEntityType: "market_delivery_run",
         relatedEntityId: run._id,
         marketDeliveryRunId: run._id,
-        deduplicationKey: `run:${run._id}:${event}:sms`,
+        deduplicationKey: `run:${run._id}:${args.event}:sms`,
       });
     }
   }
-}
+  if (args.event === "opened" && openedPage !== undefined && !openedPage.isDone) {
+    await ctx.scheduler.runAfter(0, internal.marketDeliveryRuns.notifyBuyersBatch, { ...args, cursor: openedPage.continueCursor });
+  } else if (args.event !== "opened" && args.offset + 50 < run.buyerOrderIds.length) {
+    await ctx.scheduler.runAfter(0, internal.marketDeliveryRuns.notifyBuyersBatch, { ...args, offset: args.offset + 50 });
+  }
+  return null;
+  },
+});
 
 async function advanceRunToCutoff(
   ctx: MutationCtx,
@@ -332,8 +351,8 @@ export const updateStatus = mutation({
     }));
     const after = await ctx.db.get(args.runId);
     await insertAuditLog(ctx, { actor, action: "market_delivery_run.status_updated", entityType: "market_delivery_run", entityId: args.runId, before: auditSnapshot(run), after: after === null ? undefined : auditSnapshot(after), metadata: args.reason === undefined ? undefined : { reason: args.reason } });
-    if (after !== null && args.status === "accepting_orders") await notifyBuyersForRun(ctx, after, "opened");
-    if (after !== null && args.status === "cancelled") await notifyBuyersForRun(ctx, after, "cancelled", args.reason);
+    if (after !== null && args.status === "accepting_orders") await scheduleBuyerNotifications(ctx, after, "opened");
+    if (after !== null && args.status === "cancelled") await scheduleBuyerNotifications(ctx, after, "cancelled", args.reason);
     return args.runId;
   },
 });
@@ -352,6 +371,7 @@ export const editUnstarted = mutation({
     const duplicate = await ctx.db.query("marketDeliveryRuns").withIndex("by_schedule_delivery_date", (q) => q.eq("scheduleId", run.scheduleId).eq("deliveryDate", args.deliveryDate)).unique();
     assertAllowed(duplicate === null || duplicate._id === run._id, "A delivery run already exists for this schedule and date.");
     const timing = timingForSchedule(schedule, args.deliveryDate);
+    assertAllowed(timing.expectedArrivalEndAt > Date.now(), "Delivery run must be upcoming.");
     await ctx.db.patch(args.runId, {
       ...timing,
       destinationInstructions: cleanOptionalText(args.destinationInstructions) ?? run.destinationInstructions,
@@ -441,9 +461,9 @@ export const postpone = mutation({
     }
     const after = await ctx.db.get(run._id);
     await insertAuditLog(ctx, { actor, action: "market_delivery_run.postponed", entityType: "market_delivery_run", entityId: run._id, before: auditSnapshot(run), after: after === null ? undefined : auditSnapshot(after), metadata: { replacementRunId: replacementId, reason, migratedOrderCount: migratedOrders.length } });
-    await notifyBuyersForRun(ctx, run, "postponed", reason);
+    await scheduleBuyerNotifications(ctx, run, "postponed", reason);
     if (run.status !== "draft") {
-      await notifyBuyersForRun(ctx, { ...replacement, status: "accepting_orders" }, "opened");
+      await scheduleBuyerNotifications(ctx, { ...replacement, status: "accepting_orders" }, "opened");
     }
     return replacementId;
   },

@@ -109,6 +109,12 @@ function normalizeScopeValue(value: string | undefined): string | undefined {
   return cleaned === undefined || cleaned.length === 0 ? undefined : cleaned;
 }
 
+function scopeValuesMatch(grantValue: string | undefined, targetValue: string | undefined): boolean {
+  const normalizedGrantValue = normalizeScopeValue(grantValue);
+  const normalizedTargetValue = normalizeScopeValue(targetValue);
+  return normalizedGrantValue !== undefined && normalizedTargetValue !== undefined && normalizedGrantValue === normalizedTargetValue;
+}
+
 /** Central warehouse/region/destination scope rule used by every admin workflow. */
 export function adminScopeMatchesTarget(
   grant: AdminScopeDescriptor,
@@ -119,13 +125,13 @@ export function adminScopeMatchesTarget(
     return target.warehouseId !== undefined && grant.scopeId === target.warehouseId;
   }
   if (grant.scopeType === "region") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.region);
+    return scopeValuesMatch(grant.scopeValue ?? grant.scopeId, target.region);
   }
   if (grant.scopeType === "district") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.district);
+    return scopeValuesMatch(grant.scopeValue ?? grant.scopeId, target.district);
   }
   if (grant.scopeType === "destination_market") {
-    return normalizeScopeValue(grant.scopeValue ?? grant.scopeId) === normalizeScopeValue(target.destinationMarket);
+    return scopeValuesMatch(grant.scopeValue ?? grant.scopeId, target.destinationMarket);
   }
   return false;
 }

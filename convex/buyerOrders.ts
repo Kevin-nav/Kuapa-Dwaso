@@ -1102,6 +1102,7 @@ async function listDueReservations(ctx: MutationCtx, now: number, limit: number)
     .withIndex("by_status_expires_at", (q) => q.eq("status", "partially_released").lte("expiresAt", now))
     .take(limit);
   return [...active, ...partiallyReleased]
+    .filter((reservation) => reservation.expiresAt !== undefined)
     .sort((left, right) => (left.expiresAt ?? 0) - (right.expiresAt ?? 0))
     .slice(0, limit);
 }

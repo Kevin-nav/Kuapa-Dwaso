@@ -67,7 +67,7 @@ function getAppLoginHref() {
   return new URL("/", appUrl).toString();
 }
 
-export default function LandingPage() {
+export default function LandingPage({ searchParams }: { searchParams: { token?: string } }) {
   const appAuthHref = getAppAuthHref();
   const appLoginHref = getAppLoginHref();
 
@@ -79,7 +79,7 @@ export default function LandingPage() {
         <ProofBar />
         <WarehouseSection />
         <HowItWorks />
-        <AudienceCards appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
+        <AudienceCards appAuthHref={appAuthHref} appLoginHref={appLoginHref} {...(searchParams.token === undefined ? {} : { inviteToken: searchParams.token })} />
         <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
@@ -209,7 +209,7 @@ function HowItWorks() {
   );
 }
 
-function AudienceCards({ appAuthHref, appLoginHref }: { appAuthHref: string; appLoginHref: string }) {
+function AudienceCards({ appAuthHref, appLoginHref, inviteToken }: { appAuthHref: string; appLoginHref: string; inviteToken?: string }) {
   return (
     <section id="buyers" className="bg-brand-surface py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
@@ -219,7 +219,7 @@ function AudienceCards({ appAuthHref, appLoginHref }: { appAuthHref: string; app
         </h2>
         <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
           {audiences.map((audience) => (
-            <a key={audience.title} href={audience.title === "For Invited Staff" ? appLoginHref : audience.href} className="audience-card">
+            <a key={audience.title} href={audience.title === "For Invited Staff" ? new URL(`/invites/accept${inviteToken === undefined ? "" : `?token=${encodeURIComponent(inviteToken)}`}`, appLoginHref).toString() : audience.href} className="audience-card">
               <h3 className="font-display text-xl font-semibold text-brand-ink">{audience.title}</h3>
               <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">{audience.body}</p>
               <span className="card-arrow">

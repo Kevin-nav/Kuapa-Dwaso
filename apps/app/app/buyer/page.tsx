@@ -69,6 +69,10 @@ export default function BuyerDashboard() {
     api.buyerOrders.summarizeAvailableInventory,
     summaryArgs
   ) as InventorySummary[] | undefined;
+  const allSummaries = useQuery(
+    api.buyerOrders.summarizeAvailableInventory,
+    principal !== null && principal !== undefined ? { destinationMarket: defaultMarket } : "skip",
+  ) as InventorySummary[] | undefined;
   const upcomingRuns = useQuery(api.marketDeliveryRuns.listUpcomingForBuyer, principal?.userId ? { actorUserId: principal.userId as Id<"users">, destinationName: defaultMarket, limit: 3 } : "skip") as MarketRun[] | undefined;
   const notifications = useQuery(api.notifications.listForActor, principal?.userId ? { actorUserId: principal.userId as Id<"users">, limit: 6 } : "skip") as BuyerNotification[] | undefined;
   const acknowledgeNotification = useMutation(api.notifications.acknowledge);
@@ -96,8 +100,8 @@ export default function BuyerDashboard() {
 
   const isInventoryLoading = summaries === undefined;
   const listToRender: InventorySummary[] = summaries ?? [];
-  const cropOptions = ["All", ...new Set(listToRender.map((item) => item.cropType))];
-  const gradeOptions = ["All", ...new Set(listToRender.map((item) => item.grade))];
+  const cropOptions = ["All", ...new Set((allSummaries ?? []).map((item) => item.cropType))];
+  const gradeOptions = ["All", ...new Set((allSummaries ?? []).map((item) => item.grade))];
 
   // Filter list locally based on searchQuery (filters warehouse name or crop type)
   const filteredSummaries = listToRender.filter((item) => {
@@ -140,7 +144,10 @@ export default function BuyerDashboard() {
         {upcomingRuns === undefined ? <div className="skeleton" style={{ height: 110, borderRadius: 14 }} /> : upcomingRuns.length === 0 ? <div className="attention-card"><div className="attention-body"><span className="attention-title">No published run is open yet</span><span className="attention-text">Operations will publish the next destination, cutoff, and collection window here.</span></div></div> : upcomingRuns.map((run) => <Link key={run._id} href={`/buyer/orders/create?run=${run._id}`} className="farmer-card"><div className="card-header"><span className="card-title"><MapPin size={17} /> {run.destinationName}</span><span className="status-chip status-success">Orders open</span></div><div className="card-meta" style={{ display: "grid", gap: 5 }}><span><Calendar size={16} /> Delivery {formatRunDate(run.deliveryDateAt, run.timezone)}, {formatRunTime(run.expectedArrivalStartAt, run.timezone)}–{formatRunTime(run.expectedArrivalEndAt, run.timezone)}</span><span><Clock3 size={16} /> Order and pay by {formatRunDateTime(run.orderCutoffAt, run.timezone)}</span><span><strong>Collection:</strong> {run.destinationInstructions}</span></div><div className="card-details"><strong>Browse stock for this run</strong><ArrowRight size={17} /></div></Link>)}
       </section>
 
-      {(notifications ?? []).length > 0 && <section style={{ display: "grid", gap: 10 }}><div className="section-title-row"><h2 className="section-title"><Bell size={18} /> Updates needing attention</h2></div>{(notifications ?? []).filter((notification) => notification.status !== "archived").slice(0, 4).map((notification) => <article key={notification._id} className="attention-card"><Bell className="attention-icon" size={20} /><div className="attention-body"><span className="attention-title">{notification.title}</span><span className="attention-text">{notification.message}</span>{notification.dueAt && <span className="attention-text">Due {new Date(notification.dueAt).toLocaleString("en-GH")}</span>}<div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>{notification.actionUrl && <Link href={notification.actionUrl} className="btn btn-primary">Open</Link>}{notification.actionRequired && notification.acknowledgedAt === undefined ? <button className="btn btn-secondary" onClick={() => principal?.userId && void acknowledgeNotification({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>I understand</button> : notification.status !== "read" && <button className="btn btn-secondary" onClick={() => principal?.userId && void markNotificationRead({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Mark read</button>}</div></div></article>)}</section>}
+      {(() => {
+        const visibleNotifications = (notifications ?? []).filter((notification) => notification.status !== "archived").slice(0, 4);
+        return visibleNotifications.length === 0 ? null : <section style={{ display: "grid", gap: 10 }}><div className="section-title-row"><h2 className="section-title"><Bell size={18} /> Updates needing attention</h2></div>{visibleNotifications.map((notification) => <article key={notification._id} className="attention-card"><Bell className="attention-icon" size={20} /><div className="attention-body"><span className="attention-title">{notification.title}</span><span className="attention-text">{notification.message}</span>{notification.dueAt && <span className="attention-text">Due {new Date(notification.dueAt).toLocaleString("en-GH")}</span>}<div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>{notification.actionUrl && <Link href={notification.actionUrl} className="btn btn-primary">Open</Link>}{notification.actionRequired && notification.acknowledgedAt === undefined ? <button className="btn btn-secondary" onClick={() => principal?.userId && void acknowledgeNotification({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id }).catch((error: unknown) => alert(error instanceof Error ? error.message : "Could not acknowledge this notification."))}>I understand</button> : notification.status !== "read" && <button className="btn btn-secondary" onClick={() => principal?.userId && void markNotificationRead({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id }).catch((error: unknown) => alert(error instanceof Error ? error.message : "Could not mark this notification as read."))}>Mark read</button>}</div></div></article>)}</section>;
+      })()}
 
       {/* Search Input Bar */}
       <div style={{ position: "relative" }}>

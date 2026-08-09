@@ -170,7 +170,9 @@ async function upsertFirebaseUser(
     email === undefined
       ? null
       : await ctx.db.query("users").withIndex("by_email", (q) => q.eq("email", email)).first();
-  const identityOwner = existingByPhone ?? existingByEmail;
+  const identityOwner =
+    (args.identity.phoneVerified === true ? existingByPhone : null) ??
+    (args.identity.emailVerified === true ? existingByEmail : null);
   assertAllowed(
     existing === null || identityOwner === null || existing._id === identityOwner._id,
     "This verified identity is already linked to another account. Sign in to that account or contact support.",
@@ -479,6 +481,18 @@ export const accept = mutation({
         });
       } else {
         assertAllowed(existingProfileLink.userId === userId, "This profile is already linked to another user.");
+        assertAllowed(
+          ["pending", "rejected", "revoked", "linked"].includes(existingProfileLink.status),
+          "This profile link is blocked and cannot be accepted.",
+        );
+        if (existingProfileLink.status !== "linked") {
+          await ctx.db.patch(existingProfileLink._id, {
+            status: "linked",
+            linkedByUserId: invitation.invitedByUserId,
+            invitationId: invitation._id,
+            updatedAt: now,
+          });
+        }
       }
     }
 

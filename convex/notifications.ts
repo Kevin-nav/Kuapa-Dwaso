@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { assertNotificationActionAllowed } from "@kuapa-dwaso/utils";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import {
   adminAccessHasPermissionForScope,
   assertAllowed,
@@ -55,6 +55,8 @@ const smsMessageKind = v.union(
   v.literal("market_run_update"),
   v.literal("dispute_update"),
   v.literal("promotional"),
+  v.literal("invite"),
+  v.literal("warehouse_agent_invite"),
 );
 const smsTemplateKey = v.union(
   v.literal("farmer_receipt"),
@@ -69,6 +71,7 @@ const smsTemplateKey = v.union(
   v.literal("dispatch_status_update"),
   v.literal("dispute_update"),
   v.literal("generic_notification"),
+  v.literal("warehouse_agent_invite"),
 );
 const rawPayload = v.record(v.string(), v.any());
 const notificationPriority = v.union(v.literal("low"), v.literal("normal"), v.literal("high"), v.literal("urgent"));
@@ -82,8 +85,8 @@ export async function insertNotificationRecord(
     channel: "sms" | "in_app" | "email";
     title: string;
     message: string;
-    messageKind?: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional" | undefined;
-    templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification" | undefined;
+    messageKind?: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional" | "invite" | "warehouse_agent_invite" | undefined;
+    templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification" | "warehouse_agent_invite" | undefined;
     templateData?: Record<string, unknown> | undefined;
     relatedEntityType?: string | undefined;
     relatedEntityId?: string | undefined;
@@ -103,9 +106,10 @@ export async function insertNotificationRecord(
       .withIndex("by_recipient_deduplication", (q) =>
         q.eq("recipientUserId", args.recipientUserId).eq("deduplicationKey", args.deduplicationKey),
       )
-      .first();
-    if (existing !== null && existing.status !== "archived" && (existing.expiresAt === undefined || existing.expiresAt > Date.now())) {
-      return existing._id;
+      .collect();
+    const active = existing.find((notification) => notification.status !== "archived" && (notification.expiresAt === undefined || notification.expiresAt > Date.now()));
+    if (active !== undefined) {
+      return active._id;
     }
   }
   return await ctx.db.insert("notifications", omitUndefinedValues({
@@ -204,8 +208,8 @@ export const claimPendingSmsDeliveries = mutation({
         recipient: string;
         title: string;
         message: string;
-        messageKind: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional";
-        templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification";
+        messageKind: "notification" | "otp" | "transactional" | "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "market_run_update" | "dispute_update" | "promotional" | "invite" | "warehouse_agent_invite";
+        templateKey?: "farmer_receipt" | "storage_fee_reminder" | "reservation_alert" | "sale_payment_update" | "payout_update" | "buyer_order_update" | "buyer_reservation_update" | "buyer_cancellation_update" | "dispatch_assignment" | "dispatch_status_update" | "dispute_update" | "generic_notification" | "warehouse_agent_invite";
         templateData?: Record<string, unknown>;
         relatedEntityType?: string;
         relatedEntityId?: string;
@@ -256,7 +260,7 @@ async function resolveNotificationSmsRecipient(
   return undefined;
 }
 
-export const updateStatus = mutation({
+export const updateStatus = internalMutation({
   args: {
     notificationId: v.id("notifications"),
     status: notificationStatus,
@@ -399,27 +403,19 @@ export const listForAdmin = query({
     assertAllowed(access.permissions.has("notifications:read"), "Admin lacks notifications:read permission.");
 
     const limit = Math.min(args.limit ?? 50, 100);
-    const candidates =
-      args.relatedEntityType !== undefined && args.relatedEntityId !== undefined
-        ? await ctx.db
-            .query("notifications")
-            .withIndex("by_related_entity", (q) =>
-              q.eq("relatedEntityType", args.relatedEntityType!).eq("relatedEntityId", args.relatedEntityId!),
-            )
-            .take(limit * 4)
-        : args.recipientRole !== undefined && args.status !== undefined
-          ? await ctx.db
-              .query("notifications")
-              .withIndex("by_role_status", (q) => q.eq("recipientRole", args.recipientRole!).eq("status", args.status!))
-              .take(limit * 4)
-          : args.status !== undefined
-            ? await ctx.db
-                .query("notifications")
-                .withIndex("by_status", (q) => q.eq("status", args.status!))
-                .take(limit * 4)
-            : await ctx.db.query("notifications").take(limit * 4);
-
-    const filtered = candidates
+    const scoped = [];
+    let cursor: string | null = null;
+    while (scoped.length < limit) {
+      const page = await (
+        args.relatedEntityType !== undefined && args.relatedEntityId !== undefined
+          ? ctx.db.query("notifications").withIndex("by_related_entity", (q) => q.eq("relatedEntityType", args.relatedEntityType!).eq("relatedEntityId", args.relatedEntityId!))
+          : args.recipientRole !== undefined && args.status !== undefined
+            ? ctx.db.query("notifications").withIndex("by_role_status", (q) => q.eq("recipientRole", args.recipientRole!).eq("status", args.status!))
+            : args.status !== undefined
+              ? ctx.db.query("notifications").withIndex("by_status", (q) => q.eq("status", args.status!))
+              : ctx.db.query("notifications")
+      ).order("desc").paginate({ cursor, numItems: 100 });
+      const filtered = page.page
       .filter((notification) => args.status === undefined || notification.status === args.status)
       .filter((notification) => args.recipientRole === undefined || notification.recipientRole === args.recipientRole)
       .filter(
@@ -433,8 +429,7 @@ export const listForAdmin = query({
           notification.relatedEntityId === args.relatedEntityId,
       )
       .sort((left, right) => right.createdAt - left.createdAt);
-    const scoped = [];
-    for (const notification of filtered) {
+      for (const notification of filtered) {
       if (notification.recipientUserId === actor._id) {
         scoped.push(notification);
       } else {
@@ -456,7 +451,10 @@ export const listForAdmin = query({
         scoped.push(notification);
       }
       if (scoped.length >= limit) break;
+      }
+      if (page.isDone) break;
+      cursor = page.continueCursor;
     }
-    return scoped;
+    return scoped.sort((left, right) => right.createdAt - left.createdAt).slice(0, limit);
   },
 });

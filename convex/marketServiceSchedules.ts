@@ -97,7 +97,7 @@ function cleanScheduleInput(args: {
     },
     firstMatchingDeliveryDate(args.effectiveDate, args.deliveryWeekday),
   );
-  return omitUndefinedValues({
+  return {
     destinationName,
     destinationInstructions,
     timezone,
@@ -112,7 +112,7 @@ function cleanScheduleInput(args: {
     capacityUnit: cleanOptionalText(args.capacityUnit),
     effectiveDate: args.effectiveDate,
     endDate: args.endDate,
-  });
+  };
 }
 
 export const create = mutation({
@@ -129,7 +129,7 @@ export const create = mutation({
     const now = Date.now();
     const scheduleId = await ctx.db.insert("marketServiceSchedules", {
       originWarehouseId: args.originWarehouseId,
-      ...cleaned,
+      ...omitUndefinedValues(cleaned),
       status: "draft",
       createdByUserId: args.actorUserId,
       updatedByUserId: args.actorUserId,

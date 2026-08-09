@@ -83,7 +83,7 @@ const emptyForm = {
 
 export default function MarketServicesPage() {
   const { principal, isLoading } = useAdminAuth();
-  const actorUserId = principal?.role === "admin" && principal.status === "active" ? principal.userId as Id<"users"> : undefined;
+  const actorUserId = (principal?.role === "admin" || principal?.role === "warehouse_agent") && principal.status === "active" ? principal.userId as Id<"users"> : undefined;
   const warehouses = useQuery(api.warehouses.list, actorUserId === undefined ? "skip" : { actorUserId, limit: 100 }) as Warehouse[] | undefined;
   const schedules = useQuery(api.marketServiceSchedules.list, actorUserId === undefined ? "skip" : { actorUserId, limit: 100 }) as Schedule[] | undefined;
   const runs = useQuery(api.marketDeliveryRuns.listForOperations, actorUserId === undefined ? "skip" : { actorUserId, limit: 100 }) as Run[] | undefined;
@@ -128,6 +128,12 @@ export default function MarketServicesPage() {
   async function saveSchedule(event: FormEvent) {
     event.preventDefault();
     if (actorUserId === undefined) return;
+    try {
+      new Intl.DateTimeFormat("en-GH", { timeZone: form.timezone });
+    } catch {
+      setMessage("Enter a valid IANA timezone, such as Africa/Accra.");
+      return;
+    }
     setMessage("Saving schedule…");
     try {
       if (editingScheduleId === undefined) await createSchedule({ actorUserId, ...scheduleArgs() });
@@ -169,10 +175,11 @@ export default function MarketServicesPage() {
   function selectRun(runId: Id<"marketDeliveryRuns">) {
     setSelectedRunId(runId);
     setReadinessOverrideReason("");
+    setDraftRunDate("");
   }
 
   if (isLoading || (actorUserId !== undefined && (warehouses === undefined || schedules === undefined || runs === undefined))) return <p style={{ padding: 24 }}>Loading market services…</p>;
-  if (actorUserId === undefined) return <p style={{ padding: 24 }}>Sign in with an active administrator or warehouse-manager account.</p>;
+  if (actorUserId === undefined) return <p style={{ padding: 24 }}>Sign in with an active administrator or warehouse-agent account.</p>;
 
   return (
     <div style={{ display: "grid", gap: 24 }}>
@@ -233,7 +240,7 @@ export default function MarketServicesPage() {
             {readiness.status === "cutoff_reached" && <button disabled={readiness.blockers.length > 0 || readiness.reservationShortfalls.length > 0 || (readiness.operationalConfirmationRequired && readinessOverrideReason.trim() === "")} style={primaryButton} onClick={() => void updateRunStatus({ actorUserId, runId: readiness._id, status: "ready", ...(readinessOverrideReason.trim() === "" ? {} : { reason: readinessOverrideReason }) }).then(() => setMessage("Run marked ready.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be marked ready."))}>{readiness.operationalConfirmationRequired ? "Mark ready with override" : "Mark ready"}</button>}
             {readiness.status === "ready" && <button style={primaryButton} onClick={() => void updateRunStatus({ actorUserId, runId: readiness._id, status: "confirmed" }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be confirmed."))}>Confirm run</button>}
           </div>
-          {!["cancelled", "dispatched", "completed"].includes(readiness.status) && <div style={{ ...formGridStyle, marginTop: 18 }}><Label text="Cancellation or postponement reason"><input value={reason} onChange={(event) => setReason(event.target.value)} style={inputStyle} /></Label><Label text="New date for postponement"><input type="date" value={postponedDate} onChange={(event) => setPostponedDate(event.target.value)} style={inputStyle} /></Label><div style={actionsStyle}><button style={dangerButton} onClick={() => void updateRunStatus({ actorUserId, runId: readiness._id, status: "cancelled", reason }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be cancelled."))}>Cancel run</button><button style={secondaryButton} onClick={() => void postponeRun({ actorUserId, runId: readiness._id, newDeliveryDate: postponedDate, reason }).then(selectRun).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be postponed."))}>Postpone to new date</button></div></div>}
+          {!["cancelled", "dispatched", "completed"].includes(readiness.status) && <div style={{ ...formGridStyle, marginTop: 18 }}><Label text="Cancellation or postponement reason"><input value={reason} onChange={(event) => setReason(event.target.value)} style={inputStyle} /></Label><Label text="New date for postponement"><input type="date" value={postponedDate} onChange={(event) => setPostponedDate(event.target.value)} style={inputStyle} /></Label><div style={actionsStyle}><button style={dangerButton} onClick={() => void updateRunStatus({ actorUserId, runId: readiness._id, status: "cancelled", reason }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be cancelled."))}>Cancel run</button><button disabled={postponedDate === "" || reason.trim() === ""} style={secondaryButton} onClick={() => void postponeRun({ actorUserId, runId: readiness._id, newDeliveryDate: postponedDate, reason }).then(selectRun).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Run could not be postponed."))}>Postpone to new date</button></div></div>}
         </section>
       )}
     </div>
