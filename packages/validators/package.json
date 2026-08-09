@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"No validator tests configured yet.\"",
+    "test": "node --experimental-strip-types --test src/*.test.ts",
     "format": "prettier --check ."
   },
   "dependencies": {
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@kuapa-dwaso/typescript-config": "workspace:*",
+    "@types/node": "^26.0.0",
     "typescript": "^6.0.3"
   }
 }

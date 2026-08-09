@@ -1200,6 +1200,8 @@ export const uploadAssetPurposes = [
   "dispute_evidence",
   "dispatch_proof_photo",
   "profile_evidence",
+  "blog_hero_image",
+  "blog_content_image",
 ] as const;
 export type UploadAssetPurpose = (typeof uploadAssetPurposes)[number];
 
@@ -1225,6 +1227,7 @@ export const uploadRelatedEntityTypes = [
   "inventory_batch",
   "dispatch",
   "dispute",
+  "blog_post",
 ] as const;
 export type UploadRelatedEntityType = (typeof uploadRelatedEntityTypes)[number];
 
@@ -1281,6 +1284,82 @@ export type CompleteUploadAssetInput = {
   uploadAssetId: string;
   sizeBytes: number;
   checksumSha256?: string;
+};
+
+// ---------------------------------------------------------------------------
+// Public stories and editorial content
+// ---------------------------------------------------------------------------
+
+export const blogCategories = [
+  "visits",
+  "partnerships",
+  "events",
+  "updates",
+] as const;
+export type BlogCategory = (typeof blogCategories)[number];
+
+export const blogStatuses = ["draft", "published", "archived"] as const;
+export type BlogStatus = (typeof blogStatuses)[number];
+
+export type BlogTextMark = "bold" | "italic";
+
+export type BlogTextSegment = {
+  text: string;
+  marks?: BlogTextMark[] | undefined;
+  href?: string | undefined;
+};
+
+export type BlogContentBlock =
+  | {
+      id: string;
+      type: "paragraph" | "heading2" | "heading3" | "quote";
+      content: BlogTextSegment[];
+    }
+  | {
+      id: string;
+      type: "bulletList" | "numberedList";
+      items: BlogTextSegment[][];
+    }
+  | {
+      id: string;
+      type: "image";
+      url: string;
+      alt: string;
+      caption?: string | undefined;
+      uploadAssetId?: string | undefined;
+    }
+  | {
+      id: string;
+      type: "gallery";
+      images: Array<{
+        url: string;
+        alt: string;
+        caption?: string | undefined;
+        uploadAssetId?: string | undefined;
+      }>;
+    }
+  | { id: string; type: "video"; url: string; title: string };
+
+export type BlogPost = TimestampFields & {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  category: BlogCategory;
+  status: BlogStatus;
+  content: BlogContentBlock[];
+  heroImageUrl: string;
+  heroImageAlt: string;
+  heroImageCaption?: string;
+  heroUploadAssetId?: string;
+  authorName: string;
+  location?: string;
+  occurredAt?: number;
+  publishedAt?: number;
+  publishedByUserId?: string;
+  archivedAt?: number;
+  createdByUserId: string;
+  updatedByUserId: string;
 };
 
 // ---------------------------------------------------------------------------

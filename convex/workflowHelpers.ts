@@ -160,9 +160,14 @@ function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
     "profileLinks:manage",
     "uploads:read",
     "uploads:manage",
+    "blog:read",
+    "blog:write",
+    "blog:publish",
   ];
 
-  return permissions.filter((permission) => adminRoleHasPermission(roleKey, permission));
+  return permissions.filter((permission) =>
+    adminRoleHasPermission(roleKey, permission),
+  );
 }
 
 export async function requireActiveAdmin(

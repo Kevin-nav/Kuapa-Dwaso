@@ -3,6 +3,8 @@ import {
   buyerOrderStatuses,
   buyerStatuses,
   buyerTypes,
+  blogCategories,
+  blogStatuses,
   buyerVerificationStatuses,
   dispatchStatuses,
   disputeStatuses,
@@ -52,6 +54,8 @@ import {
   type BuyerOrderStatus,
   type BuyerStatus,
   type BuyerType,
+  type BlogCategory,
+  type BlogStatus,
   type BuyerVerificationStatus,
   type DispatchStatus,
   type DisputeStatus,
@@ -108,6 +112,25 @@ function isOneOf<const Values extends readonly string[]>(
 
 export function isMarketplaceRole(value: unknown): value is MarketplaceRole {
   return isOneOf(marketplaceRoles, value);
+}
+
+export function isBlogCategory(value: unknown): value is BlogCategory {
+  return isOneOf(blogCategories, value);
+}
+
+export function isBlogStatus(value: unknown): value is BlogStatus {
+  return isOneOf(blogStatuses, value);
+}
+
+export function normalizeBlogSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90);
 }
 
 export function isUserStatus(value: unknown): value is UserStatus {

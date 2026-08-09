@@ -12,6 +12,7 @@ import type * as admin from "../admin.js";
 import type * as adminAccess from "../adminAccess.js";
 import type * as auditLogs from "../auditLogs.js";
 import type * as auth from "../auth.js";
+import type * as blogPosts from "../blogPosts.js";
 import type * as buyerOrders from "../buyerOrders.js";
 import type * as buyers from "../buyers.js";
 import type * as deadlineNotifications from "../deadlineNotifications.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   adminAccess: typeof adminAccess;
   auditLogs: typeof auditLogs;
   auth: typeof auth;
+  blogPosts: typeof blogPosts;
   buyerOrders: typeof buyerOrders;
   buyers: typeof buyers;
   deadlineNotifications: typeof deadlineNotifications;

@@ -13,31 +13,91 @@ test("platform owner receives every admin permission including access management
     new Set(getAdminRolePermissions("platform_owner")),
     new Set(adminPermissionKeys),
   );
-  assert.equal(adminRoleHasPermission("platform_owner", "adminAccess:manage"), true);
-  assert.equal(adminRoleHasPermission("platform_owner", "invitations:manage"), true);
-  assert.equal(adminRoleHasPermission("platform_owner", "uploads:manage"), true);
+  assert.equal(
+    adminRoleHasPermission("platform_owner", "adminAccess:manage"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("platform_owner", "invitations:manage"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("platform_owner", "uploads:manage"),
+    true,
+  );
+});
+
+test("blog publishing is reserved for the platform owner at launch", () => {
+  assert.equal(adminRoleHasPermission("platform_owner", "blog:read"), true);
+  assert.equal(adminRoleHasPermission("platform_owner", "blog:write"), true);
+  assert.equal(adminRoleHasPermission("platform_owner", "blog:publish"), true);
+  for (const role of [
+    "operations_manager",
+    "warehouse_manager",
+    "finance_manager",
+    "support_officer",
+    "auditor",
+    "analyst",
+    "admin_viewer",
+  ] as const) {
+    assert.equal(adminRoleHasPermission(role, "blog:read"), false);
+    assert.equal(adminRoleHasPermission(role, "blog:publish"), false);
+  }
 });
 
 test("operations manager can run operations without finance-only mutation rights", () => {
-  assert.equal(adminRoleHasPermission("operations_manager", "warehouses:manage"), true);
-  assert.equal(adminRoleHasPermission("operations_manager", "inventory:adjust"), true);
-  assert.equal(adminRoleHasPermission("operations_manager", "dispatches:manage"), true);
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "warehouses:manage"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "inventory:adjust"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "dispatches:manage"),
+    true,
+  );
   assert.equal(
     adminRoleHasPermission("operations_manager", "sales:managePaymentStatus"),
     false,
   );
-  assert.equal(adminRoleHasPermission("operations_manager", "fees:manage"), false);
-  assert.equal(adminRoleHasPermission("operations_manager", "adminAccess:manage"), false);
-  assert.equal(adminRoleHasPermission("operations_manager", "invitations:manage"), true);
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "fees:manage"),
+    false,
+  );
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "adminAccess:manage"),
+    false,
+  );
+  assert.equal(
+    adminRoleHasPermission("operations_manager", "invitations:manage"),
+    true,
+  );
 });
 
 test("finance manager owns fee and payment capabilities without admin access management", () => {
   assert.equal(adminRoleHasPermission("finance_manager", "fees:manage"), true);
-  assert.equal(adminRoleHasPermission("finance_manager", "sales:managePaymentStatus"), true);
-  assert.equal(adminRoleHasPermission("finance_manager", "payments:manage"), true);
-  assert.equal(adminRoleHasPermission("finance_manager", "payouts:manage"), true);
-  assert.equal(adminRoleHasPermission("finance_manager", "warehouses:manage"), false);
-  assert.equal(adminRoleHasPermission("finance_manager", "adminAccess:manage"), false);
+  assert.equal(
+    adminRoleHasPermission("finance_manager", "sales:managePaymentStatus"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("finance_manager", "payments:manage"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("finance_manager", "payouts:manage"),
+    true,
+  );
+  assert.equal(
+    adminRoleHasPermission("finance_manager", "warehouses:manage"),
+    false,
+  );
+  assert.equal(
+    adminRoleHasPermission("finance_manager", "adminAccess:manage"),
+    false,
+  );
 });
 
 test("viewer and analyst roles are read-only", () => {
