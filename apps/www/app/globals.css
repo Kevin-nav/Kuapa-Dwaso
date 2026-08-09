@@ -440,6 +440,11 @@ svg {
   padding: 9px 12px;
   text-align: center;
 }
+.blog-share__error {
+  color: #8a2d22;
+  flex-basis: 100%;
+  font-size: 0.85rem;
+}
 .blog-prose {
   color: #2d382f;
   font-family: Georgia, "Times New Roman", serif;

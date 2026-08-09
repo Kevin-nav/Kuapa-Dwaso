@@ -82,7 +82,7 @@ function getAppLoginHref() {
 export default async function LandingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string | string[] }>;
 }) {
   const appAuthHref = getAppAuthHref();
   const appLoginHref = getAppLoginHref();
@@ -90,6 +90,8 @@ export default async function LandingPage({
     searchParams,
     getLatestPosts(3),
   ]);
+  const inviteToken =
+    typeof params.token === "string" ? params.token : undefined;
 
   return (
     <div className="min-h-screen bg-brand-surface text-brand-ink">
@@ -102,7 +104,7 @@ export default async function LandingPage({
         <AudienceCards
           appAuthHref={appAuthHref}
           appLoginHref={appLoginHref}
-          {...(params.token === undefined ? {} : { inviteToken: params.token })}
+          {...(inviteToken === undefined ? {} : { inviteToken })}
         />
         <LatestStories posts={latestPosts} />
         <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />

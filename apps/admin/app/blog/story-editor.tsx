@@ -10,6 +10,9 @@ import { normalizeBlogSlug } from "@kuapa-dwaso/validators";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useAdminAuth } from "../auth/AdminAuthProvider";
+import { BlockEditor, blogBlockLabels } from "./block-editor";
+import { ContentPreview } from "./content-preview";
+import { uploadBlogImage } from "./upload-blog-image";
 
 type EditorState = {
   title: string;
@@ -40,18 +43,6 @@ const emptyState: EditorState = {
   location: "",
   occurredAt: "",
 };
-const blockLabels = {
-  paragraph: "Paragraph",
-  heading2: "Heading",
-  heading3: "Subheading",
-  quote: "Quote",
-  bulletList: "Bullet list",
-  numberedList: "Numbered list",
-  image: "Image",
-  gallery: "Gallery",
-  video: "Video",
-} as const;
-
 function blockId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
@@ -68,7 +59,9 @@ export function StoryEditor({
 }) {
   const { firebaseUser, principal } = useAdminAuth();
   const actorUserId =
-    principal?.role === "admin" ? (principal.userId as Id<"users">) : undefined;
+    principal?.role === "admin" && principal.status === "active"
+      ? (principal.userId as Id<"users">)
+      : undefined;
   const existing = useQuery(
     api.blogPosts.getForAdmin,
     actorUserId === undefined || initialPostId === undefined
@@ -88,6 +81,18 @@ export function StoryEditor({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const initializedId = useRef<string | undefined>(undefined);
+  const editVersion = useRef(0);
+  const uploadAbortController = useRef<AbortController | null>(null);
+  if (uploadAbortController.current === null) {
+    uploadAbortController.current = new AbortController();
+  }
+
+  useEffect(
+    () => () => {
+      uploadAbortController.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -149,8 +154,9 @@ export function StoryEditor({
     [state],
   );
 
-  const save = async () => {
-    if (actorUserId === undefined) return;
+  const save = async (): Promise<boolean> => {
+    if (actorUserId === undefined) return false;
+    const savingVersion = editVersion.current;
     setSaving(true);
     setMessage("");
     try {
@@ -169,12 +175,14 @@ export function StoryEditor({
           ...payload,
           content: payload.content as never,
         });
-      setDirty(false);
+      if (editVersion.current === savingVersion) setDirty(false);
       setMessage("Draft saved");
+      return true;
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not save the story.",
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -188,21 +196,45 @@ export function StoryEditor({
     return () => window.clearTimeout(timer);
     // payload intentionally captures the current editor snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dirty, postId, payload]);
+  }, [dirty, postId, payload, saving]);
+
+  const markDirty = () => {
+    editVersion.current += 1;
+    setDirty(true);
+  };
 
   const change = <K extends keyof EditorState>(
     key: K,
     value: EditorState[K],
   ) => {
     setState((current) => ({ ...current, [key]: value }));
-    setDirty(true);
+    markDirty();
   };
-  const updateBlock = (index: number, next: BlogContentBlock) =>
-    change(
-      "content",
-      state.content.map((block, i) => (i === index ? next : block)),
+  const changeContent = (
+    update: (current: BlogContentBlock[]) => BlogContentBlock[],
+  ) => {
+    setState((current) => ({
+      ...current,
+      content: update(current.content),
+    }));
+    markDirty();
+  };
+  const updateBlock = (
+    index: number,
+    update:
+      | BlogContentBlock
+      | ((current: BlogContentBlock) => BlogContentBlock),
+  ) =>
+    changeContent((content) =>
+      content.map((block, itemIndex) =>
+        itemIndex === index
+          ? typeof update === "function"
+            ? update(block)
+            : update
+          : block,
+      ),
     );
-  const addBlock = (type: keyof typeof blockLabels) => {
+  const addBlock = (type: keyof typeof blogBlockLabels) => {
     const next: BlogContentBlock =
       type === "paragraph" ||
       type === "heading2" ||
@@ -216,7 +248,7 @@ export function StoryEditor({
             : type === "gallery"
               ? { id: blockId(), type, images: [] }
               : { id: blockId(), type: "video", url: "", title: "" };
-    change("content", [...state.content, next]);
+    changeContent((content) => [...content, next]);
   };
 
   const uploadImage = async (
@@ -227,53 +259,18 @@ export function StoryEditor({
       throw new Error("Save the story once before uploading images.");
     const token = await firebaseUser?.getIdToken();
     if (!token) throw new Error("Sign in again before uploading.");
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-    const authHeaders = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-    const presign = await fetch(`${apiUrl}/uploads/presign`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        purpose,
-        contentType: file.type,
-        sizeBytes: file.size,
-        fileName: file.name,
-        relatedEntityType: "blog_post",
-        relatedEntityId: postId,
-        accessLevel: "public_read",
-      }),
+    return uploadBlogImage({
+      file,
+      purpose,
+      postId,
+      token,
+      signal: uploadAbortController.current!.signal,
     });
-    if (!presign.ok) throw new Error(await presign.text());
-    const target = (await presign.json()) as {
-      uploadAssetId: Id<"uploadAssets">;
-      uploadUrl: string;
-      headers: Record<string, string>;
-    };
-    const put = await fetch(target.uploadUrl, {
-      method: "PUT",
-      headers: target.headers,
-      body: file,
-    });
-    if (!put.ok) throw new Error("The image could not be uploaded.");
-    const complete = await fetch(`${apiUrl}/uploads/complete`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({
-        uploadAssetId: target.uploadAssetId,
-        sizeBytes: file.size,
-      }),
-    });
-    if (!complete.ok) throw new Error(await complete.text());
-    const read = await fetch(`${apiUrl}/uploads/presign-read`, {
-      method: "POST",
-      headers: authHeaders,
-      body: JSON.stringify({ uploadAssetId: target.uploadAssetId }),
-    });
-    if (!read.ok) throw new Error(await read.text());
-    const readable = (await read.json()) as { readUrl: string };
-    return { url: readable.readUrl, uploadAssetId: target.uploadAssetId };
+  };
+
+  const showError = (error: unknown) => {
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    setMessage(error instanceof Error ? error.message : String(error));
   };
 
   if (actorUserId === undefined)
@@ -304,9 +301,9 @@ export function StoryEditor({
             <button
               className="story-button"
               onClick={() =>
-                void unpublish({ actorUserId, blogPostId: postId }).then(() =>
-                  setStatus("draft"),
-                )
+                void unpublish({ actorUserId, blogPostId: postId })
+                  .then(() => setStatus("draft"))
+                  .catch(showError)
               }
             >
               Unpublish
@@ -315,16 +312,15 @@ export function StoryEditor({
             <button
               className="story-button story-button--primary"
               onClick={() =>
-                void save()
-                  .then(() => publish({ actorUserId, blogPostId: postId }))
-                  .then(() => setStatus("published"))
-                  .catch((error) =>
-                    setMessage(
-                      error instanceof Error
-                        ? error.message
-                        : "Could not publish.",
-                    ),
-                  )
+                void (async () => {
+                  if (!(await save())) return;
+                  try {
+                    await publish({ actorUserId, blogPostId: postId });
+                    setStatus("published");
+                  } catch (error) {
+                    showError(error);
+                  }
+                })()
               }
             >
               Publish
@@ -425,7 +421,7 @@ export function StoryEditor({
                       change("heroImageUrl", image.url);
                       change("heroUploadAssetId", image.uploadAssetId);
                     })
-                    .catch((error) => setMessage(String(error)));
+                    .catch(showError);
               }}
             />
             <small>
@@ -449,11 +445,11 @@ export function StoryEditor({
             </label>
           </fieldset>
           <div className="story-block-toolbar" aria-label="Add content block">
-            {Object.entries(blockLabels).map(([type, label]) => (
+            {Object.entries(blogBlockLabels).map(([type, label]) => (
               <button
                 type="button"
                 key={type}
-                onClick={() => addBlock(type as keyof typeof blockLabels)}
+                onClick={() => addBlock(type as keyof typeof blogBlockLabels)}
               >
                 + {label}
               </button>
@@ -464,11 +460,12 @@ export function StoryEditor({
               <BlockEditor
                 key={block.id}
                 block={block}
+                disabled={postId === undefined}
                 onChange={(next) => updateBlock(index, next)}
+                onError={showError}
                 onRemove={() =>
-                  change(
-                    "content",
-                    state.content.filter((_, i) => i !== index),
+                  changeContent((content) =>
+                    content.filter((_, itemIndex) => itemIndex !== index),
                   )
                 }
                 upload={(file) => uploadImage(file, "blog_content_image")}
@@ -490,231 +487,5 @@ export function StoryEditor({
         </aside>
       </div>
     </main>
-  );
-}
-
-function BlockEditor({
-  block,
-  onChange,
-  onRemove,
-  upload,
-}: {
-  block: BlogContentBlock;
-  onChange: (block: BlogContentBlock) => void;
-  onRemove: () => void;
-  upload: (
-    file: File,
-  ) => Promise<{ url: string; uploadAssetId: Id<"uploadAssets"> }>;
-}) {
-  return (
-    <div className="story-block">
-      <div className="story-block__head">
-        <strong>{blockLabels[block.type]}</strong>
-        <button type="button" onClick={onRemove}>
-          Remove
-        </button>
-      </div>
-      {"content" in block ? (
-        <>
-          <textarea
-            rows={block.type === "paragraph" ? 5 : 2}
-            value={block.content.map((item) => item.text).join("")}
-            onChange={(e) =>
-              onChange({
-                ...block,
-                content: [{ ...block.content[0], text: e.target.value }],
-              })
-            }
-          />
-          <div className="story-format">
-            <button
-              type="button"
-              aria-pressed={block.content[0]?.marks?.includes("bold")}
-              onClick={() => {
-                const first = block.content[0] ?? { text: "" };
-                const marks = new Set(first.marks ?? []);
-                if (marks.has("bold")) marks.delete("bold");
-                else marks.add("bold");
-                onChange({
-                  ...block,
-                  content: [{ ...first, marks: [...marks] }],
-                });
-              }}
-            >
-              Bold
-            </button>
-            <button
-              type="button"
-              aria-pressed={block.content[0]?.marks?.includes("italic")}
-              onClick={() => {
-                const first = block.content[0] ?? { text: "" };
-                const marks = new Set(first.marks ?? []);
-                if (marks.has("italic")) marks.delete("italic");
-                else marks.add("italic");
-                onChange({
-                  ...block,
-                  content: [{ ...first, marks: [...marks] }],
-                });
-              }}
-            >
-              Italic
-            </button>
-            <input
-              aria-label="Link URL"
-              placeholder="Optional link URL"
-              value={block.content[0]?.href ?? ""}
-              onChange={(e) =>
-                onChange({
-                  ...block,
-                  content: [
-                    {
-                      ...(block.content[0] ?? { text: "" }),
-                      href: e.target.value || undefined,
-                    },
-                  ],
-                })
-              }
-            />
-          </div>
-        </>
-      ) : "items" in block ? (
-        <textarea
-          rows={5}
-          value={block.items
-            .map((item) => item.map((part) => part.text).join(""))
-            .join("\n")}
-          onChange={(e) =>
-            onChange({
-              ...block,
-              items: e.target.value.split("\n").map((item) => [{ text: item }]),
-            })
-          }
-        />
-      ) : block.type === "image" ? (
-        <>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file)
-                void upload(file).then((image) =>
-                  onChange({ ...block, ...image }),
-                );
-            }}
-          />
-          {block.url ? <img src={block.url} alt="" /> : null}
-          <input
-            placeholder="Alternative text"
-            value={block.alt}
-            onChange={(e) => onChange({ ...block, alt: e.target.value })}
-          />
-          <input
-            placeholder="Caption"
-            value={block.caption ?? ""}
-            onChange={(e) =>
-              onChange({ ...block, caption: e.target.value || undefined })
-            }
-          />
-        </>
-      ) : block.type === "gallery" ? (
-        <>
-          <input
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => {
-              const files = [...(e.target.files ?? [])];
-              void Promise.all(files.map(upload)).then((images) =>
-                onChange({
-                  ...block,
-                  images: [
-                    ...block.images,
-                    ...images.map((image) => ({ ...image, alt: "" })),
-                  ],
-                }),
-              );
-            }}
-          />
-          {block.images.map((image, i) => (
-            <div className="story-gallery-edit" key={`${image.url}-${i}`}>
-              <img src={image.url} alt="" />
-              <input
-                placeholder="Required alternative text"
-                value={image.alt}
-                onChange={(e) =>
-                  onChange({
-                    ...block,
-                    images: block.images.map((item, j) =>
-                      j === i ? { ...item, alt: e.target.value } : item,
-                    ),
-                  })
-                }
-              />
-            </div>
-          ))}
-        </>
-      ) : (
-        <>
-          <input
-            placeholder="YouTube or Vimeo URL"
-            value={block.url}
-            onChange={(e) => onChange({ ...block, url: e.target.value })}
-          />
-          <input
-            placeholder="Video title"
-            value={block.title}
-            onChange={(e) => onChange({ ...block, title: e.target.value })}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function ContentPreview({ blocks }: { blocks: BlogContentBlock[] }) {
-  return (
-    <div className="story-preview__body">
-      {blocks.map((block) => {
-        if ("content" in block) {
-          const text = block.content.map((part) => part.text).join("");
-          if (block.type === "heading2") return <h3 key={block.id}>{text}</h3>;
-          if (block.type === "heading3") return <h4 key={block.id}>{text}</h4>;
-          if (block.type === "quote")
-            return <blockquote key={block.id}>{text}</blockquote>;
-          return <p key={block.id}>{text}</p>;
-        }
-        if ("items" in block) {
-          const Tag = block.type === "bulletList" ? "ul" : "ol";
-          return (
-            <Tag key={block.id}>
-              {block.items.map((item, i) => (
-                <li key={i}>{item.map((part) => part.text).join("")}</li>
-              ))}
-            </Tag>
-          );
-        }
-        if (block.type === "image")
-          return block.url ? (
-            <figure key={block.id}>
-              <img src={block.url} alt={block.alt} />
-              <figcaption>{block.caption}</figcaption>
-            </figure>
-          ) : null;
-        if (block.type === "gallery")
-          return (
-            <div className="story-preview__gallery" key={block.id}>
-              {block.images.map((image) => (
-                <img key={image.url} src={image.url} alt={image.alt} />
-              ))}
-            </div>
-          );
-        return (
-          <a key={block.id} href={block.url}>
-            {block.title || "Video"}
-          </a>
-        );
-      })}
-    </div>
   );
 }

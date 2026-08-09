@@ -30,7 +30,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
     actorUserId === undefined
       ? "skip"
       : { actorUserId, adminUserId: actorUserId },
-  ) as { permissions: string[] } | undefined;
+  );
 
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;

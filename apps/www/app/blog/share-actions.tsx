@@ -4,15 +4,27 @@ import { useState } from "react";
 
 export function ShareActions({ title, url }: { title: string; url: string }) {
   const [copied, setCopied] = useState(false);
+  const [shareError, setShareError] = useState("");
   const encodedUrl = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(title);
   const share = async () => {
+    setShareError("");
     if (navigator.share) {
-      await navigator.share({ title, url });
-      return;
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
+      }
     }
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setShareError("Could not share automatically. Copy the address bar URL.");
+    }
   };
   return (
     <div className="blog-share" aria-label="Share this story">
@@ -48,6 +60,11 @@ export function ShareActions({ title, url }: { title: string; url: string }) {
         X
       </a>
       <a href={`mailto:?subject=${encodedTitle}&body=${encodedUrl}`}>Email</a>
+      {shareError ? (
+        <span className="blog-share__error" role="status">
+          {shareError}
+        </span>
+      ) : null}
     </div>
   );
 }

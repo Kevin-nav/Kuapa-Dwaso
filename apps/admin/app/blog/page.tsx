@@ -8,12 +8,23 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { useAdminAuth } from "../auth/AdminAuthProvider";
 
 type StoryStatus = "draft" | "published" | "archived";
+const storyDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function StoriesPage() {
   const { principal } = useAdminAuth();
   const actorUserId =
-    principal?.role === "admin" ? (principal.userId as Id<"users">) : undefined;
+    principal?.role === "admin" && principal.status === "active"
+      ? (principal.userId as Id<"users">)
+      : undefined;
   const [status, setStatus] = useState<StoryStatus | "all">("all");
+  const [actionError, setActionError] = useState("");
   const posts = useQuery(
     api.blogPosts.listForAdmin,
     actorUserId === undefined
@@ -63,15 +74,31 @@ export default function StoriesPage() {
         {(["all", "draft", "published", "archived"] as const).map((item) => (
           <button
             key={item}
+            id={`story-tab-${item}`}
             type="button"
+            role="tab"
+            aria-controls="story-list-panel"
             aria-selected={status === item}
-            onClick={() => setStatus(item)}
+            onClick={() => {
+              setStatus(item);
+              setActionError("");
+            }}
           >
             {item}
           </button>
         ))}
       </div>
-      <section className="story-list">
+      {actionError ? (
+        <p className="story-action-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      <section
+        aria-labelledby={`story-tab-${status}`}
+        className="story-list"
+        id="story-list-panel"
+        role="tabpanel"
+      >
         {posts === undefined ? (
           <p>Loading stories…</p>
         ) : posts.length === 0 ? (
@@ -93,11 +120,7 @@ export default function StoriesPage() {
                 <h2>{post.title || "Untitled story"}</h2>
                 <p>{post.excerpt || "No summary yet."}</p>
                 <small>
-                  Updated{" "}
-                  {new Intl.DateTimeFormat("en-GB", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }).format(post.updatedAt)}
+                  Updated {storyDateFormatter.format(post.updatedAt)}
                 </small>
               </div>
               <div className="story-row__actions">
@@ -107,18 +130,32 @@ export default function StoriesPage() {
                 {post.status === "published" ? (
                   <button
                     className="story-button"
-                    onClick={() =>
-                      void unpublish({ actorUserId, blogPostId: post._id })
-                    }
+                    onClick={() => {
+                      setActionError("");
+                      void unpublish({
+                        actorUserId,
+                        blogPostId: post._id,
+                      }).catch((error) =>
+                        setActionError(
+                          errorMessage(error, "Could not unpublish the story."),
+                        ),
+                      );
+                    }}
                   >
                     Unpublish
                   </button>
                 ) : post.status !== "archived" ? (
                   <button
                     className="story-button story-button--primary"
-                    onClick={() =>
-                      void publish({ actorUserId, blogPostId: post._id })
-                    }
+                    onClick={() => {
+                      setActionError("");
+                      void publish({ actorUserId, blogPostId: post._id }).catch(
+                        (error) =>
+                          setActionError(
+                            errorMessage(error, "Could not publish the story."),
+                          ),
+                      );
+                    }}
                   >
                     Publish
                   </button>
@@ -126,10 +163,16 @@ export default function StoriesPage() {
                 {post.status !== "archived" ? (
                   <button
                     className="story-button story-button--danger"
-                    onClick={() =>
-                      window.confirm("Archive this story?") &&
-                      void archive({ actorUserId, blogPostId: post._id })
-                    }
+                    onClick={() => {
+                      if (!window.confirm("Archive this story?")) return;
+                      setActionError("");
+                      void archive({ actorUserId, blogPostId: post._id }).catch(
+                        (error) =>
+                          setActionError(
+                            errorMessage(error, "Could not archive the story."),
+                          ),
+                      );
+                    }}
                   >
                     Archive
                   </button>
