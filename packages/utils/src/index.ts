@@ -910,10 +910,16 @@ export function assertInviteIdentityVerification(input: {
   phoneVerified?: boolean;
 }): void {
   const phonePrimary =
-    input.invitationType === "warehouse_agent_invite" || input.invitationType === "transporter_invite";
+    input.invitationType === "warehouse_agent_invite" ||
+    input.invitationType === "transporter_invite";
   if (phonePrimary) {
-    if (input.identityPhoneNumber === undefined || input.phoneVerified !== true) {
-      throw new Error("Phone number must be verified to accept this invitation.");
+    if (
+      input.identityPhoneNumber === undefined ||
+      input.phoneVerified !== true
+    ) {
+      throw new Error(
+        "Phone number must be verified to accept this invitation.",
+      );
     }
     return;
   }
@@ -932,12 +938,19 @@ export function buildUploadObjectKey(input: {
   uploadAssetId: string;
   fileName?: string;
 }): string {
-  const safeEnvironment = normalizeCodeSegment(input.environment || "dev").toLowerCase();
+  const safeEnvironment = normalizeCodeSegment(
+    input.environment || "dev",
+  ).toLowerCase();
   const safePurpose = normalizeCodeSegment(input.purpose).toLowerCase();
   const safeOwner = normalizeCodeSegment(input.ownerUserId).toLowerCase();
   const safeUpload = normalizeCodeSegment(input.uploadAssetId).toLowerCase();
-  const extension = input.fileName?.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  const suffix = extension === undefined || extension.length === 0 ? "" : `.${extension}`;
+  const extension = input.fileName
+    ?.split(".")
+    .pop()
+    ?.replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+  const suffix =
+    extension === undefined || extension.length === 0 ? "" : `.${extension}`;
   return `${safeEnvironment}/${safePurpose}/${safeOwner}/${safeUpload}${suffix}`;
 }
 
@@ -965,6 +978,9 @@ export function isUploadPurposeAllowedForRelatedEntity(input: {
         input.relatedEntityType === "transporter_profile" ||
         input.relatedEntityType === "warehouse_agent"
       );
+    case "blog_hero_image":
+    case "blog_content_image":
+      return input.relatedEntityType === "blog_post";
   }
 }
 
@@ -1046,7 +1062,10 @@ export function normalizeSmsDeliveryStatus(status: string): SmsDeliveryStatus {
   }
 }
 
-export type SmsTemplateData = Record<string, string | number | boolean | undefined>;
+export type SmsTemplateData = Record<
+  string,
+  string | number | boolean | undefined
+>;
 
 export type RenderSmsTemplateInput = {
   templateKey?: SmsTemplateKey;
@@ -1063,7 +1082,9 @@ export type RenderedSmsTemplate = {
   segmentEstimate: SmsSegmentEstimate;
 };
 
-const templateKeyByMessageKind: Partial<Record<SmsMessageKind, SmsTemplateKey>> = {
+const templateKeyByMessageKind: Partial<
+  Record<SmsMessageKind, SmsTemplateKey>
+> = {
   notification: "generic_notification",
   transactional: "generic_notification",
   farmer_receipt: "farmer_receipt",
@@ -1080,9 +1101,14 @@ const templateKeyByMessageKind: Partial<Record<SmsMessageKind, SmsTemplateKey>> 
   dispute_update: "dispute_update",
 };
 
-export function renderSmsTemplate(input: RenderSmsTemplateInput): RenderedSmsTemplate {
+export function renderSmsTemplate(
+  input: RenderSmsTemplateInput,
+): RenderedSmsTemplate {
   const messageKind = input.messageKind ?? "notification";
-  const templateKey = input.templateKey ?? templateKeyByMessageKind[messageKind] ?? "generic_notification";
+  const templateKey =
+    input.templateKey ??
+    templateKeyByMessageKind[messageKind] ??
+    "generic_notification";
   const data = input.data ?? {};
   const fallbackMessage = normalizeSmsText(input.message);
   const message = renderKnownSmsTemplate(templateKey, data, fallbackMessage);
@@ -1103,7 +1129,9 @@ export function assertTransactionalSmsTemplateBudget(input: {
   const estimate = estimateSmsSegments(input.message);
   const maxSegments = input.maxSegments ?? 2;
   if (estimate.segments > maxSegments) {
-    throw new Error(`SMS template uses ${estimate.segments} segments; expected ${maxSegments} or fewer.`);
+    throw new Error(
+      `SMS template uses ${estimate.segments} segments; expected ${maxSegments} or fewer.`,
+    );
   }
   return estimate;
 }
@@ -1357,7 +1385,13 @@ function zonedLocalTimestamp(
   time: { hour: number; minute: number },
   timezone: string,
 ): number {
-  const desiredUtcShape = Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute);
+  const desiredUtcShape = Date.UTC(
+    date.year,
+    date.month - 1,
+    date.day,
+    time.hour,
+    time.minute,
+  );
   let result = desiredUtcShape - timeZoneOffsetAt(desiredUtcShape, timezone);
   result = desiredUtcShape - timeZoneOffsetAt(result, timezone);
   return result;
@@ -1367,7 +1401,9 @@ function addCalendarDays(
   date: { year: number; month: number; day: number },
   days: number,
 ): { year: number; month: number; day: number } {
-  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  const shifted = new Date(
+    Date.UTC(date.year, date.month - 1, date.day + days),
+  );
   return {
     year: shifted.getUTCFullYear(),
     month: shifted.getUTCMonth() + 1,
@@ -1379,30 +1415,73 @@ export function calculateMarketRunOccurrence(
   schedule: MarketScheduleTimingInput,
   deliveryDate: string,
 ): MarketRunOccurrence {
-  if (!Number.isInteger(schedule.deliveryWeekday) || schedule.deliveryWeekday < 0 || schedule.deliveryWeekday > 6) {
-    throw new Error("Delivery weekday must be between Sunday (0) and Saturday (6)." );
+  if (
+    !Number.isInteger(schedule.deliveryWeekday) ||
+    schedule.deliveryWeekday < 0 ||
+    schedule.deliveryWeekday > 6
+  ) {
+    throw new Error(
+      "Delivery weekday must be between Sunday (0) and Saturday (6).",
+    );
   }
-  if (!Number.isInteger(schedule.cutoffDaysBefore) || schedule.cutoffDaysBefore < 0 || schedule.cutoffDaysBefore > 14) {
+  if (
+    !Number.isInteger(schedule.cutoffDaysBefore) ||
+    schedule.cutoffDaysBefore < 0 ||
+    schedule.cutoffDaysBefore > 14
+  ) {
     throw new Error("Cutoff days before delivery must be between 0 and 14.");
   }
   const date = parseLocalDate(deliveryDate, "Delivery date");
   parseLocalDate(schedule.effectiveDate, "Effective date");
-  if (deliveryDate < schedule.effectiveDate || (schedule.endDate !== undefined && deliveryDate > schedule.endDate)) {
+  if (
+    deliveryDate < schedule.effectiveDate ||
+    (schedule.endDate !== undefined && deliveryDate > schedule.endDate)
+  ) {
     throw new Error("Delivery date is outside the schedule effective period.");
   }
-  if (new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() !== schedule.deliveryWeekday) {
-    throw new Error("Delivery date does not match the schedule delivery weekday.");
+  if (
+    new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() !==
+    schedule.deliveryWeekday
+  ) {
+    throw new Error(
+      "Delivery date does not match the schedule delivery weekday.",
+    );
   }
   const cutoffDate = addCalendarDays(date, -schedule.cutoffDaysBefore);
-  const cutoffTime = parseLocalTime(schedule.cutoffLocalTime, "Order cutoff time");
-  const arrivalStartTime = parseLocalTime(schedule.arrivalStartLocalTime, "Arrival start time");
-  const arrivalEndTime = parseLocalTime(schedule.arrivalEndLocalTime, "Arrival end time");
+  const cutoffTime = parseLocalTime(
+    schedule.cutoffLocalTime,
+    "Order cutoff time",
+  );
+  const arrivalStartTime = parseLocalTime(
+    schedule.arrivalStartLocalTime,
+    "Arrival start time",
+  );
+  const arrivalEndTime = parseLocalTime(
+    schedule.arrivalEndLocalTime,
+    "Arrival end time",
+  );
   const occurrence = {
     deliveryDate,
-    deliveryDateAt: zonedLocalTimestamp(date, { hour: 0, minute: 0 }, schedule.timezone),
-    orderCutoffAt: zonedLocalTimestamp(cutoffDate, cutoffTime, schedule.timezone),
-    expectedArrivalStartAt: zonedLocalTimestamp(date, arrivalStartTime, schedule.timezone),
-    expectedArrivalEndAt: zonedLocalTimestamp(date, arrivalEndTime, schedule.timezone),
+    deliveryDateAt: zonedLocalTimestamp(
+      date,
+      { hour: 0, minute: 0 },
+      schedule.timezone,
+    ),
+    orderCutoffAt: zonedLocalTimestamp(
+      cutoffDate,
+      cutoffTime,
+      schedule.timezone,
+    ),
+    expectedArrivalStartAt: zonedLocalTimestamp(
+      date,
+      arrivalStartTime,
+      schedule.timezone,
+    ),
+    expectedArrivalEndAt: zonedLocalTimestamp(
+      date,
+      arrivalEndTime,
+      schedule.timezone,
+    ),
   };
   if (occurrence.expectedArrivalEndAt <= occurrence.expectedArrivalStartAt) {
     throw new Error("Expected arrival end must be after the arrival start.");

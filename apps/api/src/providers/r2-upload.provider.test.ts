@@ -105,7 +105,19 @@ describe("R2UploadProvider", () => {
     process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL = "https://images.example.com/";
     const provider = new R2UploadProvider();
 
-    expect(provider.getPublicReadUrl("uploads/produce intake/photo 1.webp"))
-      .toBe("https://images.example.com/uploads/produce%20intake/photo%201.webp");
+    expect(
+      provider.getPublicReadUrl("uploads/produce intake/photo 1.webp"),
+    ).toBe(
+      "https://images.example.com/uploads/produce%20intake/photo%201.webp",
+    );
+  });
+
+  it("keeps public blog media in the dedicated public bucket", () => {
+    process.env.CLOUDFLARE_R2_BUCKET = "private-evidence";
+    process.env.CLOUDFLARE_R2_PUBLIC_BUCKET = "public-media";
+    const provider = new R2UploadProvider();
+
+    expect(provider.getBucketName("private")).toBe("private-evidence");
+    expect(provider.getBucketName("public_read")).toBe("public-media");
   });
 });

@@ -38,6 +38,8 @@ const uploadPurpose = v.union(
   v.literal("dispute_evidence"),
   v.literal("dispatch_proof_photo"),
   v.literal("profile_evidence"),
+  v.literal("blog_hero_image"),
+  v.literal("blog_content_image"),
 );
 const uploadStatus = v.union(
   v.literal("pending_upload"),
@@ -57,6 +59,7 @@ const relatedEntityType = v.union(
   v.literal("inventory_batch"),
   v.literal("dispatch"),
   v.literal("dispute"),
+  v.literal("blog_post"),
 );
 
 type UploadPurpose =
@@ -65,7 +68,9 @@ type UploadPurpose =
   | "condition_evidence"
   | "dispute_evidence"
   | "dispatch_proof_photo"
-  | "profile_evidence";
+  | "profile_evidence"
+  | "blog_hero_image"
+  | "blog_content_image";
 
 type UploadStatus =
   | "pending_upload"
@@ -83,13 +88,18 @@ type RelatedEntityType =
   | "warehouse_agent"
   | "inventory_batch"
   | "dispatch"
-  | "dispute";
+  | "dispute"
+  | "blog_post";
 
 function actorCanCreateUploadForOwner(
   actor: { _id: Id<"users">; role: string },
   ownerUserId: Id<"users">,
 ): boolean {
-  return actor._id === ownerUserId || actor.role === "admin" || actor.role === "warehouse_agent";
+  return (
+    actor._id === ownerUserId ||
+    actor.role === "admin" ||
+    actor.role === "warehouse_agent"
+  );
 }
 
 function purposeAllowedForEntity(
@@ -243,6 +253,22 @@ async function requireActorCanUseRelatedEntity(
     }
     return;
   }
+
+  if (relatedEntityType === "blog_post") {
+    const post = await ctx.db.get(relatedEntityId as Id<"blogPosts">);
+    assertAllowed(post !== null, "Related story was not found.");
+    assertAllowed(
+      actor.role === "admin",
+      "Only administrators can access story media.",
+    );
+    await requireAdminPermission(
+      ctx,
+      actor._id,
+      permission === "read" ? "blog:read" : "blog:write",
+      {},
+    );
+    return;
+  }
 }
 
 export const createPending = mutation({
@@ -284,8 +310,11 @@ export const createPending = mutation({
       "Upload purpose is not allowed for this related entity.",
     );
     assertAllowed(
-      args.accessLevel !== "public_read" || args.purpose === "produce_intake_photo",
-      "Only produce listing photos may be publicly readable.",
+      args.accessLevel !== "public_read" ||
+        args.purpose === "produce_intake_photo" ||
+        args.purpose === "blog_hero_image" ||
+        args.purpose === "blog_content_image",
+      "Only approved public media purposes may be publicly readable.",
     );
     await requireActorCanUseRelatedEntity(
       ctx,

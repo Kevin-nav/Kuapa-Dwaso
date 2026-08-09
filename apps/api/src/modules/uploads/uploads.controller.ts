@@ -96,25 +96,37 @@ export class UploadsController {
     const rateLimit = this.rateLimits.check({
       key: `upload-presign:${principal.userId}`,
       limit: env.rateLimit.uploadPresignMax,
-      windowMs: env.rateLimit.windowMs
+      windowMs: env.rateLimit.windowMs,
     });
     if (!rateLimit.allowed) {
       throw new HttpException(
         "Too many upload presign attempts. Try again after the rate-limit window resets.",
-        HttpStatus.TOO_MANY_REQUESTS
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
     this.r2.assertPresignPolicy({
       purpose: body.purpose,
       contentType: body.contentType,
-      sizeBytes: body.sizeBytes
+      sizeBytes: body.sizeBytes,
     });
 
-    if (body.accessLevel === "public_read" && body.purpose !== "produce_intake_photo") {
-      throw new BadRequestException("Only produce listing photos may use public read access.");
+    const publicPurposes: UploadAssetPurpose[] = [
+      "produce_intake_photo",
+      "blog_hero_image",
+      "blog_content_image",
+    ];
+    if (
+      body.accessLevel === "public_read" &&
+      !publicPurposes.includes(body.purpose)
+    ) {
+      throw new BadRequestException(
+        "Only approved public media purposes may use public read access.",
+      );
     }
 
-    const createUploadArgs: Parameters<ConvexPlatformProvider["createPendingUpload"]>[0] = {
+    const createUploadArgs: Parameters<
+      ConvexPlatformProvider["createPendingUpload"]
+    >[0] = {
       actorUserId: principal.userId,
       purpose: body.purpose,
       contentType: body.contentType,
