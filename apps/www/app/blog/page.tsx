@@ -29,11 +29,7 @@ export default async function BlogPage({
   searchParams: Promise<{ category?: string; cursor?: string }>;
 }) {
   const params = await searchParams;
-  const cursor = params.cursor ? Number(params.cursor) : undefined;
-  const result = await getPublishedPosts(
-    params.category,
-    Number.isFinite(cursor) ? cursor : undefined,
-  );
+  const result = await getPublishedPosts(params.category, params.cursor);
   const [featured, ...posts] = result.items;
   const appUrl = process.env.PUBLIC_APP_URL ?? "https://app.kuapadwaso.com";
   return (
@@ -90,7 +86,7 @@ export default async function BlogPage({
         {result.nextCursor ? (
           <a
             className="blog-more"
-            href={`/blog?${params.category ? `category=${params.category}&` : ""}cursor=${result.nextCursor}`}
+            href={`/blog?${params.category ? `category=${encodeURIComponent(params.category)}&` : ""}cursor=${encodeURIComponent(result.nextCursor)}`}
           >
             Older stories
           </a>

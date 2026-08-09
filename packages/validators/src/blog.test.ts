@@ -8,6 +8,10 @@ test("normalizes stable shareable story slugs", () => {
     "official-farm-visit-akwapim",
   );
   assert.equal(normalizeBlogSlug("Partnership à Ghana"), "partnership-a-ghana");
+  assert.equal(
+    normalizeBlogSlug(`${"a".repeat(89)} crossing-boundary`),
+    "a".repeat(89),
+  );
 });
 
 test("recognizes the supported editorial categories and states", () => {

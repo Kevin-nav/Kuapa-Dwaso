@@ -28,10 +28,10 @@ export async function getLatestPosts(limit = 3): Promise<PublicBlogPost[]> {
   }
 }
 
-export async function getPublishedPosts(category?: string, cursor?: number) {
+export async function getPublishedPosts(category?: string, cursor?: string) {
   const convex = client();
   if (!convex)
-    return { items: [] as PublicBlogPost[], nextCursor: null as number | null };
+    return { items: [] as PublicBlogPost[], nextCursor: null as string | null };
   try {
     return (await convex.query(api.blogPosts.listPublished, {
       ...(category &&
@@ -46,7 +46,7 @@ export async function getPublishedPosts(category?: string, cursor?: number) {
         : {}),
       ...(cursor ? { cursor } : {}),
       limit: 9,
-    })) as { items: PublicBlogPost[]; nextCursor: number | null };
+    })) as { items: PublicBlogPost[]; nextCursor: string | null };
   } catch {
     return { items: [], nextCursor: null };
   }
@@ -54,14 +54,10 @@ export async function getPublishedPosts(category?: string, cursor?: number) {
 
 export async function getPost(slug: string): Promise<PublicBlogPost | null> {
   const convex = client();
-  if (!convex) return null;
-  try {
-    return (await convex.query(api.blogPosts.getPublishedBySlug, {
-      slug,
-    })) as PublicBlogPost | null;
-  } catch {
-    return null;
-  }
+  if (!convex) throw new Error("Public blog data is not configured.");
+  return (await convex.query(api.blogPosts.getPublishedBySlug, {
+    slug,
+  })) as PublicBlogPost | null;
 }
 
 export async function getRelatedPosts(

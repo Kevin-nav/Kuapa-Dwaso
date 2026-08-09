@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
   assertAllowed,
@@ -93,7 +93,8 @@ function normalizeSlug(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 90);
+    .slice(0, 90)
+    .replace(/-+$/g, "");
 }
 
 function isSafePublicUrl(value: string): boolean {
@@ -108,19 +109,17 @@ function isSafePublicUrl(value: string): boolean {
   }
 }
 
-function validateForSave(
-  args: typeof editableFields extends never
-    ? never
-    : {
-        title: string;
-        slug: string;
-        excerpt: string;
-        content: unknown[];
-        heroImageUrl: string;
-        heroImageAlt: string;
-        authorName: string;
-      },
-): void {
+type SaveableBlogFields = {
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: unknown[];
+  heroImageUrl: string;
+  heroImageAlt: string;
+  authorName: string;
+};
+
+function validateForSave(args: SaveableBlogFields): void {
   assertAllowed(
     args.title.trim().length <= 140,
     "Story title must be 140 characters or fewer.",
@@ -186,13 +185,13 @@ function validateForPublish(post: Doc<"blogPosts">): void {
 }
 
 async function assertUniqueSlug(
-  ctx: Parameters<typeof mutation>[0] extends never ? never : any,
+  ctx: MutationCtx,
   slug: string,
   exceptId?: Id<"blogPosts">,
 ): Promise<void> {
   const existing = await ctx.db
     .query("blogPosts")
-    .withIndex("by_slug", (q: any) => q.eq("slug", slug))
+    .withIndex("by_slug", (q) => q.eq("slug", slug))
     .unique();
   assertAllowed(
     existing === null || existing._id === exceptId,
@@ -214,9 +213,10 @@ export const createDraft = mutation({
   args: { actorUserId: v.id("users"), ...editableFields },
   returns: v.id("blogPosts"),
   handler: async (ctx, args) => {
+    const { actorUserId, ...fields } = args;
     const access = await requireAdminPermission(
       ctx,
-      args.actorUserId,
+      actorUserId,
       "blog:write",
       {},
     );
@@ -227,17 +227,18 @@ export const createDraft = mutation({
     const id = await ctx.db.insert(
       "blogPosts",
       omitUndefinedValues({
-        ...args,
-        actorUserId: undefined,
+        ...fields,
         title: args.title.trim(),
         slug,
         excerpt: args.excerpt.trim(),
+        heroImageUrl: args.heroImageUrl.trim(),
+        heroImageAlt: args.heroImageAlt.trim(),
         authorName: args.authorName.trim() || "Kuapa Dwaso Team",
         location: cleanOptionalText(args.location),
         heroImageCaption: cleanOptionalText(args.heroImageCaption),
         status: "draft" as const,
-        createdByUserId: args.actorUserId,
-        updatedByUserId: args.actorUserId,
+        createdByUserId: actorUserId,
+        updatedByUserId: actorUserId,
         createdAt: now,
         updatedAt: now,
       }),
@@ -311,7 +312,7 @@ export const updateDraft = mutation({
 });
 
 async function changeStatus(
-  ctx: any,
+  ctx: MutationCtx,
   actorUserId: Id<"users">,
   blogPostId: Id<"blogPosts">,
   action: "publish" | "unpublish" | "archive",
@@ -419,40 +420,35 @@ export const getForAdmin = query({
 export const listPublished = query({
   args: {
     category: v.optional(blogCategory),
-    cursor: v.optional(v.number()),
+    cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   returns: v.any(),
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 9, 1), 30);
-    const posts =
+    const paginationOpts = {
+      numItems: limit,
+      cursor: args.cursor ?? null,
+    };
+    const result =
       args.category === undefined
         ? await ctx.db
             .query("blogPosts")
             .withIndex("by_status_published_at", (q) =>
-              args.cursor === undefined
-                ? q.eq("status", "published")
-                : q.eq("status", "published").lt("publishedAt", args.cursor),
+              q.eq("status", "published"),
             )
             .order("desc")
-            .take(limit + 1)
+            .paginate(paginationOpts)
         : await ctx.db
             .query("blogPosts")
             .withIndex("by_category_status_published_at", (q) =>
-              args.cursor === undefined
-                ? q.eq("category", args.category!).eq("status", "published")
-                : q
-                    .eq("category", args.category!)
-                    .eq("status", "published")
-                    .lt("publishedAt", args.cursor),
+              q.eq("category", args.category!).eq("status", "published"),
             )
             .order("desc")
-            .take(limit + 1);
-    const page = posts.slice(0, limit);
+            .paginate(paginationOpts);
     return {
-      items: page.map(publicPost),
-      nextCursor:
-        posts.length > limit ? (page.at(-1)?.publishedAt ?? null) : null,
+      items: result.page.map(publicPost),
+      nextCursor: result.isDone ? null : result.continueCursor,
     };
   },
 });
@@ -466,7 +462,7 @@ export const latest = query({
         .query("blogPosts")
         .withIndex("by_status_published_at", (q) => q.eq("status", "published"))
         .order("desc")
-        .take(Math.min(args.limit ?? 3, 6))
+        .take(Math.min(Math.max(args.limit ?? 3, 1), 6))
     ).map(publicPost),
 });
 
@@ -489,19 +485,21 @@ export const related = query({
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
-  handler: async (ctx, args) =>
-    (
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 3, 1), 6);
+    return (
       await ctx.db
         .query("blogPosts")
         .withIndex("by_category_status_published_at", (q) =>
           q.eq("category", args.category).eq("status", "published"),
         )
         .order("desc")
-        .take(Math.min((args.limit ?? 3) + 1, 7))
+        .take(limit + 1)
     )
       .filter((post) => post._id !== args.blogPostId)
-      .slice(0, args.limit ?? 3)
-      .map(publicPost),
+      .slice(0, limit)
+      .map(publicPost);
+  },
 });
 
 export const listPublishedForSitemap = query({
