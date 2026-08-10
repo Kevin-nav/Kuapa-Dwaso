@@ -1,18 +1,25 @@
 import {
+  adminPermissionKeys,
   adminScopeMatchesTarget,
   adminRoleHasPermission,
   type AdminPermissionKey,
 } from "@kuapa-dwaso/permissions";
-import type { AdminRoleKey, AdminScopeType, MarketplaceRole } from "@kuapa-dwaso/types";
+import type {
+  AdminRoleKey,
+  AdminScopeType,
+  MarketplaceRole,
+} from "@kuapa-dwaso/types";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
 export type Actor = Doc<"users"> & { role: MarketplaceRole };
 
-export type AuditActor = Pick<Actor, "_id" | "role"> | {
-  _id: "system";
-  role: "system";
-};
+export type AuditActor =
+  | Pick<Actor, "_id" | "role">
+  | {
+      _id: "system";
+      role: "system";
+    };
 
 export const systemAuditActor: AuditActor = {
   _id: "system",
@@ -46,18 +53,25 @@ export type AdminScopeTarget = {
   destinationMarket?: string;
 };
 
-export function assertAllowed(condition: boolean, message: string): asserts condition {
+export function assertAllowed(
+  condition: boolean,
+  message: string,
+): asserts condition {
   if (!condition) {
     throw new Error(message);
   }
 }
 
-export function cleanOptionalText(value: string | undefined): string | undefined {
+export function cleanOptionalText(
+  value: string | undefined,
+): string | undefined {
   const cleaned = value?.trim();
   return cleaned === undefined || cleaned.length === 0 ? undefined : cleaned;
 }
 
-export function omitUndefinedValues<T extends Record<string, unknown>>(value: T): {
+export function omitUndefinedValues<T extends Record<string, unknown>>(
+  value: T,
+): {
   [K in keyof T]: Exclude<T[K], undefined>;
 } {
   return Object.fromEntries(
@@ -76,11 +90,16 @@ export function adminScopeTarget(target: {
   return omitUndefinedValues(target) as AdminScopeTarget;
 }
 
-export function auditSnapshot(value: Record<string, unknown>): Record<string, unknown> {
+export function auditSnapshot(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
   return value;
 }
 
-export function normalizeCodeSegment(value: string | number, maxLength: number): string {
+export function normalizeCodeSegment(
+  value: string | number,
+  maxLength: number,
+): string {
   return String(value)
     .trim()
     .toUpperCase()
@@ -88,81 +107,55 @@ export function normalizeCodeSegment(value: string | number, maxLength: number):
     .slice(0, maxLength);
 }
 
-export async function getActor(ctx: QueryCtx | MutationCtx, actorUserId: Id<"users">): Promise<Actor> {
+export async function getActor(
+  ctx: QueryCtx | MutationCtx,
+  actorUserId: Id<"users">,
+): Promise<Actor> {
   const actor = await ctx.db.get(actorUserId);
   assertAllowed(actor !== null, "Actor user was not found.");
   assertAllowed(
-    actor.status !== "suspended" && actor.status !== "rejected" && actor.status !== "deactivated",
-    "Actor user cannot perform marketplace actions."
+    actor.status !== "suspended" &&
+      actor.status !== "rejected" &&
+      actor.status !== "deactivated",
+    "Actor user cannot perform marketplace actions.",
   );
 
   return actor;
 }
 
-function isActiveGrant(grant: {
-  status: "active" | "revoked" | "expired";
-  expiresAt?: number;
-}, now: number): boolean {
-  return grant.status === "active" && (grant.expiresAt === undefined || grant.expiresAt > now);
+function isActiveGrant(
+  grant: {
+    status: "active" | "revoked" | "expired";
+    expiresAt?: number;
+  },
+  now: number,
+): boolean {
+  return (
+    grant.status === "active" &&
+    (grant.expiresAt === undefined || grant.expiresAt > now)
+  );
 }
 
-function scopeGrantMatchesTarget(grant: AdminScopeGrant, target: AdminScopeTarget): boolean {
+function scopeGrantMatchesTarget(
+  grant: AdminScopeGrant,
+  target: AdminScopeTarget,
+): boolean {
   return adminScopeMatchesTarget(grant, {
-    ...(target.warehouseId === undefined ? {} : { warehouseId: String(target.warehouseId) }),
+    ...(target.warehouseId === undefined
+      ? {}
+      : { warehouseId: String(target.warehouseId) }),
     ...(target.region === undefined ? {} : { region: target.region }),
     ...(target.district === undefined ? {} : { district: target.district }),
-    ...(target.destinationMarket === undefined ? {} : { destinationMarket: target.destinationMarket }),
+    ...(target.destinationMarket === undefined
+      ? {}
+      : { destinationMarket: target.destinationMarket }),
   });
 }
 
 function rolePermissions(roleKey: AdminRoleKey): readonly AdminPermissionKey[] {
-  const permissions: AdminPermissionKey[] = [
-    "adminAccess:manage",
-    "warehouses:read",
-    "warehouses:manage",
-    "warehouseAgents:read",
-    "warehouseAgents:manage",
-    "farmers:read",
-    "farmers:manage",
-    "farmers:verify",
-    "inventory:read",
-    "inventory:manage",
-    "inventory:adjust",
-    "fees:read",
-    "fees:manage",
-    "buyers:read",
-    "buyers:manage",
-    "orders:read",
-    "orders:manage",
-    "sales:read",
-    "sales:managePaymentStatus",
-    "payments:read",
-    "payments:manage",
-    "payouts:read",
-    "payouts:manage",
-    "dispatches:read",
-    "dispatches:manage",
-    "marketSchedules:read",
-    "marketSchedules:manage",
-    "marketRuns:read",
-    "marketRuns:manage",
-    "transporters:read",
-    "transporters:manage",
-    "disputes:read",
-    "disputes:manage",
-    "auditLogs:read",
-    "reports:read",
-    "notifications:read",
-    "notifications:send",
-    "invitations:read",
-    "invitations:manage",
-    "profileLinks:read",
-    "profileLinks:manage",
-    "uploads:read",
-    "uploads:manage",
-  ];
-
-  return permissions.filter((permission) => adminRoleHasPermission(roleKey, permission));
+  return adminPermissionKeys.filter((permission) =>
+    adminRoleHasPermission(roleKey, permission),
+  );
 }
 
 export async function requireActiveAdmin(
@@ -174,7 +167,9 @@ export async function requireActiveAdmin(
   assertAllowed(actor.status === "active", "Admin user must be active.");
   assertAllowed(actor.emailVerified === true, "Admin email must be verified.");
   assertAllowed(
-    actor.authMethods?.some((method) => method === "email_password" || method === "google") === true,
+    actor.authMethods?.some(
+      (method) => method === "email_password" || method === "google",
+    ) === true,
     "Admin must use Firebase email/password or Google authentication.",
   );
   assertAllowed(
@@ -195,28 +190,34 @@ export async function getEffectiveAdminAccess(
   const grants: AdminScopeGrant[] = [];
   const directAssignments = await ctx.db
     .query("adminRoleAssignments")
-    .withIndex("by_admin_user_status", (q) => q.eq("adminUserId", adminUserId).eq("status", "active"))
+    .withIndex("by_admin_user_status", (q) =>
+      q.eq("adminUserId", adminUserId).eq("status", "active"),
+    )
     .collect();
 
   for (const assignment of directAssignments) {
     if (!isActiveGrant(assignment, now)) {
       continue;
     }
-    grants.push(omitUndefinedValues({
-      roleKey: assignment.roleKey,
-      permissions: rolePermissions(assignment.roleKey),
-      scopeType: assignment.scopeType,
-      scopeId: assignment.scopeId,
-      scopeValue: assignment.scopeValue,
-      source: "direct",
-      assignmentId: assignment._id,
-      expiresAt: assignment.expiresAt,
-    }));
+    grants.push(
+      omitUndefinedValues({
+        roleKey: assignment.roleKey,
+        permissions: rolePermissions(assignment.roleKey),
+        scopeType: assignment.scopeType,
+        scopeId: assignment.scopeId,
+        scopeValue: assignment.scopeValue,
+        source: "direct",
+        assignmentId: assignment._id,
+        expiresAt: assignment.expiresAt,
+      }),
+    );
   }
 
   const activeMemberships = await ctx.db
     .query("adminAccessGroupMembers")
-    .withIndex("by_admin_user_status", (q) => q.eq("adminUserId", adminUserId).eq("status", "active"))
+    .withIndex("by_admin_user_status", (q) =>
+      q.eq("adminUserId", adminUserId).eq("status", "active"),
+    )
     .collect();
 
   for (const membership of activeMemberships) {
@@ -226,24 +227,28 @@ export async function getEffectiveAdminAccess(
     }
     const groupAssignments = await ctx.db
       .query("adminAccessGroupRoleAssignments")
-      .withIndex("by_group_status", (q) => q.eq("groupId", membership.groupId).eq("status", "active"))
+      .withIndex("by_group_status", (q) =>
+        q.eq("groupId", membership.groupId).eq("status", "active"),
+      )
       .collect();
 
     for (const assignment of groupAssignments) {
       if (!isActiveGrant(assignment, now)) {
         continue;
       }
-      grants.push(omitUndefinedValues({
-        roleKey: assignment.roleKey,
-        permissions: rolePermissions(assignment.roleKey),
-        scopeType: assignment.scopeType,
-        scopeId: assignment.scopeId,
-        scopeValue: assignment.scopeValue,
-        source: "group",
-        assignmentId: assignment._id,
-        groupId: membership.groupId,
-        expiresAt: assignment.expiresAt,
-      }));
+      grants.push(
+        omitUndefinedValues({
+          roleKey: assignment.roleKey,
+          permissions: rolePermissions(assignment.roleKey),
+          scopeType: assignment.scopeType,
+          scopeId: assignment.scopeId,
+          scopeValue: assignment.scopeValue,
+          source: "group",
+          assignmentId: assignment._id,
+          groupId: membership.groupId,
+          expiresAt: assignment.expiresAt,
+        }),
+      );
     }
   }
 
@@ -259,7 +264,10 @@ export async function getEffectiveAdminAccess(
     generatedAt: now,
     grants,
     permissions,
-    isPlatformOwner: grants.some((grant) => grant.roleKey === "platform_owner" && grant.scopeType === "global"),
+    isPlatformOwner: grants.some(
+      (grant) =>
+        grant.roleKey === "platform_owner" && grant.scopeType === "global",
+    ),
   };
 }
 
@@ -324,7 +332,10 @@ export async function farmerScopeTarget(
 
 export async function buyerOrderScopeTarget(
   ctx: QueryCtx | MutationCtx,
-  order: Pick<Doc<"buyerOrders">, "destinationMarket" | "matchedInventoryBatchIds" | "marketDeliveryRunId">,
+  order: Pick<
+    Doc<"buyerOrders">,
+    "destinationMarket" | "matchedInventoryBatchIds" | "marketDeliveryRunId"
+  >,
 ): Promise<AdminScopeTarget> {
   if (order.marketDeliveryRunId !== undefined) {
     const run = await ctx.db.get(order.marketDeliveryRunId);
@@ -385,10 +396,18 @@ export async function requireWarehouseAgentAssignedToWarehouse(
     .withIndex("by_user", (q) => q.eq("userId", actorUserId))
     .unique();
 
-  assertAllowed(warehouseAgent !== null, "Actor does not have a warehouse agent profile.");
-  assertAllowed(warehouseAgent.status === "approved", "Warehouse agent profile must be approved.");
   assertAllowed(
-    warehouseAgent.assignedWarehouseIds.some((assignedWarehouseId) => assignedWarehouseId === warehouseId),
+    warehouseAgent !== null,
+    "Actor does not have a warehouse agent profile.",
+  );
+  assertAllowed(
+    warehouseAgent.status === "approved",
+    "Warehouse agent profile must be approved.",
+  );
+  assertAllowed(
+    warehouseAgent.assignedWarehouseIds.some(
+      (assignedWarehouseId) => assignedWarehouseId === warehouseId,
+    ),
     "Warehouse agents can only operate assigned warehouses.",
   );
 
@@ -405,7 +424,7 @@ export async function insertAuditLog(
     before?: Record<string, unknown> | undefined;
     after?: Record<string, unknown> | undefined;
     metadata?: Record<string, unknown> | undefined;
-  }
+  },
 ): Promise<void> {
   const auditLog: {
     actorId: string;
@@ -423,7 +442,7 @@ export async function insertAuditLog(
     action: args.action,
     entityType: args.entityType,
     entityId: args.entityId,
-    createdAt: Date.now()
+    createdAt: Date.now(),
   };
 
   if (args.before !== undefined) {

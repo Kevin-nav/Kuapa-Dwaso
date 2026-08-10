@@ -88,6 +88,9 @@ export const adminPermissionKeys = [
   "profileLinks:manage",
   "uploads:read",
   "uploads:manage",
+  "blog:read",
+  "blog:write",
+  "blog:publish",
 ] as const;
 export type AdminPermissionKey = (typeof adminPermissionKeys)[number];
 

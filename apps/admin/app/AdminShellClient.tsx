@@ -25,6 +25,12 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
     api.warehouses.list,
     actorUserId === undefined ? "skip" : { actorUserId, limit: 100 },
   ) as { _id: Id<"warehouses">; name: string }[] | undefined;
+  const effectiveAccess = useQuery(
+    api.adminAccess.getEffectiveAccess,
+    actorUserId === undefined
+      ? "skip"
+      : { actorUserId, adminUserId: actorUserId },
+  );
 
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;
@@ -46,6 +52,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
         await signOut();
         router.replace("/auth");
       }}
+      showStories={effectiveAccess?.permissions.includes("blog:read") === true}
     >
       {children}
     </AdminShell>

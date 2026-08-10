@@ -34,12 +34,12 @@ alerts.
 
 Role and delivery/authentication combinations are fixed:
 
-| Invitation | Delivery | Authentication | Scope/security |
-| --- | --- | --- | --- |
-| Platform admin | Email only | Verified Google or email/password | Privileged MFA required |
-| Warehouse manager | Email only | Verified Google or email/password | Privileged MFA and a warehouse-scoped `warehouse_manager` assignment required |
-| Warehouse agent | Email or manual secure link | Verified phone OTP | Invitation establishes warehouse/profile; reuse an existing matching identity |
-| Transporter | Email or manual secure link | Verified phone OTP | Reuse an existing matching identity/profile |
+| Invitation        | Delivery                    | Authentication                    | Scope/security                                                                |
+| ----------------- | --------------------------- | --------------------------------- | ----------------------------------------------------------------------------- |
+| Platform admin    | Email only                  | Verified Google or email/password | Privileged MFA required                                                       |
+| Warehouse manager | Email only                  | Verified Google or email/password | Privileged MFA and a warehouse-scoped `warehouse_manager` assignment required |
+| Warehouse agent   | Email or manual secure link | Verified phone OTP                | Invitation establishes warehouse/profile; reuse an existing matching identity |
+| Transporter       | Email or manual secure link | Verified phone OTP                | Reuse an existing matching identity/profile                                   |
 
 Acceptance is single-use, expiration- and revocation-aware, audited, and
 idempotent at the identity/profile boundary. Error messages may explain how to
@@ -57,7 +57,7 @@ image-only and size-limited for transporter truck photos, produce intake
 photos, condition evidence, dispute evidence, dispatch proof photos, and
 profile evidence.
 
-Only produce listing photos may use public R2 reads. Identity, profile,
+Only produce listing photos and approved blog hero/content images may use public R2 reads. Identity, profile,
 condition, dispute, and dispatch evidence stays private, and frontend code must
 not construct evidence URLs. Admin and ops evidence UI must request a short-lived signed GET
 URL from the API/provider seam after the authenticated user has passed Convex
@@ -197,7 +197,9 @@ CORS setup is documented at:
 https://developers.cloudflare.com/r2/buckets/cors/
 
 `CLOUDFLARE_R2_PUBLIC_BASE_URL` is the public R2 development URL or custom
-domain used only for `produce_intake_photo` assets.
+domain used only for `produce_intake_photo`, `blog_hero_image`, and
+`blog_content_image` assets. Blog images must be related to a `blog_post` and
+pass the separate blog write permission check.
 
 ## Payment Provider Setup
 
@@ -369,7 +371,7 @@ Production console and provider checklist:
 - Notification delivery: schedule or trigger a worker to call
   `POST /sms/webhooks/deliveries/process` with
   `x-notification-delivery-secret: <NOTIFICATION_DELIVERY_SECRET>`.
-- R2: expose only produce listing photos through the configured public domain;
+- R2: expose only produce listing photos and approved blog media through the configured public domain;
   keep every evidence purpose private, use signed PUT URLs for writes and
   signed GET URLs for private reads, and configure browser upload CORS.
 

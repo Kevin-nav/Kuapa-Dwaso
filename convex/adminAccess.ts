@@ -87,10 +87,18 @@ const adminPermissionKey = v.union(
   v.literal("profileLinks:manage"),
   v.literal("uploads:read"),
   v.literal("uploads:manage"),
+  v.literal("blog:read"),
+  v.literal("blog:write"),
+  v.literal("blog:publish"),
 );
 
 function normalizeScope(args: {
-  scopeType: "global" | "region" | "district" | "warehouse" | "destination_market";
+  scopeType:
+    | "global"
+    | "region"
+    | "district"
+    | "warehouse"
+    | "destination_market";
   scopeId?: string;
   scopeValue?: string;
 }): { scopeId?: string; scopeValue?: string } {

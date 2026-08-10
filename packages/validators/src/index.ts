@@ -3,6 +3,8 @@ import {
   buyerOrderStatuses,
   buyerStatuses,
   buyerTypes,
+  blogCategories,
+  blogStatuses,
   buyerVerificationStatuses,
   dispatchStatuses,
   disputeStatuses,
@@ -52,6 +54,8 @@ import {
   type BuyerOrderStatus,
   type BuyerStatus,
   type BuyerType,
+  type BlogCategory,
+  type BlogStatus,
   type BuyerVerificationStatus,
   type DispatchStatus,
   type DisputeStatus,
@@ -108,6 +112,26 @@ function isOneOf<const Values extends readonly string[]>(
 
 export function isMarketplaceRole(value: unknown): value is MarketplaceRole {
   return isOneOf(marketplaceRoles, value);
+}
+
+export function isBlogCategory(value: unknown): value is BlogCategory {
+  return isOneOf(blogCategories, value);
+}
+
+export function isBlogStatus(value: unknown): value is BlogStatus {
+  return isOneOf(blogStatuses, value);
+}
+
+export function normalizeBlogSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90)
+    .replace(/-+$/g, "");
 }
 
 export function isUserStatus(value: unknown): value is UserStatus {
@@ -182,13 +206,13 @@ export function isTransporterVerificationStatus(
   return isOneOf(transporterVerificationStatuses, value);
 }
 
-export function isTransporterStatus(value: unknown): value is TransporterStatus {
+export function isTransporterStatus(
+  value: unknown,
+): value is TransporterStatus {
   return isOneOf(transporterStatuses, value);
 }
 
-export function isBuyerOrderStatus(
-  value: unknown,
-): value is BuyerOrderStatus {
+export function isBuyerOrderStatus(value: unknown): value is BuyerOrderStatus {
   return isOneOf(buyerOrderStatuses, value);
 }
 
@@ -238,11 +262,15 @@ export function isPaymentTransactionStatus(
   return isOneOf(paymentTransactionStatuses, value);
 }
 
-export function isPaymentEventStatus(value: unknown): value is PaymentEventStatus {
+export function isPaymentEventStatus(
+  value: unknown,
+): value is PaymentEventStatus {
   return isOneOf(paymentEventStatuses, value);
 }
 
-export function isPayoutLedgerStatus(value: unknown): value is PayoutLedgerStatus {
+export function isPayoutLedgerStatus(
+  value: unknown,
+): value is PayoutLedgerStatus {
   return isOneOf(payoutLedgerStatuses, value);
 }
 
@@ -254,7 +282,9 @@ export function isSmsMessageKind(value: unknown): value is SmsMessageKind {
   return isOneOf(smsMessageKinds, value);
 }
 
-export function isSmsDeliveryStatus(value: unknown): value is SmsDeliveryStatus {
+export function isSmsDeliveryStatus(
+  value: unknown,
+): value is SmsDeliveryStatus {
   return isOneOf(smsDeliveryStatuses, value);
 }
 
@@ -298,19 +328,27 @@ export function isPlatformInvitationType(
   return isOneOf(platformInvitationTypes, value);
 }
 
-export function isInvitationChannel(value: unknown): value is InvitationChannel {
+export function isInvitationChannel(
+  value: unknown,
+): value is InvitationChannel {
   return isOneOf(invitationChannels, value);
 }
 
-export function isMarketServiceScheduleStatus(value: unknown): value is MarketServiceScheduleStatus {
+export function isMarketServiceScheduleStatus(
+  value: unknown,
+): value is MarketServiceScheduleStatus {
   return isOneOf(marketServiceScheduleStatuses, value);
 }
 
-export function isMarketDeliveryRunStatus(value: unknown): value is MarketDeliveryRunStatus {
+export function isMarketDeliveryRunStatus(
+  value: unknown,
+): value is MarketDeliveryRunStatus {
   return isOneOf(marketDeliveryRunStatuses, value);
 }
 
-export function isNotificationPriority(value: unknown): value is NotificationPriority {
+export function isNotificationPriority(
+  value: unknown,
+): value is NotificationPriority {
   return isOneOf(notificationPriorities, value);
 }
 
@@ -342,7 +380,9 @@ export function isUploadAssetStatus(
   return isOneOf(uploadAssetStatuses, value);
 }
 
-export function isUploadAccessLevel(value: unknown): value is UploadAccessLevel {
+export function isUploadAccessLevel(
+  value: unknown,
+): value is UploadAccessLevel {
   return isOneOf(uploadAccessLevels, value);
 }
 
@@ -369,7 +409,12 @@ export function isNonNegativeMoney(value: unknown): value is number {
 }
 
 export function isPercentage(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 100
+  );
 }
 
 export function hasNonEmptyText(value: unknown): value is string {
@@ -390,23 +435,37 @@ export function isValidInviteTarget(input: {
   targetPhoneNumber?: unknown;
 }): boolean {
   if (input.channel === "email") {
-    return typeof input.targetEmail === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.targetEmail.trim());
+    return (
+      typeof input.targetEmail === "string" &&
+      /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.targetEmail.trim())
+    );
   }
-  return typeof input.targetPhoneNumber === "string" && input.targetPhoneNumber.trim().length >= 8;
+  return (
+    typeof input.targetPhoneNumber === "string" &&
+    input.targetPhoneNumber.trim().length >= 8
+  );
 }
 
 export function isValidFirebaseIdentityForPhoneLink(input: {
   phoneNumber?: unknown;
   phoneVerified?: unknown;
 }): boolean {
-  return typeof input.phoneNumber === "string" && input.phoneNumber.trim().length >= 8 && input.phoneVerified === true;
+  return (
+    typeof input.phoneNumber === "string" &&
+    input.phoneNumber.trim().length >= 8 &&
+    input.phoneVerified === true
+  );
 }
 
 export function isValidFirebaseIdentityForEmailLink(input: {
   email?: unknown;
   emailVerified?: unknown;
 }): boolean {
-  return typeof input.email === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim()) && input.emailVerified === true;
+  return (
+    typeof input.email === "string" &&
+    /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.email.trim()) &&
+    input.emailVerified === true
+  );
 }
 
 export const imageUploadContentTypes = [
@@ -415,12 +474,27 @@ export const imageUploadContentTypes = [
   "image/webp",
 ] as const;
 
-export function isAllowedUploadContentType(contentType: unknown): contentType is string {
-  return typeof contentType === "string" && imageUploadContentTypes.includes(contentType as (typeof imageUploadContentTypes)[number]);
+export function isAllowedUploadContentType(
+  contentType: unknown,
+): contentType is string {
+  return (
+    typeof contentType === "string" &&
+    imageUploadContentTypes.includes(
+      contentType as (typeof imageUploadContentTypes)[number],
+    )
+  );
 }
 
-export function isAllowedUploadSize(sizeBytes: unknown, maxSizeBytes = 8 * 1024 * 1024): sizeBytes is number {
-  return typeof sizeBytes === "number" && Number.isInteger(sizeBytes) && sizeBytes > 0 && sizeBytes <= maxSizeBytes;
+export function isAllowedUploadSize(
+  sizeBytes: unknown,
+  maxSizeBytes = 8 * 1024 * 1024,
+): sizeBytes is number {
+  return (
+    typeof sizeBytes === "number" &&
+    Number.isInteger(sizeBytes) &&
+    sizeBytes > 0 &&
+    sizeBytes <= maxSizeBytes
+  );
 }
 
 export function isValidUploadPresignRequest(input: {
@@ -434,8 +508,10 @@ export function isValidUploadPresignRequest(input: {
     isUploadAssetPurpose(input.purpose) &&
     isAllowedUploadContentType(input.contentType) &&
     isAllowedUploadSize(input.sizeBytes) &&
-    (input.accessLevel === undefined || isUploadAccessLevel(input.accessLevel)) &&
-    (input.relatedEntityType === undefined || isUploadRelatedEntityType(input.relatedEntityType))
+    (input.accessLevel === undefined ||
+      isUploadAccessLevel(input.accessLevel)) &&
+    (input.relatedEntityType === undefined ||
+      isUploadRelatedEntityType(input.relatedEntityType))
   );
 }
 

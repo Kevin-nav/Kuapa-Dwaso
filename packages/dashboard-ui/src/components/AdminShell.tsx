@@ -31,6 +31,7 @@ import {
   History,
   BarChart3,
   Bell,
+  Newspaper,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -78,6 +79,7 @@ export type AdminShellProps = {
   principalName?: string;
   principalRoleLabel?: string;
   onSignOut?: () => Promise<void>;
+  showStories?: boolean;
 };
 
 export function AdminShell({
@@ -88,6 +90,7 @@ export function AdminShell({
   principalName = "Dev Admin",
   principalRoleLabel = "Administrator",
   onSignOut,
+  showStories = false,
 }: AdminShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -154,7 +157,11 @@ export function AdminShell({
         { label: "Sales", href: "/sales", icon: DollarSign },
         { label: "Finance", href: "/finance", icon: Landmark },
         { label: "Dispatch", href: "/dispatch", icon: Truck },
-        { label: "Market Services", href: "/market-services", icon: CalendarDays },
+        {
+          label: "Market Services",
+          href: "/market-services",
+          icon: CalendarDays,
+        },
       ],
     },
     {
@@ -176,6 +183,9 @@ export function AdminShell({
     {
       title: "Governance",
       items: [
+        ...(showStories
+          ? [{ label: "Stories", href: "/blog", icon: Newspaper }]
+          : []),
         { label: "Disputes", href: "/disputes", icon: AlertTriangle },
         { label: "Notifications", href: "/notifications", icon: Bell },
         { label: "Audit Logs", href: "/audit-logs", icon: History },
