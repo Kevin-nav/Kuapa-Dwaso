@@ -30,28 +30,32 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
           <FooterLinks
             title="Company"
             links={[
-              ["Blog", "/blog"],
+              ["Stories & Insights", "/blog"],
               ["About", "/#how"],
               ["Partners", "/#warehouse"],
+              ["Contact", officialContactHref],
               ["Join the pilot", appAuthHref],
             ]}
           />
           <div>
             <h3 className="text-sm font-bold uppercase tracking-[0.12em] text-[#7dd8a0]">
-              Contact
+              Farmer updates
             </h3>
-            <a
-              className="mt-4 inline-block text-sm font-semibold text-white hover:text-[#7dd8a0]"
-              href={officialContactHref}
-            >
-              {officialContactEmail}
-            </a>
-            <p className="mt-3 text-sm leading-relaxed text-white/55">
-              For partnerships, visits, events, and general enquiries.
-            </p>
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-5">
+              <p className="text-sm text-white/60">
+                Farmers receive one-way SMS updates for receipts, fees, sales,
+                dispatches, and payments.
+              </p>
+            </div>
           </div>
         </div>
         <div className="mt-10 border-t border-white/10 pt-6 text-sm text-white/45">
+          <a
+            className="mb-3 inline-block font-semibold text-white/70 hover:text-white"
+            href={officialContactHref}
+          >
+            {officialContactEmail}
+          </a>
           <p>Copyright 2026 Kuapa Dwaso. All rights reserved.</p>
         </div>
       </div>

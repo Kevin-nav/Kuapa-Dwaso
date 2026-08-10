@@ -5,12 +5,12 @@ import { getPublishedPosts } from "./data";
 import { StoryCard } from "./story-card";
 
 export const metadata: Metadata = {
-  title: "Stories | Kuapa Dwaso",
+  title: "Stories & Insights | Kuapa Dwaso",
   description:
     "Official visits, partnerships, events, and updates from Kuapa Dwaso.",
   alternates: { canonical: "/blog" },
   openGraph: {
-    title: "Kuapa Dwaso Stories",
+    title: "Kuapa Dwaso Stories & Insights",
     description: "Field notes and official updates from Kuapa Dwaso.",
     type: "website",
   },
@@ -41,7 +41,7 @@ export default async function BlogPage({
       <main>
         <header className="blog-masthead">
           <div>
-            <p className="eyebrow">From the field</p>
+            <p className="eyebrow">Stories &amp; Insights</p>
             <h1>
               Stories of produce,
               <br />
@@ -71,7 +71,7 @@ export default async function BlogPage({
             <StoryCard post={featured} featured />
           ) : (
             <div className="blog-empty">
-              <p className="eyebrow">The journal is opening soon</p>
+              <p className="eyebrow">Stories &amp; Insights</p>
               <h2>Our first field story is being prepared.</h2>
               <p>
                 Come back for official visits, partnerships, events, and Kuapa

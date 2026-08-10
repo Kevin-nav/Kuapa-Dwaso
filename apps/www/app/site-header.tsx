@@ -1,12 +1,13 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navLinks = [
   ["How it works", "/#how"],
   ["Warehouse model", "/#warehouse"],
   ["Who it is for", "/#buyers"],
-  ["Blog", "/blog"],
+  ["Stories & Insights", "/blog"],
 ] as const;
 
 export function Logo({ className }: { className?: string }) {
@@ -34,7 +35,9 @@ type SiteHeaderProps = {
 };
 
 export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
+  const pathname = usePathname();
   const [isScrolled, setIsScrolled] = useState(false);
+  const isStoriesPath = pathname === "/blog" || pathname.startsWith("/blog/");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -71,7 +74,14 @@ export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
 
         <div className="hidden items-center gap-6 md:flex">
           {navLinks.map(([label, href]) => (
-            <a key={href} href={href} className="nav-link">
+            <a
+              key={href}
+              href={href}
+              className="nav-link"
+              aria-current={
+                href === "/blog" && isStoriesPath ? "page" : undefined
+              }
+            >
               {label}
             </a>
           ))}
@@ -90,8 +100,13 @@ export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
         </div>
 
         <div className="flex items-center gap-4 md:hidden">
-          <a href="/blog" className="text-sm font-bold text-brand-ink/72">
-            Blog
+          <a
+            href="/blog"
+            aria-current={isStoriesPath ? "page" : undefined}
+            aria-label="Stories & Insights"
+            className="nav-link"
+          >
+            Stories
           </a>
           <a
             href={loginHref}
