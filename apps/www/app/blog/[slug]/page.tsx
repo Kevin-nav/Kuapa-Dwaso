@@ -80,6 +80,7 @@ export default async function StoryPage({
       <SiteHeader
         joinHref={new URL("/signup", appUrl).toString()}
         loginHref={appUrl}
+        isStoriesPath
       />
       <main>
         <article className="blog-article">

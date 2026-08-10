@@ -12,6 +12,9 @@
     "smoke:backend": "node src/backend-smoke-flow.mjs",
     "smoke:backend:cleanup": "node src/backend-smoke-cleanup.mjs",
     "sms:staging": "node --env-file=../../.env.staging src/send-staging-sms.mjs",
+    "benchmark:performance": "node src/performance-lighthouse.mjs",
+    "benchmark:profiles": "node src/performance-suite.mjs",
+    "benchmark:compare": "node src/performance-compare.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

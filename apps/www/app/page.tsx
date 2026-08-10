@@ -1,4 +1,6 @@
 import Image from "next/image";
+import heroImage from "../public/image1.webp";
+import warehouseImage from "../public/image3.webp";
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import { getLatestPosts } from "./blog/data";
@@ -170,7 +172,7 @@ function HeroSection({
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
-        src="/image1.png"
+        src={heroImage}
         alt="Produce vendors and operators at a Ghana market"
         fill
         priority
@@ -254,11 +256,12 @@ function WarehouseSection() {
         </div>
         <figure className="relative overflow-hidden rounded-2xl bg-white/5">
           <Image
-            src="/image3.png"
+            src={warehouseImage}
             alt="Produce being checked and recorded at market"
             width={1440}
             height={960}
             sizes="(max-width: 1024px) 100vw, 50vw"
+            placeholder="blur"
             className="aspect-[4/3] h-full w-full object-cover object-[52%_center]"
           />
         </figure>

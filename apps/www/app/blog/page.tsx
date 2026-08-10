@@ -37,6 +37,7 @@ export default async function BlogPage({
       <SiteHeader
         joinHref={new URL("/signup", appUrl).toString()}
         loginHref={appUrl}
+        isStoriesPath
       />
       <main>
         <header className="blog-masthead">

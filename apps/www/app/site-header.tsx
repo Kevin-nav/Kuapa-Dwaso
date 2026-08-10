@@ -1,8 +1,3 @@
-"use client";
-
-import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-
 const navLinks = [
   ["How it works", "/#how"],
   ["Warehouse model", "/#warehouse"],
@@ -32,34 +27,16 @@ export function Logo({ className }: { className?: string }) {
 type SiteHeaderProps = {
   joinHref: string;
   loginHref: string;
+  isStoriesPath?: boolean;
 };
 
-export function SiteHeader({ joinHref, loginHref }: SiteHeaderProps) {
-  const pathname = usePathname();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const isStoriesPath = pathname === "/blog" || pathname.startsWith("/blog/");
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    // Initialize immediately in case the page is already scrolled on load
-    handleScroll();
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
+export function SiteHeader({
+  joinHref,
+  loginHref,
+  isStoriesPath = false,
+}: SiteHeaderProps) {
   return (
-    <header
-      className={`sticky top-0 z-50 transition-all duration-200 ${
-        isScrolled
-          ? "border-b border-brand-line/50 bg-brand-surface/80 backdrop-blur-md shadow-sm"
-          : "border-b border-brand-line bg-brand-surface"
-      }`}
-    >
+    <header className="sticky top-0 z-50 border-b border-brand-line bg-brand-surface">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-6">
         <a
           href="/"

@@ -9,7 +9,33 @@ if (process.env.KUAPA_DWASO_NEXT_ENV_LOADED !== "true") {
 }
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@kuapa-dwaso/design-tokens", "@kuapa-dwaso/types", "@kuapa-dwaso/ui"]
+  transpilePackages: [
+    "@kuapa-dwaso/design-tokens",
+    "@kuapa-dwaso/types",
+    "@kuapa-dwaso/ui",
+  ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.kuapadwaso.com",
+        pathname: "/produce/**",
+      },
+    ],
+  },
+  async headers() {
+    return [
+      {
+        source: "/auth-bg-v1.webp",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
