@@ -514,7 +514,7 @@ svg {
   margin: 0;
 }
 .blog-gallery img {
-  aspect-ratio: 1;
+  aspect-ratio: 4/5;
   height: auto;
   object-fit: cover;
 }
@@ -655,6 +655,9 @@ svg {
   }
   .blog-gallery {
     grid-template-columns: 1fr;
+  }
+  .blog-gallery img {
+    aspect-ratio: 3/4;
   }
   .not-found > div {
     flex-direction: column;
