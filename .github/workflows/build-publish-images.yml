@@ -106,7 +106,6 @@ jobs:
             NEXT_PUBLIC_FIREBASE_APP_ID
             NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
             NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-            NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK
           )
 
           for key in "${required_keys[@]}"; do
@@ -116,6 +115,13 @@ jobs:
             fi
             printf '%s=%s\n' "$key" "${!key}" >> "$GITHUB_ENV"
           done
+
+          actor_fallback="${NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK:-false}"
+          if [[ "$actor_fallback" != "true" && "$actor_fallback" != "false" ]]; then
+            echo "NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK must be true or false when configured." >&2
+            exit 1
+          fi
+          printf 'NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK=%s\n' "$actor_fallback" >> "$GITHUB_ENV"
 
           rm -f infisical-build.env
         env:

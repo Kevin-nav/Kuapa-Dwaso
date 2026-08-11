@@ -71,3 +71,9 @@ for (const surface of surfaces) {
 test("the public site stays non-installable", async () => {
   await assert.rejects(readFile(resolve(repoRoot, "apps/www/app/manifest.ts"), "utf8"));
 });
+
+test("image builds default the ops development actor fallback to false", async () => {
+  const workflow = await readFile(resolve(repoRoot, ".github/workflows/build-publish-images.yml"), "utf8");
+  assert.match(workflow, /actor_fallback="\$\{NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK:-false\}"/);
+  assert.match(workflow, /NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK=%s/);
+});
