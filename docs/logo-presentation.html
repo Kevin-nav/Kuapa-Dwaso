@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kuapa Dwaso - Portals Presentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700&family=Plus+Jakarta+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --color-brand-surface: #f5f7f0;
+      --color-brand-ink: #0f1f14;
+      --color-brand-field: #2d8a4e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      background-color: var(--color-brand-surface);
+      color: var(--color-brand-ink);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      height: 100vh;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    body::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    body {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+
+    section {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 2rem;
+    }
+
+    .logo-wrapper {
+      width: 200px;
+      height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0.9);
+      transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1), transform 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .logo-wrapper svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 10px 15px rgba(15, 31, 20, 0.04));
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--color-brand-ink);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s, transform 1s cubic-bezier(0.16, 1, 0.3, 1) 0.2s;
+    }
+
+    /* Active section styles triggered by JS intersection observer */
+    section.active .logo-wrapper {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    section.active h1 {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Floating navigation dots */
+    .dot-navigation {
+      position: fixed;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      z-index: 100;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--color-brand-ink);
+      opacity: 0.25;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 2px solid transparent;
+    }
+
+    .dot:hover {
+      opacity: 0.5;
+      transform: scale(1.2);
+    }
+
+    .dot.active {
+      opacity: 1;
+      background-color: var(--color-brand-field);
+      transform: scale(1.4);
+      border-color: var(--color-brand-surface);
+      box-shadow: 0 0 0 2px var(--color-brand-field);
+    }
+
+    /* Scroll Indicator Arrow */
+    .scroll-indicator {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0.6;
+      animation: bounce 2s infinite;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .scroll-indicator:hover {
+      opacity: 1;
+    }
+
+    .scroll-indicator span {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .scroll-indicator svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% {
+        transform: translate(-50%, 0);
+      }
+      40% {
+        transform: translate(-50%, -10px);
+      }
+      60% {
+        transform: translate(-50%, -5px);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Dot Navigation -->
+  <div class="dot-navigation">
+    <div class="dot active" data-index="0" title="Kuapa Dwaso"></div>
+    <div class="dot" data-index="1" title="Operations Portal"></div>
+    <div class="dot" data-index="2" title="Admin Portal"></div>
+    <div class="dot" data-index="3" title="Buyer Portal"></div>
+    <div class="dot" data-index="4" title="Transport Portal"></div>
+  </div>
+
+  <!-- Section 1: Logo Presentation -->
+  <section id="section-0">
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
+          <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
+          <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
+          <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
+          <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
+          <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
+        </svg>
+      </div>
+      <h1>Kuapa Dwaso</h1>
+    </div>
+    <a class="scroll-indicator" href="#section-1">
+      <span>Scroll</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+      </svg>
+    </a>
+  </section>
+
+  <!-- Section 2: Operations Portal -->
+  <section id="section-1">
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
+          <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
+          <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
+          <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
+          <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
+          <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
+        </svg>
+      </div>
+      <h1>Kuapa Dwaso Operations Portal</h1>
+    </div>
+    <a class="scroll-indicator" href="#section-2">
+      <span>Scroll</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+      </svg>
+    </a>
+  </section>
+
+  <!-- Section 3: Admin Portal -->
+  <section id="section-2">
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
+          <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
+          <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
+          <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
+          <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
+          <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
+        </svg>
+      </div>
+      <h1>Kuapa Dwaso Admin Portal</h1>
+    </div>
+    <a class="scroll-indicator" href="#section-3">
+      <span>Scroll</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+      </svg>
+    </a>
+  </section>
+
+  <!-- Section 4: Buyer Portal -->
+  <section id="section-3">
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
+          <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
+          <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
+          <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
+          <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
+          <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
+        </svg>
+      </div>
+      <h1>Kuapa Dwaso Buyer Portal</h1>
+    </div>
+    <a class="scroll-indicator" href="#section-4">
+      <span>Scroll</span>
+      <svg viewBox="0 0 24 24">
+        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+      </svg>
+    </a>
+  </section>
+
+  <!-- Section 5: Transport Portal -->
+  <section id="section-4">
+    <div class="container">
+      <div class="logo-wrapper">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="22" cy="30" r="6" fill="#2d8a4e" opacity="0.5" />
+          <circle cx="18" cy="60" r="6" fill="#2d8a4e" opacity="0.65" />
+          <circle cx="22" cy="90" r="6" fill="#2d8a4e" opacity="0.8" />
+          <circle cx="48" cy="45" r="8" fill="#2d8a4e" opacity="0.85" />
+          <circle cx="48" cy="75" r="8" fill="#2d8a4e" opacity="0.9" />
+          <circle cx="88" cy="60" r="22" fill="#2d8a4e" />
+        </svg>
+      </div>
+      <h1>Kuapa Dwaso Transport Portal</h1>
+    </div>
+  </section>
+
+  <script>
+    // Intersection Observer to handle activation of sections and animation triggers
+    const sections = document.querySelectorAll('section');
+    const dots = document.querySelectorAll('.dot');
+
+    const observerOptions = {
+      root: null,
+      threshold: 0.5 // trigger when 50% of the section is visible
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          // Remove active class from all sections
+          sections.forEach(s => s.classList.remove('active'));
+          // Add active class to intersecting section
+          entry.target.classList.add('active');
+
+          // Update active dot in navigation
+          const index = entry.target.id.split('-')[1];
+          dots.forEach(d => d.classList.remove('active'));
+          const activeDot = document.querySelector(`.dot[data-index="${index}"]`);
+          if (activeDot) {
+            activeDot.classList.add('active');
+          }
+        }
+      });
+    }, observerOptions);
+
+    sections.forEach(section => {
+      observer.observe(section);
+    });
+
+    // Handle dot clicks for smooth scrolling
+    dots.forEach(dot => {
+      dot.addEventListener('click', () => {
+        const index = dot.getAttribute('data-index');
+        const targetSection = document.getElementById(`section-${index}`);
+        if (targetSection) {
+          targetSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    });
+
+    // Add keyboard navigation (arrow keys/space)
+    window.addEventListener('keydown', (e) => {
+      const activeSection = document.querySelector('section.active');
+      if (!activeSection) return;
+      
+      const currentIndex = parseInt(activeSection.id.split('-')[1]);
+      let targetIndex = null;
+
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') {
+        e.preventDefault();
+        if (currentIndex < sections.length - 1) {
+          targetIndex = currentIndex + 1;
+        }
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        if (currentIndex > 0) {
+          targetIndex = currentIndex - 1;
+        }
+      }
+
+      if (targetIndex !== null) {
+        const targetSection = document.getElementById(`section-${targetIndex}`);
+        if (targetSection) {
+          targetSection.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    });
+  </script>
+</body>
+</html>

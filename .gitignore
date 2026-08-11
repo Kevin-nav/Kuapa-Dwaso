@@ -7,9 +7,15 @@ dist/
 build/
 .next/
 out/
+output/
 .turbo/
 coverage/
 *.tsbuildinfo
+
+# Keep source-control history free of local video captures.
+*.mp4
+*.mov
+*.avi
 
 # Convex
 .convex/
