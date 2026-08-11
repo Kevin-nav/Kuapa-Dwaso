@@ -133,7 +133,7 @@ export const createProfile = mutation({
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(canCreateFarmerProfile(actor.role), "Actor cannot create farmer profiles.");
-    const previous = await previousClientActionResult(ctx, actor._id, args.clientActionId);
+    const previous = await previousClientActionResult(ctx, actor._id, "ops_farmer_register", args.clientActionId);
     if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"farmers">;
 
     const existingByPhone = await ctx.db

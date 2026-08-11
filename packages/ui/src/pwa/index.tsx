@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ConnectivityState } from "@kuapa-dwaso/types";
 import type { PwaSurface } from "@kuapa-dwaso/types";
-import { disableWebPush, enableWebPush, isWebPushEnabled } from "@kuapa-dwaso/utils/pwa";
+import { disableWebPush, enableWebPush, getWebPushStatus } from "@kuapa-dwaso/utils/pwa";
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
+
+function subscribeToDisplayMode(onChange: () => void): () => void {
+  const media = window.matchMedia("(display-mode: standalone)");
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+function standaloneSnapshot(): boolean {
+  return window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+}
 
 export function ConnectivityBanner({ state, pendingCount = 0 }: { state: ConnectivityState; pendingCount?: number }) {
   if (state === "online" && pendingCount === 0) return null;
@@ -19,7 +29,8 @@ export function ConnectivityBanner({ state, pendingCount = 0 }: { state: Connect
 
 export function InstallAppCard({ appName }: { appName: string }) {
   const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null);
-  const [standalone, setStandalone] = useState(() => typeof window === "undefined" ? true : window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
+  const standalone = useSyncExternalStore(subscribeToDisplayMode, standaloneSnapshot, () => true);
+  const [installedFromPrompt, setInstalledFromPrompt] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
@@ -31,7 +42,7 @@ export function InstallAppCard({ appName }: { appName: string }) {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  if (standalone) return null;
+  if (standalone || installedFromPrompt) return null;
   const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   return (
     <section style={{ padding: 16, border: "1px solid #dfe7df", borderRadius: 16, background: "#fff", display: "grid", gap: 10 }}>
@@ -41,7 +52,7 @@ export function InstallAppCard({ appName }: { appName: string }) {
         if (promptEvent !== null) {
           await promptEvent.prompt();
           const choice = await promptEvent.userChoice;
-          if (choice.outcome === "accepted") setStandalone(true);
+          if (choice.outcome === "accepted") setInstalledFromPrompt(true);
         } else setShowHelp((current) => !current);
       })(); }}>{promptEvent === null ? "How to install" : "Install app"}</button>
       {showHelp ? <small>{isIos ? "In Safari, tap Share, then Add to Home Screen." : "Use your browser menu and choose Install app or Add to home screen."}</small> : null}
@@ -97,11 +108,18 @@ export function PwaRuntime({ enabled = true }: { enabled?: boolean }) {
   return <UpdateAvailableBanner onUpdate={() => updateRegistration.waiting?.postMessage({ type: "SKIP_WAITING" })} />;
 }
 
-export function PushNotificationController({ surface, apiBaseUrl, getToken }: { surface: PwaSurface; apiBaseUrl: string | undefined; getToken: () => Promise<string> }) {
-  const [enabled, setEnabled] = useState(false);
+export function PushNotificationController({ surface, apiBaseUrl, ownerKey, getToken }: { surface: PwaSurface; apiBaseUrl: string | undefined; ownerKey: string; getToken: () => Promise<string> }) {
+  const [status, setStatus] = useState<{ ownerKey: string; enabled: boolean }>();
   const [error, setError] = useState<string>();
+  const enabled = status?.ownerKey === ownerKey && status.enabled;
   const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  useEffect(() => { if (supported) void isWebPushEnabled().then(setEnabled).catch(() => undefined); }, [supported]);
+  useEffect(() => {
+    let active = true;
+    if (supported && apiBaseUrl !== undefined && apiBaseUrl.length > 0) {
+      void getWebPushStatus({ apiBaseUrl, getToken }).then((value) => { if (active) setStatus({ ownerKey, enabled: value }); }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [apiBaseUrl, getToken, ownerKey, supported]);
   if (apiBaseUrl === undefined || apiBaseUrl.length === 0) return null;
-  return <div style={{ display: "grid", gap: 8 }}><PushNotificationSettings supported={supported} enabled={enabled} onEnable={async () => { setError(undefined); try { await enableWebPush({ apiBaseUrl, surface, getToken }); setEnabled(true); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not enable notifications."); } }} onDisable={async () => { setError(undefined); try { await disableWebPush({ apiBaseUrl, getToken }); setEnabled(false); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not disable notifications."); } }} />{error !== undefined ? <small role="alert" style={{ color: "#b42318" }}>{error}</small> : null}</div>;
+  return <div style={{ display: "grid", gap: 8 }}><PushNotificationSettings supported={supported} enabled={enabled} onEnable={async () => { setError(undefined); try { await enableWebPush({ apiBaseUrl, surface, getToken }); setStatus({ ownerKey, enabled: true }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not enable notifications."); } }} onDisable={async () => { setError(undefined); try { await disableWebPush({ apiBaseUrl, getToken }); setStatus({ ownerKey, enabled: false }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not disable notifications."); } }} />{error !== undefined ? <small role="alert" style={{ color: "#b42318" }}>{error}</small> : null}</div>;
 }

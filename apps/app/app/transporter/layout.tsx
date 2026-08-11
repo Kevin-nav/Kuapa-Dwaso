@@ -3,10 +3,13 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, IdCard, Truck, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
-import { AppConnectivity, ProductInstallCard, ProductPushSettings, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+
+const ProfilePwaTools = dynamic(() => import("../pwa/ProfilePwaTools").then((module) => module.ProfilePwaTools), { ssr: false });
 
 export default function TransporterLayout({ children }: { children: ReactNode }) {
   const { firebaseUser, principal, isLoading } = useAuth();
@@ -77,7 +80,7 @@ export default function TransporterLayout({ children }: { children: ReactNode })
 
       <WorkspaceSwitcher principal={activePrincipal} current="transporter" />
 
-      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/transporter/profile" ? <div style={{ marginTop: 20, display: "grid", gap: 14 }}><ProductInstallCard /><ProductPushSettings /></div> : null}</main>
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/transporter/profile" ? <ProfilePwaTools /> : null}</main>
       <nav className="bottom-nav">
         <Link href="/transporter" className={`nav-link ${isActive("/transporter") ? "nav-link-active" : ""}`}>
           <Home size={22} />

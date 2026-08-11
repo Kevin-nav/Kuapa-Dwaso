@@ -177,7 +177,7 @@ export const createIntake = mutation({
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(actor.role === "warehouse_agent", "Only warehouse agents can receive produce.");
-    const previous = await previousClientActionResult(ctx, actor._id, args.clientActionId);
+    const previous = await previousClientActionResult(ctx, actor._id, "ops_intake_create", args.clientActionId);
     if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"inventoryBatches">;
     const warehouseAgent = await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
     const warehouse = await ctx.db.get(args.warehouseId);

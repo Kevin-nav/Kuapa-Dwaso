@@ -308,6 +308,8 @@ spec:
           envFrom:
             - secretRef:
                 name: kuapa-dwaso-runtime
+            - secretRef:
+                name: kuapa-dwaso-notification-secrets
           readinessProbe:
             httpGet:
               path: /health

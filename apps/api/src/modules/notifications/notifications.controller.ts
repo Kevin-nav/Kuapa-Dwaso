@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Headers, Post, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Post, Query, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type { PushSubscriptionInput } from "@kuapa-dwaso/types";
+import { isApprovedWebPushEndpoint, isValidPushSubscriptionInput } from "@kuapa-dwaso/validators";
 import { getApiEnvironment } from "../../config/env.js";
 import { FirebaseAuthGuard } from "../../guards/firebase-auth.guard.js";
 import { CurrentPrincipal } from "../../lib/current-principal.js";
@@ -19,6 +20,7 @@ export class NotificationsController {
   @UseGuards(FirebaseAuthGuard)
   async subscribe(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: PushSubscriptionInput) {
     if (principal.userId === undefined) throw new UnauthorizedException("A platform profile is required.");
+    if (!isValidPushSubscriptionInput(body)) throw new BadRequestException("The browser returned an invalid push subscription.");
     const id = await this.convex.upsertPushSubscription({ actorUserId: principal.userId, surface: body.surface, endpoint: body.endpoint, endpointHash: hashEndpoint(body.endpoint), p256dh: body.keys.p256dh, auth: body.keys.auth, ...(typeof body.expirationTime === "number" ? { expirationTime: body.expirationTime } : {}) });
     return { subscriptionId: id, status: "active" as const };
   }
@@ -27,7 +29,16 @@ export class NotificationsController {
   @UseGuards(FirebaseAuthGuard)
   async unsubscribe(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: { endpoint: string }) {
     if (principal.userId === undefined) throw new UnauthorizedException("A platform profile is required.");
+    if (!isApprovedWebPushEndpoint(body.endpoint)) throw new BadRequestException("The push endpoint is invalid.");
     return { revoked: await this.convex.revokePushSubscription({ actorUserId: principal.userId, endpointHash: hashEndpoint(body.endpoint) }) };
+  }
+
+  @Get("push/subscriptions/status")
+  @UseGuards(FirebaseAuthGuard)
+  async subscriptionStatus(@CurrentPrincipal() principal: AuthPrincipal, @Query("endpointHash") endpointHash: string) {
+    if (principal.userId === undefined) throw new UnauthorizedException("A platform profile is required.");
+    if (!/^[a-f0-9]{64}$/.test(endpointHash)) throw new BadRequestException("The push endpoint hash is invalid.");
+    return { active: await this.convex.getPushSubscriptionStatus({ actorUserId: principal.userId, endpointHash }) };
   }
 
   @Post("deliveries/process")

@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import webPush from "web-push";
+import { isApprovedWebPushEndpoint } from "@kuapa-dwaso/validators";
 import { getApiEnvironment } from "../config/env.js";
 
 export type WebPushSendInput = {
@@ -15,6 +16,7 @@ export class WebPushProvider {
   }
 
   async send(input: WebPushSendInput): Promise<{ provider: "mock" | "vapid"; statusCode: number }> {
+    if (!isApprovedWebPushEndpoint(input.endpoint)) throw new Error("The Web Push endpoint is not an approved browser push service.");
     const env = getApiEnvironment().notifications;
     if (env.webPushProvider === "mock") return { provider: "mock", statusCode: 201 };
     if (env.vapidSubject === undefined || env.vapidPublicKey === undefined || env.vapidPrivateKey === undefined) throw new ServiceUnavailableException("Web Push VAPID configuration is incomplete.");

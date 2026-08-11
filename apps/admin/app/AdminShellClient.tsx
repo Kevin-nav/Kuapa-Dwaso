@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -18,6 +19,10 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
   const pathname = usePathname() || "/";
   const router = useRouter();
   const { principal, firebaseUser, signOut } = useAdminAuth();
+  const getPushToken = useCallback(async () => {
+    if (firebaseUser === null) throw new Error("Sign in again to change notification settings.");
+    return await firebaseUser.getIdToken();
+  }, [firebaseUser]);
   const actorUserId =
     principal?.role === "admin" && principal.status === "active"
       ? (principal.userId as Id<"users">)
@@ -56,7 +61,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
       showStories={effectiveAccess?.permissions.includes("blog:read") === true}
     >
       {children}
-      <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Admin" />{firebaseUser === null ? null : <PushNotificationController surface="admin" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} getToken={() => firebaseUser.getIdToken()} />}</div>
+      <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Admin" />{firebaseUser === null ? null : <PushNotificationController surface="admin" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} ownerKey={firebaseUser.uid} getToken={getPushToken} />}</div>
     </AdminShell>
   );
 }

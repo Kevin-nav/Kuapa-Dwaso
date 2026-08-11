@@ -119,7 +119,7 @@ type WarehouseContextType = {
   updateBatchCondition: (batchId: string, notes: string) => Promise<void>;
   getBatchTimeline: (batchId: string) => TimelineEvent[];
   getStorageFeeLedger: (batchId: string) => StorageFeeLedger[];
-  triggerSync: () => void;
+  triggerSync: () => Promise<void>;
 };
 
 const fallbackWarehouse: Warehouse = {
@@ -273,15 +273,6 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setDevActorUserId(getConfiguredActorUserId());
-    if (typeof window === "undefined") {
-      return;
-    }
-    const getLocal = <T,>(key: string, fallback: T): T => {
-      const value = window.localStorage.getItem(`kuapa_ops_${key}`);
-      return value === null ? fallback : (JSON.parse(value) as T);
-    };
-    setDraftIntakeState(getLocal("draftIntake", null));
-    setDraftRegistrationState(getLocal("draftRegistration", null));
   }, []);
 
   useEffect(() => {
@@ -388,18 +379,43 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   }, [actorUserId]);
 
   useEffect(() => {
-    if (actorUserId === undefined) return;
-    void Promise.all([
-      readOfflineSnapshot<any>(actorUserId, "ops", "draft-intake"),
-      readOfflineSnapshot<any>(actorUserId, "ops", "draft-registration"),
-    ]).then(([intake, registration]) => {
-      if (intake !== undefined) setDraftIntakeState(intake.data);
-      if (registration !== undefined) setDraftRegistrationState(registration.data);
+    let active = true;
+    setDraftIntakeState(null);
+    setDraftRegistrationState(null);
+    setLocalFarmers([]);
+    setLocalInventory([]);
+    setLocalDisputes([]);
+    setLocalTimelines({});
+    setLedgerByBatchId({});
+    setSyncQueue([]);
+    setActionError(undefined);
+    if (actorUserId === undefined) return () => { active = false; };
+    void (async () => {
+      const parseLegacy = (key: string): any => {
+        const value = window.localStorage.getItem(key);
+        if (value === null) return null;
+        try { return JSON.parse(value) as any; }
+        catch { return null; }
+      };
+      const legacyIntake = parseLegacy("kuapa_ops_draftIntake");
+      const legacyRegistration = parseLegacy("kuapa_ops_draftRegistration");
+      const [intake, registration, actions] = await Promise.all([
+        readOfflineSnapshot<any>(actorUserId, "ops", "draft-intake"),
+        readOfflineSnapshot<any>(actorUserId, "ops", "draft-registration"),
+        listOfflineActions(actorUserId),
+      ]);
+      const now = Date.now();
+      if (intake === undefined && legacyIntake !== null) await saveOfflineSnapshot({ schemaVersion: 1, ownerUserId: actorUserId, surface: "ops", collection: "draft-intake", savedAt: now, expiresAt: now + 30 * 24 * 60 * 60 * 1000, data: legacyIntake });
+      if (registration === undefined && legacyRegistration !== null) await saveOfflineSnapshot({ schemaVersion: 1, ownerUserId: actorUserId, surface: "ops", collection: "draft-registration", savedAt: now, expiresAt: now + 30 * 24 * 60 * 60 * 1000, data: legacyRegistration });
+      if (!active) return;
+      if (intake !== undefined || legacyIntake !== null) setDraftIntakeState(intake?.data ?? legacyIntake);
+      if (registration !== undefined || legacyRegistration !== null) setDraftRegistrationState(registration?.data ?? legacyRegistration);
+      setSyncQueue(actions.filter((item) => item.surface === "ops").map((item) => ({ id: item.clientActionId, action: item.kind === "ops_farmer_register" ? "CREATE_FARMER" : item.kind === "ops_intake_create" ? "CREATE_INTAKE" : "CREATE_DISPUTE", payload: item.payload, timestamp: item.createdAt })));
       window.localStorage.removeItem("kuapa_ops_draftIntake");
       window.localStorage.removeItem("kuapa_ops_draftRegistration");
-    }).catch(() => undefined);
-    void refreshSyncQueue();
-  }, [actorUserId, refreshSyncQueue]);
+    })().catch(() => undefined);
+    return () => { active = false; };
+  }, [actorUserId]);
 
   useEffect(() => {
     setLocalTimelines((current) => {
@@ -482,6 +498,9 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   const addIntake = useCallback(
     async (intakeData: IntakeInput) => {
       setActionError(undefined);
+      if (intakeData.farmerId.startsWith("pending:")) {
+        throw new Error("Sync the pending farmer registration before recording produce intake for that farmer.");
+      }
       const actorId = requireActor();
       const warehouseId = (intakeData.warehouseId ?? activeWarehouse.id) as Id<"warehouses">;
       const createArgs: Parameters<typeof createIntake>[0] = {
@@ -769,7 +788,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       updateBatchCondition,
       getBatchTimeline,
       getStorageFeeLedger,
-      triggerSync: () => { void triggerSync(); },
+      triggerSync,
     }),
     [
       addIntake,

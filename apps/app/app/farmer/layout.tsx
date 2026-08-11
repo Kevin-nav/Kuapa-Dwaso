@@ -4,9 +4,12 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Home, Sprout, Receipt, Wallet, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
-import { AppConnectivity, ProductInstallCard, ProductPushSettings, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+
+const ProfilePwaTools = dynamic(() => import("../pwa/ProfilePwaTools").then((module) => module.ProfilePwaTools), { ssr: false });
 
 type FarmerLayoutProps = {
   children: ReactNode;
@@ -83,7 +86,7 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
 
       <WorkspaceSwitcher principal={activePrincipal} current="farmer" />
 
-      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/farmer/profile" ? <div style={{ marginTop: 20, display: "grid", gap: 14 }}><ProductInstallCard /><ProductPushSettings /></div> : null}</main>
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/farmer/profile" ? <ProfilePwaTools /> : null}</main>
 
       <nav className="bottom-nav">
         <Link href="/farmer" className={`nav-link ${isActive("/farmer") ? "nav-link-active" : ""}`}>

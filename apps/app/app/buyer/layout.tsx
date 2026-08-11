@@ -4,9 +4,12 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { Search, ClipboardList, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
-import { AppConnectivity, ProductInstallCard, ProductPushSettings, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+
+const ProfilePwaTools = dynamic(() => import("../pwa/ProfilePwaTools").then((module) => module.ProfilePwaTools), { ssr: false });
 
 type BuyerLayoutProps = {
   children: ReactNode;
@@ -53,7 +56,7 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
       </main>
     );
   }
-  const activePrincipal = principal!;
+  const activePrincipal = principal;
 
   const isActive = (path: string) => {
     if (path === "/buyer") {
@@ -64,7 +67,7 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
 
   return (
     <>
-      <AppConnectivity ownerUserId={activePrincipal.userId} />
+      {activePrincipal === null || activePrincipal === undefined ? null : <AppConnectivity ownerUserId={activePrincipal.userId} />}
       <header className="buyer-top-navbar">
         <div className="buyer-navbar-container">
           <Link href="/buyer" className="buyer-navbar-logo-area">
@@ -84,9 +87,9 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
         </div>
       </header>
 
-      <WorkspaceSwitcher principal={activePrincipal} current="buyer" />
+      {activePrincipal === null || activePrincipal === undefined ? null : <WorkspaceSwitcher principal={activePrincipal} current="buyer" />}
 
-      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/buyer/profile" ? <div style={{ marginTop: 20, display: "grid", gap: 14 }}><ProductInstallCard /><ProductPushSettings /></div> : null}</main>
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/buyer/profile" && activePrincipal !== null && activePrincipal !== undefined ? <ProfilePwaTools /> : null}</main>
 
       {!isOnboarding && (
         <nav className="bottom-nav">

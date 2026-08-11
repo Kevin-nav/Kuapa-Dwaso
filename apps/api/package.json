@@ -16,6 +16,7 @@
     "@kuapa-dwaso/permissions": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
     "@kuapa-dwaso/utils": "workspace:*",
+    "@kuapa-dwaso/validators": "workspace:*",
     "@nestjs/common": "^11.1.27",
     "@nestjs/core": "^11.1.27",
     "@nestjs/platform-fastify": "^11.1.27",

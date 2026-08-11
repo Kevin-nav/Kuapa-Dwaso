@@ -92,7 +92,8 @@ export const create = mutation({
     await assertActorRoleMatchesUser(ctx.db, args);
     assertCanCreateDispute(args.actorRole);
     if (args.actorUserId !== undefined) {
-      const previous = await previousClientActionResult(ctx, args.actorUserId, args.clientActionId);
+      const actionKind = args.actorRole === "warehouse_agent" ? "ops_dispute_create" : "farmer_dispute_create";
+      const previous = await previousClientActionResult(ctx, args.actorUserId, actionKind, args.clientActionId);
       if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"disputes">;
     }
     if (args.actorRole === "admin") {

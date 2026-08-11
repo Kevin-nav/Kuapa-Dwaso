@@ -53,16 +53,17 @@ async function staleImage(request) {
 async function navigation(request) {
   const url = new URL(request.url);
   if (isBlocked(url)) return fetch(request);
+  const cacheable = url.pathname === "/" || url.pathname === OFFLINE_URL;
   const cache = await caches.open(PAGE_CACHE);
   try {
     const response = await Promise.race([
       fetch(request),
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3500)),
     ]);
-    if (response.ok) void cache.put(request, response.clone()).then(() => trim(PAGE_CACHE, MAX_PAGES));
+    if (response.ok && cacheable) void cache.put(request, response.clone()).then(() => trim(PAGE_CACHE, MAX_PAGES));
     return response;
   } catch {
-    return (await cache.match(request)) || (await caches.match(OFFLINE_URL));
+    return (cacheable ? await cache.match(request) : undefined) || (await caches.match(OFFLINE_URL));
   }
 }
 

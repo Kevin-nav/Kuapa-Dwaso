@@ -504,7 +504,7 @@ export const updateStatus = mutation({
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(canUpdateDispatchStatus(actor.role), "Actor cannot update dispatch status.");
-    const previous = await previousClientActionResult(ctx, actor._id, args.clientActionId);
+    const previous = await previousClientActionResult(ctx, actor._id, "transporter_dispatch_status", args.clientActionId);
     if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"dispatches">;
     const dispatch = await ctx.db.get(args.dispatchId);
     assertAllowed(dispatch !== null, "Dispatch was not found.");

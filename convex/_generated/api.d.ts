@@ -28,6 +28,7 @@ import type * as inventoryBatches from "../inventoryBatches.js";
 import type * as invitations from "../invitations.js";
 import type * as marketDeliveryRuns from "../marketDeliveryRuns.js";
 import type * as marketServiceSchedules from "../marketServiceSchedules.js";
+import type * as notificationServiceAuth from "../notificationServiceAuth.js";
 import type * as notifications from "../notifications.js";
 import type * as observabilityAccess from "../observabilityAccess.js";
 import type * as payments from "../payments.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   invitations: typeof invitations;
   marketDeliveryRuns: typeof marketDeliveryRuns;
   marketServiceSchedules: typeof marketServiceSchedules;
+  notificationServiceAuth: typeof notificationServiceAuth;
   notifications: typeof notifications;
   observabilityAccess: typeof observabilityAccess;
   payments: typeof payments;

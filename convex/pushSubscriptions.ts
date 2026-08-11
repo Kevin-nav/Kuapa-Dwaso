@@ -1,6 +1,8 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
+import { isApprovedWebPushEndpoint } from "@kuapa-dwaso/validators";
 import { assertAllowed, getActor } from "./workflowHelpers";
+import { assertNotificationServiceSecret } from "./notificationServiceAuth";
 
 const surface = v.union(v.literal("app"), v.literal("ops"), v.literal("admin"));
 
@@ -9,12 +11,13 @@ function surfaceAllowsRole(value: "app" | "ops" | "admin", role: string) {
 }
 
 export const upsert = mutation({
-  args: { actorUserId: v.id("users"), surface, endpoint: v.string(), endpointHash: v.string(), p256dh: v.string(), auth: v.string(), expirationTime: v.optional(v.number()) },
+  args: { serviceSecret: v.string(), actorUserId: v.id("users"), surface, endpoint: v.string(), endpointHash: v.string(), p256dh: v.string(), auth: v.string(), expirationTime: v.optional(v.number()) },
   returns: v.id("pushSubscriptions"),
   handler: async (ctx, args) => {
+    assertNotificationServiceSecret(args.serviceSecret);
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(surfaceAllowsRole(args.surface, actor.role), "This account cannot subscribe on this application surface.");
-    assertAllowed(args.endpoint.startsWith("https://"), "Push endpoints must use HTTPS.");
+    assertAllowed(isApprovedWebPushEndpoint(args.endpoint), "Push endpoint is not an approved browser push service.");
     const existing = await ctx.db.query("pushSubscriptions").withIndex("by_endpoint_hash", (q) => q.eq("endpointHash", args.endpointHash)).unique();
     const now = Date.now();
     if (existing !== null) {
@@ -27,9 +30,10 @@ export const upsert = mutation({
 });
 
 export const revoke = mutation({
-  args: { actorUserId: v.id("users"), endpointHash: v.string() },
+  args: { serviceSecret: v.string(), actorUserId: v.id("users"), endpointHash: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    assertNotificationServiceSecret(args.serviceSecret);
     const actor = await getActor(ctx, args.actorUserId);
     const existing = await ctx.db.query("pushSubscriptions").withIndex("by_endpoint_hash", (q) => q.eq("endpointHash", args.endpointHash)).unique();
     if (existing === null) return false;
@@ -40,12 +44,24 @@ export const revoke = mutation({
 });
 
 export const revokeByProvider = mutation({
-  args: { subscriptionId: v.id("pushSubscriptions") },
+  args: { serviceSecret: v.string(), subscriptionId: v.id("pushSubscriptions") },
   returns: v.boolean(),
   handler: async (ctx, args) => {
+    assertNotificationServiceSecret(args.serviceSecret);
     const subscription = await ctx.db.get(args.subscriptionId);
     if (subscription === null) return false;
     await ctx.db.patch(args.subscriptionId, { status: "revoked", updatedAt: Date.now() });
     return true;
+  },
+});
+
+export const getStatus = query({
+  args: { serviceSecret: v.string(), actorUserId: v.id("users"), endpointHash: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    assertNotificationServiceSecret(args.serviceSecret);
+    const actor = await getActor(ctx, args.actorUserId);
+    const subscription = await ctx.db.query("pushSubscriptions").withIndex("by_endpoint_hash", (q) => q.eq("endpointHash", args.endpointHash)).unique();
+    return subscription !== null && subscription.userId === actor._id && subscription.status === "active";
   },
 });

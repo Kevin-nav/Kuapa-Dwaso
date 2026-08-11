@@ -3,7 +3,7 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
@@ -31,6 +31,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const { signOut, firebaseUser, principal, isLoading: isAuthLoading } = useOpsAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [syncError, setSyncError] = useState<string>();
+  const getPushToken = useCallback(async () => {
+    if (firebaseUser === null) throw new Error("Sign in again to change notification settings.");
+    return await firebaseUser.getIdToken();
+  }, [firebaseUser]);
   const isAuthRoute = pathname === "/auth";
   const hasWarehouseAccess = firebaseUser !== null && principal?.role === "warehouse_agent";
 
@@ -78,9 +83,13 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   const syncStatus = getSyncStatus();
 
-  const handleSyncToggle = () => {
+  const handleSyncToggle = async () => {
+    setSyncError(undefined);
     if (process.env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK === "true") setIsOffline(!isOffline);
-    else triggerSync();
+    else {
+      try { await triggerSync(); }
+      catch (error) { setSyncError(error instanceof Error ? error.message : "Saved actions could not be retried."); }
+    }
   };
 
   // Nav configuration
@@ -136,7 +145,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           <button
             type="button"
             className={`sync-pill ${syncStatus.class}`}
-            onClick={handleSyncToggle}
+            onClick={() => void handleSyncToggle()}
             title={process.env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK === "true" ? "Toggle offline simulation" : "Retry saved actions"}
           >
             {syncStatus.icon}
@@ -292,8 +301,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
               <span>You're offline — {syncQueue.length} action{syncQueue.length !== 1 ? "s" : ""} will sync automatically when connection restores.</span>
             </div>
           )}
+          {syncError === undefined ? null : <div className="offline-banner" role="alert"><AlertTriangle size={20} /><span>{syncError} Try again when the connection is stable.</span></div>}
           {children}
-          <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Warehouse" /><PushNotificationController surface="ops" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} getToken={() => firebaseUser!.getIdToken()} /></div>
+          <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Warehouse" /><PushNotificationController surface="ops" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} ownerKey={firebaseUser!.uid} getToken={getPushToken} /></div>
         </div>
       </main>
 

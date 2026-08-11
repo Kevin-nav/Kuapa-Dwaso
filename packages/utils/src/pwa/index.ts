@@ -37,10 +37,12 @@ async function transaction<T>(storeName: string, mode: IDBTransactionMode, run: 
   return await new Promise<T>((resolve, reject) => {
     const tx = database.transaction(storeName, mode);
     const request = run(tx.objectStore(storeName));
-    request.onsuccess = () => resolve(request.result);
+    let result: T;
+    request.onsuccess = () => { result = request.result; };
     request.onerror = () => reject(request.error ?? new Error("Offline storage request failed."));
-    tx.oncomplete = () => database.close();
-    tx.onerror = () => reject(tx.error ?? new Error("Offline storage transaction failed."));
+    tx.oncomplete = () => { database.close(); resolve(result); };
+    tx.onabort = () => { database.close(); reject(tx.error ?? new Error("Offline storage transaction failed.")); };
+    tx.onerror = () => { database.close(); reject(tx.error ?? new Error("Offline storage transaction failed.")); };
   });
 }
 
@@ -185,4 +187,20 @@ export async function disableWebPush(input: { apiBaseUrl: string; getToken: () =
 export async function isWebPushEnabled(): Promise<boolean> {
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
   return (await (await navigator.serviceWorker.ready).pushManager.getSubscription()) !== null;
+}
+
+export async function getWebPushStatus(input: { apiBaseUrl: string; getToken: () => Promise<string> }): Promise<boolean> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return false;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (subscription === null) return false;
+  const token = await input.getToken();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(subscription.endpoint));
+  const endpointHash = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  const response = await fetch(`${input.apiBaseUrl.replace(/\/$/, "")}/notifications/push/subscriptions/status?endpointHash=${endpointHash}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Could not verify notification settings.");
+  const result = await response.json() as { active: boolean };
+  return result.active;
 }
