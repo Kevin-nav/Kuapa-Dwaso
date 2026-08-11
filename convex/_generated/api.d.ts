@@ -35,6 +35,7 @@ import type * as payments from "../payments.js";
 import type * as pushSubscriptions from "../pushSubscriptions.js";
 import type * as sales from "../sales.js";
 import type * as seedFirstBlog from "../seedFirstBlog.js";
+import type * as seedSecondBlog from "../seedSecondBlog.js";
 import type * as seedWesternRegions from "../seedWesternRegions.js";
 import type * as smokeCleanup from "../smokeCleanup.js";
 import type * as smsDeliveries from "../smsDeliveries.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   pushSubscriptions: typeof pushSubscriptions;
   sales: typeof sales;
   seedFirstBlog: typeof seedFirstBlog;
+  seedSecondBlog: typeof seedSecondBlog;
   seedWesternRegions: typeof seedWesternRegions;
   smokeCleanup: typeof smokeCleanup;
   smsDeliveries: typeof smsDeliveries;
