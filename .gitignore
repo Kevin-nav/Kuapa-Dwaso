@@ -7,7 +7,6 @@ dist/
 build/
 .next/
 out/
-output/
 .turbo/
 coverage/
 *.tsbuildinfo
