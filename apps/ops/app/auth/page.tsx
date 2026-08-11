@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { getAuthErrorCode, getAuthErrorMessage } from "@kuapa-dwaso/utils";
+import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import { ArrowRight, CheckCircle2, KeyRound, PackageCheck, ShieldCheck, Smartphone, Warehouse } from "lucide-react";
 import {
   RecaptchaVerifier,
@@ -21,6 +21,7 @@ export default function OpsAuthPage() {
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [status, setStatus] = useState("Warehouse agents sign in with the phone number linked by invite acceptance.");
   const [error, setError] = useState<string | undefined>();
+  const [errorCode, setErrorCode] = useState<string | undefined>();
   const [isWorking, setIsWorking] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
   const router = useRouter();
@@ -49,15 +50,22 @@ export default function OpsAuthPage() {
   const sendOtp = async (event: FormEvent) => {
     event.preventDefault();
     setError(undefined);
+    setErrorCode(undefined);
     setIsWorking(true);
     try {
-      const result = await signInWithPhoneNumber(firebaseAuth, phoneNumber.trim(), verifier());
+      const normalizedPhoneNumber = normalizeGhanaPhoneNumber(phoneNumber);
+      const result = await signInWithPhoneNumber(firebaseAuth, normalizedPhoneNumber, verifier());
       clearVerifier();
+      setPhoneNumber(normalizedPhoneNumber);
       setConfirmation(result);
       setStatus("OTP sent. Enter the SMS code to sign in.");
     } catch (err) {
       clearVerifier();
-      setError(getAuthErrorMessage(err, "send-phone-code"));
+      const code = getAuthErrorCode(err);
+      setErrorCode(code);
+      setError(err instanceof Error && code === undefined
+        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+        : getAuthErrorMessage(err, "send-phone-code"));
       setStatus("No code was sent. You can try again.");
     } finally {
       setIsWorking(false);
@@ -70,12 +78,14 @@ export default function OpsAuthPage() {
       return;
     }
     setError(undefined);
+    setErrorCode(undefined);
     setIsWorking(true);
     try {
       await confirmation.confirm(otp.trim());
       setStatus("Signed in. The ops console will use your platform principal when it resolves.");
     } catch (err) {
       const code = getAuthErrorCode(err);
+      setErrorCode(code);
       if (code === "auth/code-expired" || code === "auth/session-expired") {
         setConfirmation(null);
         setOtp("");
@@ -123,7 +133,8 @@ export default function OpsAuthPage() {
           <form className="ops-auth-card" onSubmit={(event) => void (confirmation === null ? sendOtp(event) : verifyOtp(event))}>
             <div className="ops-auth-field">
               <label htmlFor="opsPhone">Warehouse-agent phone</label>
-              <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" autoComplete="tel" placeholder="+233 00 000 0000" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
+              <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="054 123 4567 or +233 54 123 4567" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
+              <small className="ops-auth-field-help">You can enter the number with or without +233.</small>
             </div>
             {confirmation !== null ? (
               <div className="ops-auth-field">
@@ -133,7 +144,7 @@ export default function OpsAuthPage() {
             ) : null}
             <div id="ops-phone-recaptcha" />
             <p className="ops-auth-status">{status}</p>
-            {error !== undefined ? <div className="ops-auth-error" role="alert"><span>!</span><p>{error}</p></div> : null}
+            {error !== undefined ? <div className="ops-auth-error" role="alert"><span>!</span><p>{error}{errorCode !== undefined ? <small style={{ display: "block", marginTop: 5, opacity: 0.78 }}>Reference: {errorCode}</small> : null}</p></div> : null}
             <button className="ops-auth-submit" type="submit" disabled={isWorking}>{isWorking ? "Please wait…" : confirmation === null ? <>Send secure code <ArrowRight size={18} /></> : <>Verify and enter console <ArrowRight size={18} /></>}</button>
             {confirmation !== null ? <button className="ops-auth-secondary" type="button" disabled={isWorking} onClick={() => { setConfirmation(null); setOtp(""); setError(undefined); }}>Use a different number</button> : null}
             {firebaseUser !== null ? <button className="ops-auth-secondary" type="button" onClick={() => void signOut()}>Sign out current account</button> : null}

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { BuyerType } from "@kuapa-dwaso/types";
+import { normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import { sendInstitutionWelcomeEmail } from "../institutionEmailApi";
 
 export default function BuyerOnboarding() {
@@ -50,12 +51,13 @@ export default function BuyerOnboarding() {
     setError(null);
 
     try {
+      const normalizedPhoneNumber = normalizeGhanaPhoneNumber(phoneNumber);
       const buyerId = await createProfile({
         actorUserId: principal.userId as Id<"users">,
         userId: principal.userId as Id<"users">,
         fullName: fullName.trim(),
         displayName: fullName.trim(),
-        phoneNumber: phoneNumber.trim(),
+        phoneNumber: normalizedPhoneNumber,
         buyerType,
         ...(organizationName.trim() ? { organizationName: organizationName.trim() } : {}),
         ...(email.trim() ? { email: email.trim() } : {}),

@@ -35,20 +35,22 @@ export type AuthOperation =
   | "enroll-mfa";
 
 const authErrorMessages: Readonly<Record<string, string>> = {
-  "auth/app-not-authorized": "Phone verification is temporarily unavailable. Please try again later.",
-  "auth/captcha-check-failed": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/app-not-authorized": "This site is not authorized for phone verification. Please contact support.",
+  "auth/billing-not-enabled": "SMS sign-in is not available for this service. Please contact support.",
+  "auth/captcha-check-failed": "The security check could not be completed. Refresh the page and try again.",
   "auth/code-expired": "That verification code has expired. Request a new code and try again.",
   "auth/credential-already-in-use": "This sign-in method is already linked to another account.",
   "auth/email-already-in-use": "An account already exists for this email. Sign in with its current password.",
-  "auth/invalid-app-credential": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/internal-error": "The phone verification service returned an error. Please try again in a few minutes.",
+  "auth/invalid-app-credential": "The security check expired or was rejected. Refresh the page and try again.",
   "auth/invalid-credential": "The email or password is incorrect.",
   "auth/invalid-phone-number": "Enter a complete, valid phone number and try again.",
   "auth/invalid-verification-code": "That verification code is incorrect. Check the code and try again.",
-  "auth/missing-app-credential": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/missing-app-credential": "The security check did not complete. Refresh the page and try again.",
   "auth/missing-phone-number": "Enter a phone number to continue.",
   "auth/network-request-failed": "Check your internet connection and try again.",
-  "auth/operation-not-allowed": "This sign-in method is temporarily unavailable. Please try again later.",
-  "auth/quota-exceeded": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/operation-not-allowed": "Phone sign-in is not enabled for this service. Please contact support.",
+  "auth/quota-exceeded": "The SMS sending limit has been reached. Please wait and try again later.",
   "auth/session-expired": "This verification session has expired. Request a new code and try again.",
   "auth/too-many-requests": "Too many attempts were made. Wait a few minutes, then try again.",
   "auth/unauthorized-domain": "Phone verification is temporarily unavailable. Please try again later.",
@@ -63,9 +65,15 @@ export function getAuthErrorCode(error: unknown): string | undefined {
 
   while (typeof current === "object" && current !== null && !visited.has(current)) {
     visited.add(current);
-    const candidate = current as { code?: unknown; cause?: unknown };
+    const candidate = current as { code?: unknown; message?: unknown; cause?: unknown };
     if (typeof candidate.code === "string" && candidate.code.startsWith("auth/")) {
       return candidate.code;
+    }
+    if (typeof candidate.message === "string") {
+      const codeFromMessage = candidate.message.match(/auth\/[a-z0-9-]+/i)?.[0];
+      if (codeFromMessage !== undefined) {
+        return codeFromMessage.toLowerCase();
+      }
     }
     current = candidate.cause;
   }
@@ -837,6 +845,8 @@ export function normalizeE164PhoneNumber(phoneNumber: string): string {
 
   if (/^0\d{9}$/.test(digitsOnly)) {
     normalized = `+233${digitsOnly.slice(1)}`;
+  } else if (/^[1-9]\d{8}$/.test(digitsOnly)) {
+    normalized = `+233${digitsOnly}`;
   } else if (/^233\d{9}$/.test(digitsOnly)) {
     normalized = `+${digitsOnly}`;
   } else if (compact.startsWith("+")) {
@@ -853,9 +863,14 @@ export function normalizeE164PhoneNumber(phoneNumber: string): string {
 }
 
 export function normalizeGhanaPhoneNumber(phoneNumber: string): string {
-  const normalized = normalizeE164PhoneNumber(phoneNumber);
+  let normalized: string;
+  try {
+    normalized = normalizeE164PhoneNumber(phoneNumber);
+  } catch {
+    throw new Error("Ghana phone number must be entered as 054 123 4567 or +233 54 123 4567.");
+  }
   if (!/^\+233\d{9}$/.test(normalized)) {
-    throw new Error("Ghana phone number must use +233 followed by 9 digits.");
+    throw new Error("Ghana phone number must be entered as 054 123 4567 or +233 54 123 4567.");
   }
   return normalized;
 }

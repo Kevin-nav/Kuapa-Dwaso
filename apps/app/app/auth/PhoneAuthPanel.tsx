@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { getAuthErrorCode, getAuthErrorMessage } from "@kuapa-dwaso/utils";
+import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -24,6 +24,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [status, setStatus] = useState<string>("Enter a phone number to receive an OTP.");
   const [error, setError] = useState<string | undefined>();
+  const [errorCode, setErrorCode] = useState<string | undefined>();
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
@@ -45,30 +46,25 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
     return recaptchaRef.current;
   }, []);
 
-  const formatGhanaPhoneNumber = (num: string) => {
-    let cleaned = num.trim().replace(/\s+/g, "");
-    if (cleaned.startsWith("+")) {
-      return cleaned;
-    }
-    if (cleaned.startsWith("0")) {
-      cleaned = cleaned.slice(1);
-    }
-    return `+233${cleaned}`;
-  };
-
   const sendOtp = async (event?: FormEvent) => {
     event?.preventDefault();
     setError(undefined);
+    setErrorCode(undefined);
     setIsSending(true);
     try {
-      const formattedPhone = formatGhanaPhoneNumber(phoneNumber);
+      const formattedPhone = normalizeGhanaPhoneNumber(phoneNumber);
       const result = await signInWithPhoneNumber(firebaseAuth, formattedPhone, getVerifier());
       clearVerifier();
+      setPhoneNumber(formattedPhone);
       setConfirmation(result);
       setStatus("OTP sent. Enter the code from SMS.");
     } catch (err) {
       clearVerifier();
-      setError(getAuthErrorMessage(err, "send-phone-code"));
+      const code = getAuthErrorCode(err);
+      setErrorCode(code);
+      setError(err instanceof Error && code === undefined
+        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+        : getAuthErrorMessage(err, "send-phone-code"));
       setStatus("No code was sent. You can try again.");
     } finally {
       setIsSending(false);
@@ -82,6 +78,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
       return;
     }
     setError(undefined);
+    setErrorCode(undefined);
     setIsVerifying(true);
     try {
       const credential = await confirmation.confirm(otp.trim());
@@ -89,6 +86,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
       await onVerified(credential.user);
     } catch (err) {
       const code = getAuthErrorCode(err);
+      setErrorCode(code);
       if (code === "auth/code-expired" || code === "auth/session-expired") {
         setConfirmation(null);
         setOtp("");
@@ -114,20 +112,20 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
         <div className="field">
           <span className="field-label">Phone number</span>
           <div className="phone-input">
-            <span className="phone-cc">🇬🇭 +233</span>
+            <span className="phone-cc">GH</span>
             <input
               id="phoneNumber"
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="24 123 4567"
+              placeholder="054 123 4567 or +233 54 123 4567"
               value={phoneNumber}
               onChange={(event) => setPhoneNumber(event.target.value)}
               disabled={isSending}
               required
             />
           </div>
-          <span className="field-help">Standard SMS rates may apply.</span>
+          <span className="field-help">Enter it with or without +233. Standard SMS rates may apply.</span>
         </div>
       ) : (
         <>
@@ -148,7 +146,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
               </button>
             </div>
             <div className="phone-input" style={{ background: "var(--color-neutral-bg)", opacity: 0.8 }}>
-              <span className="phone-cc">🇬🇭 +233</span>
+              <span className="phone-cc">GH</span>
               <input
                 type="tel"
                 value={phoneNumber}
@@ -174,7 +172,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
 
       <div id="phone-auth-recaptcha" />
       {status && <p className="auth-status">{status}</p>}
-      {error !== undefined && <p className="auth-error">{error}</p>}
+      {error !== undefined && <p className="auth-error">{error}{errorCode !== undefined ? <small style={{ display: "block", marginTop: 4 }}>Reference: {errorCode}</small> : null}</p>}
 
       <div className="btn-row">
         <button type="submit" className="btn btn-primary" disabled={isSending || isVerifying}>

@@ -13,6 +13,10 @@ test("extracts Firebase error codes without depending on the Firebase SDK", () =
     "auth/network-request-failed",
   );
   assert.equal(getAuthErrorCode(new Error("Firebase: raw provider text")), undefined);
+  assert.equal(
+    getAuthErrorCode(new Error("Firebase: Hostname match not found (auth/captcha-check-failed).")),
+    "auth/captcha-check-failed",
+  );
 
   const circularError = {};
   const circularCause = { cause: circularError };
@@ -27,7 +31,7 @@ test("maps phone challenge failures to actionable safe messages", () => {
   );
   assert.equal(
     getAuthErrorMessage({ code: "auth/captcha-check-failed" }, "send-phone-code"),
-    "Phone verification is temporarily unavailable. Please try again later.",
+    "The security check could not be completed. Refresh the page and try again.",
   );
   assert.equal(
     getAuthErrorMessage({ code: "auth/invalid-verification-code" }, "verify-phone-code"),
@@ -46,7 +50,7 @@ test("maps throttling, network, account, and credential errors", () => {
   );
   assert.match(
     getAuthErrorMessage({ code: "auth/quota-exceeded" }, "send-mfa-code"),
-    /temporarily unavailable/,
+    /SMS sending limit/,
   );
   assert.match(
     getAuthErrorMessage({ code: "auth/network-request-failed" }, "sign-in"),
@@ -85,11 +89,11 @@ test("uses operation-specific fallbacks without leaking raw provider messages", 
   const rawError = new Error("Firebase: Hostname match not found (auth/captcha-check-failed).");
   assert.equal(
     getAuthErrorMessage(rawError, "send-phone-code"),
-    "We could not send a verification code. Please try again.",
+    "The security check could not be completed. Refresh the page and try again.",
   );
   assert.equal(
     getAuthErrorMessage(rawError, "verify-mfa-code"),
-    "We could not verify that security code. Please try again.",
+    "The security check could not be completed. Refresh the page and try again.",
   );
   assert.doesNotMatch(getAuthErrorMessage(rawError, "sign-in"), /Firebase|captcha/i);
 });

@@ -11,8 +11,10 @@ import {
 
 test("normalizes Ghana phone numbers to E.164", () => {
   assert.equal(normalizeGhanaPhoneNumber("050 000 0000"), "+233500000000");
+  assert.equal(normalizeGhanaPhoneNumber("50 000 0000"), "+233500000000");
   assert.equal(normalizeGhanaPhoneNumber("233500000000"), "+233500000000");
   assert.equal(normalizeGhanaPhoneNumber("+233 50 000 0000"), "+233500000000");
+  assert.throws(() => normalizeGhanaPhoneNumber("050 000 000"), /Ghana phone number/);
   assert.throws(() => normalizeGhanaPhoneNumber("+15555550100"), /Ghana phone number/);
 });
 

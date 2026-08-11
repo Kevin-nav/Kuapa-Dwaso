@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { getAuthErrorMessage } from "@kuapa-dwaso/utils";
+import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import type {
   MultiFactorError,
   MultiFactorResolver,
@@ -508,7 +508,7 @@ export default function AdminAuthPage() {
       const provider = new PhoneAuthProvider(firebaseAuth);
       const verificationId = await provider.verifyPhoneNumber(
         {
-          phoneNumber: mfaPhoneNumber.trim(),
+          phoneNumber: normalizeGhanaPhoneNumber(mfaPhoneNumber),
           session,
         },
         getRecaptchaVerifier(),
@@ -520,7 +520,9 @@ export default function AdminAuthPage() {
       );
     } catch (err) {
       clearRecaptchaVerifier();
-      setError(getAuthErrorMessage(err, "enroll-mfa"));
+      setError(err instanceof Error && getAuthErrorCode(err) === undefined
+        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+        : getAuthErrorMessage(err, "enroll-mfa"));
     } finally {
       setIsWorking(false);
     }
@@ -1216,9 +1218,13 @@ export default function AdminAuthPage() {
                         onChange={(event) =>
                           setMfaPhoneNumber(event.target.value)
                         }
-                        placeholder="+233..."
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder="054 123 4567 or +233 54 123 4567"
                         className="auth-input"
                       />
+                      <small style={{ color: "#6b7280" }}>You can enter the number with or without +233.</small>
                     </div>
                     {mfaEnrollmentVerificationId.length > 0 && (
                       <div className="auth-input-group">

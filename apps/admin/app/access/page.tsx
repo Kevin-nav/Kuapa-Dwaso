@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { getIdToken } from "firebase/auth";
+import { normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import { QRCodeSVG } from "qrcode.react";
 import type { User } from "firebase/auth";
 import type {
@@ -441,7 +442,7 @@ function InvitesPanel({
       };
       const phonePrimary = type === "warehouse_agent_invite" || type === "transporter_invite";
       if (channel === "email") body.targetEmail = targetEmail.trim();
-      if (phonePrimary) body.targetPhoneNumber = targetPhoneNumber.trim();
+      if (phonePrimary) body.targetPhoneNumber = normalizeGhanaPhoneNumber(targetPhoneNumber);
       if (type === "admin_invite" || type === "warehouse_manager_invite") {
         body.pendingAdminRoleAssignment = {
           roleKey: type === "warehouse_manager_invite" ? "warehouse_manager" : roleKey,
@@ -509,7 +510,7 @@ function InvitesPanel({
         </Field>
         {channel === "email" && <Field label="Delivery email"><input type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} required style={inputStyle} /></Field>}
         {(type === "warehouse_agent_invite" || type === "transporter_invite") && (
-          <Field label="Verified sign-in phone"><input type="tel" value={targetPhoneNumber} onChange={(event) => setTargetPhoneNumber(event.target.value)} required placeholder="+233..." style={inputStyle} /></Field>
+          <Field label="Verified sign-in phone"><input type="tel" inputMode="tel" autoComplete="tel" value={targetPhoneNumber} onChange={(event) => setTargetPhoneNumber(event.target.value)} required placeholder="054 123 4567 or +233 54 123 4567" style={inputStyle} /></Field>
         )}
         {(type === "admin_invite" || type === "warehouse_manager_invite") && (
           <>

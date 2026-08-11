@@ -11,6 +11,7 @@ import type { Doc, Id } from "../../../../convex/_generated/dataModel";
 import { useWarehouse } from "../context/WarehouseContext";
 import { GHANA_REGIONS, COMMUNITIES_BY_REGION } from "@kuapa-dwaso/types";
 import type { GhanaRegion } from "@kuapa-dwaso/types";
+import { normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import { 
   UserSearch, 
   Plus, 
@@ -187,9 +188,10 @@ export default function FarmersPage() {
       err = "Farmer full name is required";
     }
     if (field === "phoneNumber") {
-      const digits = value.replace(/\D/g, "");
-      if (digits.length < 9) {
-        err = "Enter a valid phone number (at least 9 digits)";
+      try {
+        normalizeGhanaPhoneNumber(String(value));
+      } catch {
+        err = "Enter 054 123 4567 or +233 54 123 4567";
       }
     }
     if (field === "ownerName" && formData.belongsToOther && !value.trim()) {
@@ -226,8 +228,12 @@ export default function FarmersPage() {
     if (!formData.fullName.trim()) newErrors.fullName = "Farmer name is required";
     if (!formData.community) newErrors.community = "Community is required";
     
-    const phoneDigits = formData.phoneNumber.replace(/\D/g, "");
-    if (phoneDigits.length < 9) newErrors.phoneNumber = "Enter a valid phone number";
+    let normalizedPhoneNumber = "";
+    try {
+      normalizedPhoneNumber = normalizeGhanaPhoneNumber(formData.phoneNumber);
+    } catch {
+      newErrors.phoneNumber = "Enter 054 123 4567 or +233 54 123 4567";
+    }
     
     if (formData.belongsToOther && !formData.ownerName.trim()) {
       newErrors.ownerName = "Owner name is required";
@@ -243,7 +249,7 @@ export default function FarmersPage() {
 
     const registrationPayload: any = {
       fullName: formData.fullName,
-      phoneNumber: `+233${phoneDigits.slice(-9)}`,
+      phoneNumber: normalizedPhoneNumber,
       community: formData.community,
       region: formData.region,
       preferredWarehouseId: formData.preferredWarehouseId || activeWarehouse.id
