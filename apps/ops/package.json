@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "node ../../packages/test-utils/src/next-with-root-env.mjs dev --port 3003",
+    "dev:pwa": "cross-env NEXT_PUBLIC_PWA_DEV=true node ../../packages/test-utils/src/next-with-root-env.mjs dev --experimental-https --port 3003",
     "build": "node ../../packages/test-utils/src/next-with-root-env.mjs build",
     "start": "next start",
     "lint": "eslint .",
@@ -15,6 +16,7 @@
     "@kuapa-dwaso/design-tokens": "workspace:*",
     "@kuapa-dwaso/permissions": "workspace:*",
     "@kuapa-dwaso/types": "workspace:*",
+    "@kuapa-dwaso/ui": "workspace:*",
     "@kuapa-dwaso/utils": "workspace:*",
     "@next/env": "^16.2.9",
     "convex": "1.41.0",
@@ -30,6 +32,7 @@
     "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "cross-env": "^7.0.3",
     "typescript": "^6.0.3"
   }
 }

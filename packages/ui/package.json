@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": "./src/index.tsx",
+    "./pwa": "./src/pwa/index.tsx"
   },
   "files": [
     "dist",
@@ -18,7 +19,9 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@kuapa-dwaso/design-tokens": "workspace:*"
+    "@kuapa-dwaso/design-tokens": "workspace:*",
+    "@kuapa-dwaso/types": "workspace:*",
+    "@kuapa-dwaso/utils": "workspace:*"
   },
   "devDependencies": {
     "@kuapa-dwaso/eslint-config": "workspace:*",

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "node ../../packages/test-utils/src/next-with-root-env.mjs dev --port 3002",
+    "dev:pwa": "cross-env NEXT_PUBLIC_PWA_DEV=true node ../../packages/test-utils/src/next-with-root-env.mjs dev --experimental-https --port 3002",
     "build": "node ../../packages/test-utils/src/next-with-root-env.mjs build",
     "start": "next start",
     "lint": "eslint .",
@@ -33,6 +34,7 @@
     "@types/node": "^26.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "cross-env": "^7.0.3",
     "typescript": "^6.0.3"
   }
 }

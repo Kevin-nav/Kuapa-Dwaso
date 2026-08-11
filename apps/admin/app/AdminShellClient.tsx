@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { AdminShell } from "@kuapa-dwaso/dashboard-ui";
+import { InstallAppCard, PushNotificationController } from "@kuapa-dwaso/ui/pwa";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useAdminAuth } from "./auth/AdminAuthProvider";
@@ -16,7 +17,7 @@ type AdminShellClientProps = {
 export function AdminShellClient({ children }: AdminShellClientProps) {
   const pathname = usePathname() || "/";
   const router = useRouter();
-  const { principal, signOut } = useAdminAuth();
+  const { principal, firebaseUser, signOut } = useAdminAuth();
   const actorUserId =
     principal?.role === "admin" && principal.status === "active"
       ? (principal.userId as Id<"users">)
@@ -55,6 +56,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
       showStories={effectiveAccess?.permissions.includes("blog:read") === true}
     >
       {children}
+      <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Admin" />{firebaseUser === null ? null : <PushNotificationController surface="admin" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} getToken={() => firebaseUser.getIdToken()} />}</div>
     </AdminShell>
   );
 }

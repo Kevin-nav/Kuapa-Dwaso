@@ -22,6 +22,7 @@
     "benchmark:performance": "pnpm --filter @kuapa-dwaso/test-utils benchmark:performance",
     "benchmark:profiles": "pnpm --filter @kuapa-dwaso/test-utils benchmark:profiles",
     "benchmark:compare": "pnpm --filter @kuapa-dwaso/test-utils benchmark:compare",
+    "pwa:verify": "pnpm --filter @kuapa-dwaso/test-utils pwa:verify",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",

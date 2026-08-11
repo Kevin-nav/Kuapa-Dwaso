@@ -9,6 +9,62 @@ export type MarketplaceRole = (typeof marketplaceRoles)[number];
 
 export type MarketplaceAudience = "public" | MarketplaceRole;
 
+export const pwaSurfaces = ["app", "ops", "admin"] as const;
+export type PwaSurface = (typeof pwaSurfaces)[number];
+
+export const selfServiceWorkspaces = ["farmer", "buyer", "transporter"] as const;
+export type SelfServiceWorkspace = (typeof selfServiceWorkspaces)[number];
+
+export type OfflineSnapshot<T> = {
+  schemaVersion: 1;
+  ownerUserId: string;
+  surface: PwaSurface;
+  collection: string;
+  savedAt: number;
+  expiresAt: number;
+  data: T;
+};
+
+export const offlineActionKinds = [
+  "farmer_dispute_create",
+  "ops_farmer_register",
+  "ops_intake_create",
+  "ops_dispute_create",
+  "transporter_dispatch_status",
+  "transporter_proof_upload",
+] as const;
+export type OfflineActionKind = (typeof offlineActionKinds)[number];
+
+export const offlineActionStates = ["pending", "syncing", "needs_attention", "completed"] as const;
+export type OfflineActionState = (typeof offlineActionStates)[number];
+
+export type OfflineOutboxItem<T = Record<string, unknown>> = {
+  schemaVersion: 1;
+  clientActionId: string;
+  ownerUserId: string;
+  surface: "app" | "ops";
+  workspace: "farmer" | "transporter" | "warehouse_agent";
+  kind: OfflineActionKind;
+  payload: T;
+  attachmentIds: string[];
+  expectedEntityStatus?: string;
+  createdAt: number;
+  attemptCount: number;
+  state: OfflineActionState;
+  lastError?: string;
+};
+
+export type PushSubscriptionInput = {
+  surface: PwaSurface;
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: { p256dh: string; auth: string };
+};
+
+export type PushSubscriptionStatus = "active" | "revoked";
+export type WebPushDeliveryStatus = "pending" | "processing" | "sent" | "failed";
+export type ConnectivityState = "online" | "limited" | "offline";
+
 export type HealthStatus = "ok";
 
 export type HealthCheckResponse = {

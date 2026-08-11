@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Home, Sprout, Receipt, Wallet, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
+import { AppConnectivity, ProductInstallCard, ProductPushSettings, WorkspaceSwitcher } from "../pwa/AppPwaTools";
 
 type FarmerLayoutProps = {
   children: ReactNode;
@@ -49,6 +50,7 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
       </main>
     );
   }
+  const activePrincipal = principal!;
 
   const isActive = (path: string) => {
     if (path === "/farmer") {
@@ -59,6 +61,7 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
 
   return (
     <>
+      <AppConnectivity ownerUserId={activePrincipal.userId} />
       <header className="farmer-top-navbar">
         <div className="farmer-navbar-container">
           <Link href="/farmer" className="farmer-navbar-logo-area">
@@ -78,7 +81,9 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
         </div>
       </header>
 
-      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}</main>
+      <WorkspaceSwitcher principal={activePrincipal} current="farmer" />
+
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/farmer/profile" ? <div style={{ marginTop: 20, display: "grid", gap: 14 }}><ProductInstallCard /><ProductPushSettings /></div> : null}</main>
 
       <nav className="bottom-nav">
         <Link href="/farmer" className={`nav-link ${isActive("/farmer") ? "nav-link-active" : ""}`}>

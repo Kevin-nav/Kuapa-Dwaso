@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import test from "node:test";
+
+const repoRoot = resolve(import.meta.dirname, "../../..");
+const surfaces = ["app", "ops", "admin"];
+
+function pngDimensions(buffer) {
+  assert.equal(buffer.subarray(1, 4).toString("ascii"), "PNG");
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+for (const surface of surfaces) {
+  test(`${surface} has a scoped installable manifest`, async () => {
+    const source = await readFile(resolve(repoRoot, `apps/${surface}/app/manifest.ts`), "utf8");
+    assert.match(source, /id: "\/"/);
+    assert.match(source, /scope: "\/"/);
+    assert.match(source, /display: "standalone"/);
+    assert.match(source, /icon-maskable-512\.png/);
+  });
+
+  test(`${surface} PWA icons have declared dimensions`, async () => {
+    for (const size of [192, 512]) {
+      for (const prefix of ["icon", "icon-maskable"]) {
+        const image = await readFile(resolve(repoRoot, `apps/${surface}/public/pwa/${prefix}-${size}.png`));
+        assert.deepEqual(pngDimensions(image), { width: size, height: size });
+      }
+    }
+    const apple = await readFile(resolve(repoRoot, `apps/${surface}/public/pwa/apple-touch-icon.png`));
+    assert.deepEqual(pngDimensions(apple), { width: 180, height: 180 });
+  });
+
+  test(`${surface} service worker excludes sensitive traffic`, async () => {
+    const source = await readFile(resolve(repoRoot, `apps/${surface}/public/sw.js`), "utf8");
+    assert.match(source, /_rsc/);
+    assert.match(source, /SKIP_WAITING/);
+    assert.match(source, /notificationclick/);
+  });
+}
+
+test("the public site stays non-installable", async () => {
+  await assert.rejects(readFile(resolve(repoRoot, "apps/www/app/manifest.ts"), "utf8"));
+});
