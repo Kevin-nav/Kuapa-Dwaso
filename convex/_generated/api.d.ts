@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as blogPosts from "../blogPosts.js";
 import type * as buyerOrders from "../buyerOrders.js";
 import type * as buyers from "../buyers.js";
+import type * as clientActions from "../clientActions.js";
 import type * as crons from "../crons.js";
 import type * as deadlineNotifications from "../deadlineNotifications.js";
 import type * as dispatches from "../dispatches.js";
@@ -30,6 +31,7 @@ import type * as marketServiceSchedules from "../marketServiceSchedules.js";
 import type * as notifications from "../notifications.js";
 import type * as observabilityAccess from "../observabilityAccess.js";
 import type * as payments from "../payments.js";
+import type * as pushSubscriptions from "../pushSubscriptions.js";
 import type * as sales from "../sales.js";
 import type * as seedFirstBlog from "../seedFirstBlog.js";
 import type * as seedWesternRegions from "../seedWesternRegions.js";
@@ -41,6 +43,7 @@ import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as warehouseAgents from "../warehouseAgents.js";
 import type * as warehouses from "../warehouses.js";
+import type * as webPushDeliveries from "../webPushDeliveries.js";
 import type * as workflowHelpers from "../workflowHelpers.js";
 
 import type {
@@ -57,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   blogPosts: typeof blogPosts;
   buyerOrders: typeof buyerOrders;
   buyers: typeof buyers;
+  clientActions: typeof clientActions;
   crons: typeof crons;
   deadlineNotifications: typeof deadlineNotifications;
   dispatches: typeof dispatches;
@@ -72,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   observabilityAccess: typeof observabilityAccess;
   payments: typeof payments;
+  pushSubscriptions: typeof pushSubscriptions;
   sales: typeof sales;
   seedFirstBlog: typeof seedFirstBlog;
   seedWesternRegions: typeof seedWesternRegions;
@@ -83,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   warehouseAgents: typeof warehouseAgents;
   warehouses: typeof warehouses;
+  webPushDeliveries: typeof webPushDeliveries;
   workflowHelpers: typeof workflowHelpers;
 }>;
 

@@ -54,6 +54,10 @@ export type ApiEnvironment = {
   };
   notifications: {
     deliverySecret?: string;
+    webPushProvider: "mock" | "vapid";
+    vapidSubject?: string;
+    vapidPublicKey?: string;
+    vapidPrivateKey?: string;
   };
 };
 
@@ -179,10 +183,14 @@ export function getApiEnvironment(): ApiEnvironment {
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;
   const productAppUrl = process.env.PRODUCT_APP_URL;
-  const notifications: ApiEnvironment["notifications"] = {};
+  const requestedWebPushProvider = process.env.WEB_PUSH_PROVIDER ?? "mock";
+  const notifications: ApiEnvironment["notifications"] = { webPushProvider: requestedWebPushProvider === "vapid" ? "vapid" : "mock" };
   if (process.env.NOTIFICATION_DELIVERY_SECRET !== undefined) {
     notifications.deliverySecret = process.env.NOTIFICATION_DELIVERY_SECRET;
   }
+  if (process.env.WEB_PUSH_VAPID_SUBJECT !== undefined) notifications.vapidSubject = process.env.WEB_PUSH_VAPID_SUBJECT;
+  if (process.env.WEB_PUSH_VAPID_PUBLIC_KEY !== undefined) notifications.vapidPublicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+  if (process.env.WEB_PUSH_VAPID_PRIVATE_KEY !== undefined) notifications.vapidPrivateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
 
   const rawAllowedOrigins = process.env.API_CORS_ALLOWED_ORIGINS;
   const allowedOrigins = rawAllowedOrigins

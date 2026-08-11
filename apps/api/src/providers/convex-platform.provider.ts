@@ -212,6 +212,9 @@ type ClaimedSmsNotification = {
   idempotencyKey: string;
 };
 
+type PushSubscriptionArgs = { actorUserId: string; surface: "app" | "ops" | "admin"; endpoint: string; endpointHash: string; p256dh: string; auth: string; expirationTime?: number };
+type ClaimedPushDelivery = { deliveryId: string; subscriptionId: string; endpoint: string; keys: { p256dh: string; auth: string }; actionUrl: string; idempotencyKey: string };
+
 const createInvitation = makeFunctionReference<
   "mutation",
   CreateInvitationArgs,
@@ -265,6 +268,12 @@ const claimPendingSmsDeliveries = makeFunctionReference<
   ClaimPendingSmsDeliveriesArgs,
   ClaimedSmsNotification[]
 >("notifications:claimPendingSmsDeliveries");
+
+const upsertPushSubscription = makeFunctionReference<"mutation", PushSubscriptionArgs, string>("pushSubscriptions:upsert");
+const revokePushSubscription = makeFunctionReference<"mutation", { actorUserId: string; endpointHash: string }, boolean>("pushSubscriptions:revoke");
+const revokePushSubscriptionByProvider = makeFunctionReference<"mutation", { subscriptionId: string }, boolean>("pushSubscriptions:revokeByProvider");
+const claimPendingPushDeliveries = makeFunctionReference<"mutation", { limit?: number; retryProcessingBefore?: number }, ClaimedPushDelivery[]>("webPushDeliveries:claimPending");
+const updatePushDeliveryStatus = makeFunctionReference<"mutation", { deliveryId: string; status: "sent" | "failed"; error?: string }, string>("webPushDeliveries:updateStatus");
 
 const getPendingInvitationByTokenHash = makeFunctionReference<
   "query",
@@ -361,6 +370,12 @@ export class ConvexPlatformProvider {
   async claimPendingSmsDeliveries(args: ClaimPendingSmsDeliveriesArgs): Promise<ClaimedSmsNotification[]> {
     return await this.getClient().mutation(claimPendingSmsDeliveries, args);
   }
+
+  async upsertPushSubscription(args: PushSubscriptionArgs): Promise<string> { return await this.getClient().mutation(upsertPushSubscription, args); }
+  async revokePushSubscription(args: { actorUserId: string; endpointHash: string }): Promise<boolean> { return await this.getClient().mutation(revokePushSubscription, args); }
+  async revokePushSubscriptionByProvider(subscriptionId: string): Promise<boolean> { return await this.getClient().mutation(revokePushSubscriptionByProvider, { subscriptionId }); }
+  async claimPendingPushDeliveries(args: { limit?: number; retryProcessingBefore?: number }): Promise<ClaimedPushDelivery[]> { return await this.getClient().mutation(claimPendingPushDeliveries, args); }
+  async updatePushDeliveryStatus(args: { deliveryId: string; status: "sent" | "failed"; error?: string }): Promise<string> { return await this.getClient().mutation(updatePushDeliveryStatus, args); }
 
   async getInstitutionWelcomeEmailContext(args: { actorUserId: string; buyerId: string }): Promise<InstitutionWelcomeContext | null> {
     return await this.getClient().query(getInstitutionWelcomeEmailContext, args);

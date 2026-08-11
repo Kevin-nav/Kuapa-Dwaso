@@ -43,3 +43,27 @@ spec:
                 limits:
                   cpu: 100m
                   memory: 128Mi
+            - name: web-push-delivery
+              image: curlimages/curl:8.15.0
+              args:
+                - --fail-with-body
+                - --silent
+                - --show-error
+                - --request
+                - POST
+                - --header
+                - "x-notification-delivery-secret: $(NOTIFICATION_DELIVERY_SECRET)"
+                - http://api:4000/notifications/deliveries/process
+              env:
+                - name: NOTIFICATION_DELIVERY_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: kuapa-dwaso-runtime
+                      key: NOTIFICATION_DELIVERY_SECRET
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi

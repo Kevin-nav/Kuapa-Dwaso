@@ -98,6 +98,7 @@ export async function insertNotificationRecord(
     deduplicationKey?: string | undefined;
     escalationLevel?: number | undefined;
     expiresAt?: number | undefined;
+    pushEligible?: boolean | undefined;
   },
 ): Promise<Id<"notifications">> {
   if (args.deduplicationKey !== undefined && args.recipientUserId !== undefined) {
@@ -112,11 +113,30 @@ export async function insertNotificationRecord(
       return active._id;
     }
   }
-  return await ctx.db.insert("notifications", omitUndefinedValues({
+  const pushEligible = args.pushEligible ?? (args.channel === "in_app" && args.recipientUserId !== undefined && args.messageKind !== "promotional");
+  const notificationId = await ctx.db.insert("notifications", omitUndefinedValues({
     ...args,
+    pushEligible,
     status: "pending",
     createdAt: Date.now(),
   }));
+  if (pushEligible && args.recipientUserId !== undefined) {
+    const surface = args.recipientRole === "warehouse_agent" ? "ops" : args.recipientRole === "admin" ? "admin" : "app";
+    const subscriptions = await ctx.db.query("pushSubscriptions").withIndex("by_user_surface_status", (q) => q.eq("userId", args.recipientUserId!).eq("surface", surface).eq("status", "active")).collect();
+    const now = Date.now();
+    for (const subscription of subscriptions) {
+      await ctx.db.insert("webPushDeliveries", {
+        notificationId,
+        subscriptionId: subscription._id,
+        status: "pending",
+        idempotencyKey: `web-push:${notificationId}:${subscription._id}`,
+        attemptCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+  return notificationId;
 }
 
 export const createRecord = mutation({
@@ -140,6 +160,7 @@ export const createRecord = mutation({
     deduplicationKey: v.optional(v.string()),
     escalationLevel: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
+    pushEligible: v.optional(v.boolean()),
   },
   returns: v.id("notifications"),
   handler: async (ctx, args) => {
