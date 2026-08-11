@@ -9,6 +9,18 @@ const marketplaceRole = v.union(
   v.literal("admin"),
 );
 
+const pwaSurface = v.union(v.literal("app"), v.literal("ops"), v.literal("admin"));
+const offlineActionKind = v.union(
+  v.literal("farmer_dispute_create"),
+  v.literal("ops_farmer_register"),
+  v.literal("ops_intake_create"),
+  v.literal("ops_dispute_create"),
+  v.literal("transporter_dispatch_status"),
+  v.literal("transporter_proof_upload"),
+);
+const pushSubscriptionStatus = v.union(v.literal("active"), v.literal("revoked"));
+const webPushDeliveryStatus = v.union(v.literal("pending"), v.literal("processing"), v.literal("sent"), v.literal("failed"));
+
 const userStatus = v.union(
   v.literal("pending"),
   v.literal("active"),
@@ -1234,6 +1246,7 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     sentAt: v.optional(v.number()),
     readAt: v.optional(v.number()),
+    pushEligible: v.optional(v.boolean()),
   })
     .index("by_recipient_status", ["recipientUserId", "status"])
     .index("by_role_status", ["recipientRole", "status"])
@@ -1244,6 +1257,45 @@ export default defineSchema({
     ])
     .index("by_market_delivery_run", ["marketDeliveryRunId"])
     .index("by_related_entity", ["relatedEntityType", "relatedEntityId"]),
+
+  clientActionReceipts: defineTable({
+    actorUserId: v.id("users"),
+    clientActionId: v.string(),
+    actionKind: offlineActionKind,
+    resultEntityId: v.optional(v.string()),
+    completedAt: v.number(),
+  }).index("by_actor_client_action", ["actorUserId", "clientActionId"]),
+
+  pushSubscriptions: defineTable({
+    userId: v.id("users"),
+    surface: pwaSurface,
+    endpoint: v.string(),
+    endpointHash: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    expirationTime: v.optional(v.number()),
+    status: pushSubscriptionStatus,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_endpoint_hash", ["endpointHash"])
+    .index("by_user_surface_status", ["userId", "surface", "status"]),
+
+  webPushDeliveries: defineTable({
+    notificationId: v.id("notifications"),
+    subscriptionId: v.id("pushSubscriptions"),
+    status: webPushDeliveryStatus,
+    idempotencyKey: v.string(),
+    attemptCount: v.number(),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    sentAt: v.optional(v.number()),
+  })
+    .index("by_status_created_at", ["status", "createdAt"])
+    .index("by_notification_subscription", ["notificationId", "subscriptionId"])
+    .index("by_idempotency_key", ["idempotencyKey"]),
 
   smsDeliveries: defineTable({
     provider: smsProvider,

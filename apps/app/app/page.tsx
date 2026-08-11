@@ -1,27 +1,37 @@
 "use client";
 
-import { useEffect } from "react";
-import type { MarketplaceAudience } from "@kuapa-dwaso/types";
+import { useEffect, useState } from "react";
+import type { SelfServiceWorkspace } from "@kuapa-dwaso/types";
+import { readWorkspacePreference, resolveSelfServiceWorkspace } from "@kuapa-dwaso/utils/pwa";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth/AuthProvider";
-
-const audience: MarketplaceAudience = "farmer";
+import { ProductInstallCard } from "./pwa/AppPwaTools";
 
 export default function ProductHomePage() {
   const { firebaseUser, principal, isLoading, signOut } = useAuth();
   const router = useRouter();
+  const [workspacePreference, setWorkspacePreference] = useState<{ ownerUserId?: string; workspace?: SelfServiceWorkspace }>({});
 
-  const workspacePath = resolveWorkspacePath(principal);
+  const savedWorkspace = principal !== null && principal !== undefined && workspacePreference.ownerUserId === principal.userId ? workspacePreference.workspace : undefined;
+  const workspaceLoaded = principal === null || (principal !== undefined && workspacePreference.ownerUserId === principal.userId);
+  const workspacePath = resolveWorkspacePath(principal, savedWorkspace);
 
   useEffect(() => {
-    if (!isLoading && firebaseUser !== null && workspacePath !== undefined) {
+    if (principal === null || principal === undefined) return;
+    let mounted = true;
+    void readWorkspacePreference(principal.userId).then((workspace) => { if (mounted) setWorkspacePreference({ ownerUserId: principal.userId, ...(workspace === undefined ? {} : { workspace }) }); }).catch(() => { if (mounted) setWorkspacePreference({ ownerUserId: principal.userId }); });
+    return () => { mounted = false; };
+  }, [principal]);
+
+  useEffect(() => {
+    if (!isLoading && workspaceLoaded && firebaseUser !== null && workspacePath !== undefined) {
       if (workspacePath.startsWith("http")) window.location.assign(workspacePath);
       else router.replace(workspacePath);
     }
-  }, [isLoading, firebaseUser, workspacePath, router]);
+  }, [isLoading, workspaceLoaded, firebaseUser, workspacePath, router]);
 
-  if (isLoading) {
+  if (isLoading || (firebaseUser !== null && !workspaceLoaded)) {
     return (
       <main className="page-shell">
         <section className="intro">
@@ -40,7 +50,7 @@ export default function ProductHomePage() {
   return (
     <main className="page-shell">
       <section className="intro">
-        <p className="eyebrow">{audience} portal</p>
+        <p className="eyebrow">Your marketplace workspace</p>
         <h1 style={{ fontSize: "2.25rem", color: "var(--color-ink)" }}>KuapaDwaso Warehouse Network</h1>
         <p style={{ maxWidth: "480px", margin: "0 auto 32px" }}>
           Create the account that matches your work, or return directly to your own workspace.
@@ -85,19 +95,19 @@ export default function ProductHomePage() {
             </Link>
           </div>
         )}
+        <ProductInstallCard />
       </section>
     </main>
   );
 }
 
-function resolveWorkspacePath(principal: ReturnType<typeof useAuth>["principal"]): string | undefined {
+function resolveWorkspacePath(principal: ReturnType<typeof useAuth>["principal"], savedWorkspace?: SelfServiceWorkspace): string | undefined {
   if (principal == null) return undefined;
   const profileTypes = new Set(principal.profiles.map((profile) => profile.profileType));
   if (principal.role === "admin" || profileTypes.has("admin")) return externalWorkspace("admin");
   if (principal.role === "warehouse_agent" || profileTypes.has("warehouse_agent")) return externalWorkspace("ops");
-  if (principal.role === "buyer" || profileTypes.has("buyer")) return "/buyer";
-  if (principal.role === "transporter" || profileTypes.has("transporter")) return "/transporter";
-  if (principal.role === "farmer" || profileTypes.has("farmer")) return "/farmer";
+  const workspace = resolveSelfServiceWorkspace(principal, savedWorkspace);
+  if (workspace !== undefined) return `/${workspace}`;
   return undefined;
 }
 

@@ -19,6 +19,7 @@ import type {
   Warehouse,
   WarehouseAgent,
 } from "@kuapa-dwaso/types";
+import { classifyOfflineError, createClientActionId, enqueueOfflineAction, listOfflineActions, readOfflineSnapshot, removeOfflineAction, saveOfflineSnapshot, updateOfflineAction } from "@kuapa-dwaso/utils/pwa";
 
 export type Dispute = {
   id: string;
@@ -260,10 +261,12 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   const actorUserId = principal?.role === "warehouse_agent" ? principal.userId : devActorUserId;
   const [activeWarehouseId, setActiveWarehouseId] = useState<string | undefined>();
   const [isOffline, setIsOffline] = useState(false);
-  const [syncQueue] = useState<SyncAction[]>([]);
+  const [syncQueue, setSyncQueue] = useState<SyncAction[]>([]);
   const [draftIntake, setDraftIntakeState] = useState<any>(null);
   const [draftRegistration, setDraftRegistrationState] = useState<any>(null);
   const [localDisputes, setLocalDisputes] = useState<Dispute[]>([]);
+  const [localFarmers, setLocalFarmers] = useState<Farmer[]>([]);
+  const [localInventory, setLocalInventory] = useState<InventoryBatch[]>([]);
   const [localTimelines, setLocalTimelines] = useState<Record<string, TimelineEvent[]>>({});
   const [ledgerByBatchId, setLedgerByBatchId] = useState<Record<string, StorageFeeLedger[]>>({});
   const [actionError, setActionError] = useState<string | undefined>();
@@ -279,14 +282,15 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
     };
     setDraftIntakeState(getLocal("draftIntake", null));
     setDraftRegistrationState(getLocal("draftRegistration", null));
-    setIsOffline(getLocal("isOffline", false));
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("kuapa_ops_isOffline", JSON.stringify(isOffline));
-    }
-  }, [isOffline]);
+    const update = () => setIsOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
 
   const typedActorUserId = actorUserId as Id<"users"> | undefined;
   const agent = useQuery(
@@ -366,8 +370,8 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
   const updateInventoryStatus = useMutation(api.inventoryBatches.updateStatus);
   const createDisputeMutation = useMutation(api.disputes.create);
 
-  const farmers = useMemo(() => (farmerDocs ?? []).map(toFarmer), [farmerDocs]);
-  const inventory = useMemo(() => (inventoryDocs ?? []).map(toInventoryBatch), [inventoryDocs]);
+  const farmers = useMemo(() => [...localFarmers, ...(farmerDocs ?? []).map(toFarmer)], [farmerDocs, localFarmers]);
+  const inventory = useMemo(() => [...localInventory, ...(inventoryDocs ?? []).map(toInventoryBatch)], [inventoryDocs, localInventory]);
   const storageRateRules = useMemo(
     () => (storageRateRuleDocs ?? []).map(toStorageRateRule),
     [storageRateRuleDocs],
@@ -376,6 +380,26 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
     () => (agent === undefined || agent === null ? fallbackAgent : toWarehouseAgent(agent)),
     [agent],
   );
+
+  const refreshSyncQueue = useCallback(async () => {
+    if (actorUserId === undefined) return;
+    const items = await listOfflineActions(actorUserId);
+    setSyncQueue(items.filter((item) => item.surface === "ops").map((item) => ({ id: item.clientActionId, action: item.kind === "ops_farmer_register" ? "CREATE_FARMER" : item.kind === "ops_intake_create" ? "CREATE_INTAKE" : "CREATE_DISPUTE", payload: item.payload, timestamp: item.createdAt })));
+  }, [actorUserId]);
+
+  useEffect(() => {
+    if (actorUserId === undefined) return;
+    void Promise.all([
+      readOfflineSnapshot<any>(actorUserId, "ops", "draft-intake"),
+      readOfflineSnapshot<any>(actorUserId, "ops", "draft-registration"),
+    ]).then(([intake, registration]) => {
+      if (intake !== undefined) setDraftIntakeState(intake.data);
+      if (registration !== undefined) setDraftRegistrationState(registration.data);
+      window.localStorage.removeItem("kuapa_ops_draftIntake");
+      window.localStorage.removeItem("kuapa_ops_draftRegistration");
+    }).catch(() => undefined);
+    void refreshSyncQueue();
+  }, [actorUserId, refreshSyncQueue]);
 
   useEffect(() => {
     setLocalTimelines((current) => {
@@ -391,17 +415,13 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
 
   const setDraftIntake = useCallback((draft: any) => {
     setDraftIntakeState(draft);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("kuapa_ops_draftIntake", JSON.stringify(draft));
-    }
-  }, []);
+    if (actorUserId !== undefined) void saveOfflineSnapshot({ schemaVersion: 1, ownerUserId: actorUserId, surface: "ops", collection: "draft-intake", savedAt: Date.now(), expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, data: draft }).catch(() => undefined);
+  }, [actorUserId]);
 
   const setDraftRegistration = useCallback((draft: any) => {
     setDraftRegistrationState(draft);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("kuapa_ops_draftRegistration", JSON.stringify(draft));
-    }
-  }, []);
+    if (actorUserId !== undefined) void saveOfflineSnapshot({ schemaVersion: 1, ownerUserId: actorUserId, surface: "ops", collection: "draft-registration", savedAt: Date.now(), expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, data: draft }).catch(() => undefined);
+  }, [actorUserId]);
 
   const requireActor = useCallback((): Id<"users"> => {
     if (typedActorUserId === undefined) {
@@ -423,11 +443,13 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         preferredWarehouseId: preferredWarehouseId as Id<"warehouses">,
         registrationSource: "agent_assisted",
       };
+      const clientActionId = createClientActionId();
+      createArgs.clientActionId = clientActionId;
       if (farmerData.region !== undefined) createArgs.region = farmerData.region;
       if (farmerData.householdPhoneOwnerName !== undefined) {
         createArgs.householdPhoneOwnerName = farmerData.householdPhoneOwnerName;
       }
-      const farmerId = await createFarmer(createArgs);
+      const farmerId = isOffline ? `pending:${clientActionId}` : await createFarmer(createArgs);
       const farmer: Farmer = {
         id: farmerId,
         farmerCode: "Pending refresh",
@@ -447,9 +469,14 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         farmer.householdPhoneOwnerName = farmerData.householdPhoneOwnerName;
       }
       setDraftRegistration(null);
+      if (isOffline) {
+        await enqueueOfflineAction({ schemaVersion: 1, clientActionId, ownerUserId: actorId, surface: "ops", workspace: "warehouse_agent", kind: "ops_farmer_register", payload: createArgs, attachmentIds: [], createdAt: Date.now(), attemptCount: 0, state: "pending" });
+        setLocalFarmers((current) => [farmer, ...current]);
+        await refreshSyncQueue();
+      }
       return farmer;
     },
-    [activeWarehouse.id, createFarmer, requireActor, setDraftRegistration],
+    [activeWarehouse.id, createFarmer, isOffline, refreshSyncQueue, requireActor, setDraftRegistration],
   );
 
   const addIntake = useCallback(
@@ -466,6 +493,8 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         unit: intakeData.unit,
         grade: intakeData.grade,
       };
+      const clientActionId = createClientActionId();
+      createArgs.clientActionId = clientActionId;
       if (intakeData.variety !== undefined) createArgs.variety = intakeData.variety;
       if (intakeData.conditionNotes !== undefined) createArgs.conditionNotes = intakeData.conditionNotes;
       if (intakeData.receivedAt !== undefined) createArgs.receivedAt = intakeData.receivedAt;
@@ -485,7 +514,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         createArgs.minimumPricePerUnit = intakeData.minimumPricePerUnit;
       }
       if (intakeData.photos !== undefined) createArgs.photos = intakeData.photos;
-      const inventoryBatchId = await createIntake(createArgs);
+      const inventoryBatchId = isOffline ? `pending:${clientActionId}` : await createIntake(createArgs);
       const now = Date.now();
       const batch: InventoryBatch = {
         id: inventoryBatchId,
@@ -527,9 +556,14 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         [inventoryBatchId]: createLocalTimeline(batch),
       }));
       setDraftIntake(null);
+      if (isOffline) {
+        await enqueueOfflineAction({ schemaVersion: 1, clientActionId, ownerUserId: actorId, surface: "ops", workspace: "warehouse_agent", kind: "ops_intake_create", payload: createArgs, attachmentIds: [], createdAt: Date.now(), attemptCount: 0, state: "pending" });
+        setLocalInventory((current) => [batch, ...current]);
+        await refreshSyncQueue();
+      }
       return batch;
     },
-    [activeAgent.id, activeWarehouse.id, createIntake, requireActor, setDraftIntake],
+    [activeAgent.id, activeWarehouse.id, createIntake, isOffline, refreshSyncQueue, requireActor, setDraftIntake],
   );
 
   const createDispute = useCallback(
@@ -545,16 +579,19 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       const summary = disputeData.title === undefined || disputeData.title.trim().length === 0
         ? disputeData.summary
         : `${disputeData.title}: ${disputeData.summary}`;
-      const disputeId = await createDisputeMutation({
+      const clientActionId = createClientActionId();
+      const createArgs = {
         actorId,
         actorUserId: actorId,
-        actorRole: "warehouse_agent",
+        actorRole: "warehouse_agent" as const,
         entityType: disputeData.entityType,
         entityId: disputeData.entityId,
         openedByUserId: actorId,
         warehouseId: (disputeData.warehouseId ?? activeWarehouse.id) as Id<"warehouses">,
         summary,
-      });
+        clientActionId,
+      };
+      const disputeId = isOffline ? `pending:${clientActionId}` : await createDisputeMutation(createArgs);
       const dispute: Dispute = {
         id: disputeId,
         title: disputeData.title ?? "Operational issue",
@@ -566,9 +603,13 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
       };
       setLocalDisputes((current) => [dispute, ...current]);
+      if (isOffline) {
+        await enqueueOfflineAction({ schemaVersion: 1, clientActionId, ownerUserId: actorId, surface: "ops", workspace: "warehouse_agent", kind: "ops_dispute_create", payload: createArgs, attachmentIds: [], createdAt: Date.now(), attemptCount: 0, state: "pending" });
+        await refreshSyncQueue();
+      }
       return dispute;
     },
-    [activeWarehouse.id, createDisputeMutation, requireActor],
+    [activeWarehouse.id, createDisputeMutation, isOffline, refreshSyncQueue, requireActor],
   );
 
   const updateBatchQuantity = useCallback(
@@ -647,6 +688,38 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
     [ledgerByBatchId],
   );
 
+  const triggerSync = useCallback(async () => {
+    if (!navigator.onLine || actorUserId === undefined || principal?.role !== "warehouse_agent") return;
+    const items = await listOfflineActions(actorUserId);
+    for (const item of items) {
+      if (item.surface !== "ops" || item.state === "needs_attention") continue;
+      await updateOfflineAction({ ...item, state: "syncing" });
+      try {
+        if (item.kind === "ops_farmer_register") await createFarmer(item.payload as Parameters<typeof createFarmer>[0]);
+        else if (item.kind === "ops_intake_create") await createIntake(item.payload as Parameters<typeof createIntake>[0]);
+        else if (item.kind === "ops_dispute_create") await createDisputeMutation(item.payload as Parameters<typeof createDisputeMutation>[0]);
+        else continue;
+        await removeOfflineAction(item.clientActionId);
+        setLocalFarmers((current) => current.filter((farmer) => farmer.id !== `pending:${item.clientActionId}`));
+        setLocalInventory((current) => current.filter((batch) => batch.id !== `pending:${item.clientActionId}`));
+        setLocalDisputes((current) => current.filter((dispute) => dispute.id !== `pending:${item.clientActionId}`));
+      } catch (error) {
+        const retry = classifyOfflineError(error) === "retry" && item.attemptCount < 2;
+        await updateOfflineAction({ ...item, attemptCount: item.attemptCount + 1, state: retry ? "pending" : "needs_attention", lastError: error instanceof Error ? error.message : "Sync failed." });
+        if (retry) break;
+      }
+    }
+    await refreshSyncQueue();
+  }, [actorUserId, createDisputeMutation, createFarmer, createIntake, principal?.role, refreshSyncQueue]);
+
+  useEffect(() => {
+    const resume = () => { if (document.visibilityState === "visible") void triggerSync(); };
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", resume);
+    if (navigator.onLine) void triggerSync();
+    return () => { window.removeEventListener("online", resume); document.removeEventListener("visibilitychange", resume); };
+  }, [triggerSync]);
+
   const isLoading =
     isAuthLoading ||
     (actorUserId !== undefined &&
@@ -696,7 +769,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       updateBatchCondition,
       getBatchTimeline,
       getStorageFeeLedger,
-      triggerSync: () => undefined,
+      triggerSync: () => { void triggerSync(); },
     }),
     [
       addIntake,
@@ -723,6 +796,7 @@ export function WarehouseProvider({ children }: { children: React.ReactNode }) {
       updateBatchCondition,
       updateBatchQuantity,
       updateBatchStatus,
+      triggerSync,
     ],
   );
 

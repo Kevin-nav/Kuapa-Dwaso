@@ -8,6 +8,7 @@ import { useAuth } from "@/app/auth/AuthProvider";
 import { ArrowLeft, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { FormEvent } from "react";
 import type { Id } from "@convex/_generated/dataModel";
+import { createClientActionId, enqueueOfflineAction } from "@kuapa-dwaso/utils/pwa";
 
 type CategoryType = "Wrong Quantity" | "Fee Dispute" | "Produce Damaged" | "Payment Issue" | "Other";
 
@@ -22,6 +23,7 @@ function IssueFormContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [success, setSuccess] = useState(false);
+  const [wasQueued, setWasQueued] = useState(false);
 
   const farmerProfile = principal?.profiles?.find((p) => p.profileType === "farmer");
   const farmerId = farmerProfile?.profileId as Id<"farmers"> | undefined;
@@ -56,6 +58,7 @@ function IssueFormContent() {
         return;
       }
 
+      const clientActionId = createClientActionId();
       const disputeArgs = {
         actorId: farmer.farmerCode,
         actorUserId: principal.userId as Id<"users">,
@@ -64,9 +67,13 @@ function IssueFormContent() {
         entityId: receiptId,
         openedByUserId: principal.userId as Id<"users">,
         summary: `[${category}] ${note}`,
+        clientActionId,
         ...(farmer.preferredWarehouseId !== undefined ? { warehouseId: farmer.preferredWarehouseId } : {}),
       };
-      await createDispute(disputeArgs);
+      if (!navigator.onLine) {
+        await enqueueOfflineAction({ schemaVersion: 1, clientActionId, ownerUserId: principal.userId, surface: "app", workspace: "farmer", kind: "farmer_dispute_create", payload: disputeArgs, attachmentIds: [], createdAt: Date.now(), attemptCount: 0, state: "pending" });
+        setWasQueued(true);
+      } else await createDispute(disputeArgs);
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit dispute.");
@@ -88,9 +95,9 @@ function IssueFormContent() {
       <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "24px", justifyContent: "center", alignItems: "center", minHeight: "60vh", textAlign: "center" }}>
         <CheckCircle2 size={64} style={{ color: "var(--color-success)" }} />
         <div>
-          <h1 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>Dispute Submitted</h1>
+          <h1 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>{wasQueued ? "Issue saved on this device" : "Dispute Submitted"}</h1>
           <p style={{ maxWidth: "320px", margin: "0 auto" }}>
-            Your issue has been reported. A warehouse manager or platform administrator will review it shortly.
+            {wasQueued ? "Keep the app open when your connection returns so the issue can be sent. It has not reached Kuapa Dwaso yet." : "Your issue has been reported. A warehouse manager or platform administrator will review it shortly."}
           </p>
         </div>
         <button

@@ -9,6 +9,7 @@ import type { DispatchStatus } from "@kuapa-dwaso/types";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Image as ImageIcon, Phone, Upload } from "lucide-react";
 import { useAuth } from "../../../auth/AuthProvider";
 import { getSignedReadUrl, uploadPrivateEvidence } from "../../../uploads/client";
+import { createClientActionId, enqueueOfflineAction } from "@kuapa-dwaso/utils/pwa";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -127,7 +128,7 @@ export default function TransporterDispatchDetailPage({ params }: Props) {
   }, [firebaseUser, previewUrls, proofUploads]);
 
   const handleStatusUpdate = async () => {
-    if (principal === null || principal === undefined || selectedStatus === "") {
+    if (principal === null || principal === undefined || selectedStatus === "" || detail === null || detail === undefined) {
       return;
     }
     setError(undefined);
@@ -139,16 +140,26 @@ export default function TransporterDispatchDetailPage({ params }: Props) {
         dispatchId: Id<"dispatches">;
         status: DispatchStatus;
         reason?: string;
+        clientActionId: string;
+        expectedStatus: DispatchStatus;
       } = {
         actorUserId: principal.userId as Id<"users">,
         dispatchId: id as Id<"dispatches">,
         status: selectedStatus,
+        clientActionId: createClientActionId(),
+        expectedStatus: detail.status,
       };
       if (reason.trim().length > 0) {
         updateArgs.reason = reason.trim();
       }
-      await updateStatus(updateArgs);
-      setStatusMessage("Dispatch status updated.");
+      if (!navigator.onLine) {
+        if (["cancelled", "closed"].includes(selectedStatus)) throw new Error("Reconnect before cancelling or closing a dispatch.");
+        await enqueueOfflineAction({ schemaVersion: 1, clientActionId: updateArgs.clientActionId, ownerUserId: principal.userId, surface: "app", workspace: "transporter", kind: "transporter_dispatch_status", payload: updateArgs, attachmentIds: [], expectedEntityStatus: detail.status, createdAt: Date.now(), attemptCount: 0, state: "pending" });
+        setStatusMessage("Saved on this device. Keep the app open when your connection returns so the update can be sent.");
+      } else {
+        await updateStatus(updateArgs);
+        setStatusMessage("Dispatch status updated.");
+      }
       setSelectedStatus("");
       setReason("");
     } catch (err) {

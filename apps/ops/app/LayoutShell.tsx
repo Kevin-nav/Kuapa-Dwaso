@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
 import { useWarehouse } from "./context/WarehouseContext";
-import { 
+import {
   Home, 
   Package, 
   Plus, 
@@ -22,11 +22,12 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import { InstallAppCard, PushNotificationController } from "@kuapa-dwaso/ui/pwa";
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isOffline, setIsOffline, syncQueue, activeWarehouse, assignedWarehouses, activeAgent, setActiveWarehouseId } = useWarehouse();
+  const { isOffline, setIsOffline, syncQueue, activeWarehouse, assignedWarehouses, activeAgent, setActiveWarehouseId, triggerSync } = useWarehouse();
   const { signOut, firebaseUser, principal, isLoading: isAuthLoading } = useOpsAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -78,7 +79,8 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const syncStatus = getSyncStatus();
 
   const handleSyncToggle = () => {
-    setIsOffline(!isOffline);
+    if (process.env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK === "true") setIsOffline(!isOffline);
+    else triggerSync();
   };
 
   // Nav configuration
@@ -135,7 +137,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             type="button"
             className={`sync-pill ${syncStatus.class}`}
             onClick={handleSyncToggle}
-            title="Toggle offline simulation"
+            title={process.env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK === "true" ? "Toggle offline simulation" : "Retry saved actions"}
           >
             {syncStatus.icon}
             <span>{syncStatus.text}</span>
@@ -291,6 +293,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             </div>
           )}
           {children}
+          <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Warehouse" /><PushNotificationController surface="ops" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} getToken={() => firebaseUser!.getIdToken()} /></div>
         </div>
       </main>
 

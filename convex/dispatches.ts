@@ -26,6 +26,7 @@ import {
   type Actor,
   warehouseScopeTarget,
 } from "./workflowHelpers";
+import { previousClientActionResult, recordClientAction } from "./clientActions";
 
 const dispatchStatus = v.union(
   v.literal("planned"),
@@ -496,13 +497,18 @@ export const updateStatus = mutation({
     dispatchId: v.id("dispatches"),
     status: dispatchStatus,
     reason: v.optional(v.string()),
+    clientActionId: v.optional(v.string()),
+    expectedStatus: v.optional(dispatchStatus),
   },
   returns: v.id("dispatches"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(canUpdateDispatchStatus(actor.role), "Actor cannot update dispatch status.");
+    const previous = await previousClientActionResult(ctx, actor._id, args.clientActionId);
+    if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"dispatches">;
     const dispatch = await ctx.db.get(args.dispatchId);
     assertAllowed(dispatch !== null, "Dispatch was not found.");
+    assertAllowed(args.expectedStatus === undefined || dispatch.status === args.expectedStatus, "Dispatch changed while this action was offline. Review the latest status and try again.");
     if (actor.role === "transporter") {
       const transporter = await ctx.db
         .query("transporterProfiles")
@@ -589,6 +595,8 @@ export const updateStatus = mutation({
         }
       }
     }
+
+    await recordClientAction(ctx, { actorUserId: actor._id, clientActionId: args.clientActionId, actionKind: "transporter_dispatch_status", resultEntityId: args.dispatchId });
 
     return args.dispatchId;
   },
