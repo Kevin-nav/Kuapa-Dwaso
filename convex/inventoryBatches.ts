@@ -28,6 +28,7 @@ import {
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
 } from "./workflowHelpers";
+import { previousClientActionResult, recordClientAction } from "./clientActions";
 
 const produceGrade = v.union(
   v.literal("A"),
@@ -170,11 +171,14 @@ export const createIntake = mutation({
     askingPricePerUnit: v.optional(v.number()),
     minimumPricePerUnit: v.optional(v.number()),
     status: v.optional(inventoryBatchStatus),
+    clientActionId: v.optional(v.string()),
   },
   returns: v.id("inventoryBatches"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(actor.role === "warehouse_agent", "Only warehouse agents can receive produce.");
+    const previous = await previousClientActionResult(ctx, actor._id, "ops_intake_create", args.clientActionId);
+    if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"inventoryBatches">;
     const warehouseAgent = await requireWarehouseAgentAssignedToWarehouse(ctx, actor._id, args.warehouseId);
     const warehouse = await ctx.db.get(args.warehouseId);
     assertAllowed(warehouse !== null, "Warehouse was not found.");
@@ -276,6 +280,8 @@ export const createIntake = mutation({
       entityId: inventoryBatchId,
       after: after === null ? undefined : auditSnapshot(after),
     });
+
+    await recordClientAction(ctx, { actorUserId: actor._id, clientActionId: args.clientActionId, actionKind: "ops_intake_create", resultEntityId: inventoryBatchId });
 
     return inventoryBatchId;
   },

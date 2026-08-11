@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     "@kuapa-dwaso/design-tokens",
     "@kuapa-dwaso/types",
     "@kuapa-dwaso/ui",
+    "@kuapa-dwaso/utils",
   ],
   images: {
     remotePatterns: [
@@ -25,6 +26,19 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'; connect-src 'self'" },
+        ],
+      },
+      {
+        source: "/pwa/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
       {
         source: "/auth-bg-v1.webp",
         headers: [

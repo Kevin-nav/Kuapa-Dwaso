@@ -102,6 +102,7 @@ import {
   type WarehouseAgentStatus,
   type WarehouseStatus,
 } from "@kuapa-dwaso/types";
+import type { PushSubscriptionInput } from "@kuapa-dwaso/types";
 
 function isOneOf<const Values extends readonly string[]>(
   values: Values,
@@ -550,4 +551,37 @@ export function isValidFeeRulePayer(
   }
 
   return true;
+}
+
+const webPushHostPatterns = [
+  (host: string) => host === "fcm.googleapis.com",
+  (host: string) => host === "updates.push.services.mozilla.com" || host.endsWith(".push.services.mozilla.com"),
+  (host: string) => host === "web.push.apple.com" || host.endsWith(".web.push.apple.com"),
+  (host: string) => host.endsWith(".notify.windows.com"),
+];
+
+export function isApprovedWebPushEndpoint(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.username === "" && url.password === "" && (url.port === "" || url.port === "443") && webPushHostPatterns.some((matches) => matches(url.hostname.toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+function isWebPushKey(value: unknown, minimumLength: number): value is string {
+  return typeof value === "string" && value.length >= minimumLength && value.length <= 512 && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+export function isValidPushSubscriptionInput(value: unknown): value is PushSubscriptionInput {
+  if (typeof value !== "object" || value === null) return false;
+  const input = value as Partial<PushSubscriptionInput>;
+  return (
+    (input.surface === "app" || input.surface === "ops" || input.surface === "admin") &&
+    isApprovedWebPushEndpoint(input.endpoint) &&
+    (input.expirationTime === null || input.expirationTime === undefined || (typeof input.expirationTime === "number" && Number.isFinite(input.expirationTime))) &&
+    typeof input.keys === "object" && input.keys !== null &&
+    isWebPushKey(input.keys.p256dh, 40) && isWebPushKey(input.keys.auth, 8)
+  );
 }

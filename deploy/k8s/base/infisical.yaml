@@ -65,11 +65,13 @@ spec:
           RESEND_API_KEY: "{{ .RESEND_API_KEY.Value }}"
           RESEND_FROM_EMAIL: "{{ .RESEND_FROM_EMAIL.Value }}"
           SMS_PROVIDER: "{{ .SMS_PROVIDER.Value }}"
+          WEB_PUSH_PROVIDER: "{{ .WEB_PUSH_PROVIDER.Value }}"
+          WEB_PUSH_VAPID_SUBJECT: "{{ .WEB_PUSH_VAPID_SUBJECT.Value }}"
+          WEB_PUSH_VAPID_PUBLIC_KEY: "{{ .WEB_PUSH_VAPID_PUBLIC_KEY.Value }}"
           SMS_FROM_NAME: "{{ .SMS_FROM_NAME.Value }}"
           ARKESEL_SMS_API_KEY: "{{ .ARKESEL_SMS_API_KEY.Value }}"
           ARKESEL_WEBHOOK_SIGNATURE_HEADER: "{{ .ARKESEL_WEBHOOK_SIGNATURE_HEADER.Value }}"
           ARKESEL_WEBHOOK_SIGNATURE_SECRET: "{{ .ARKESEL_WEBHOOK_SIGNATURE_SECRET.Value }}"
-          NOTIFICATION_DELIVERY_SECRET: "{{ .NOTIFICATION_DELIVERY_SECRET.Value }}"
           PAYMENT_PROVIDER: "{{ .PAYMENT_PROVIDER.Value }}"
           PAYSTACK_PUBLIC_KEY: "{{ .PAYSTACK_PUBLIC_KEY.Value }}"
           PAYSTACK_SECRET_KEY: "{{ .PAYSTACK_SECRET_KEY.Value }}"
@@ -89,6 +91,15 @@ spec:
           API_AUTH_DISABLED: "{{ .API_AUTH_DISABLED.Value }}"
           NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK: "{{ .NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK.Value }}"
           NEXT_PUBLIC_OPS_ACTOR_USER_ID: "{{ .NEXT_PUBLIC_OPS_ACTOR_USER_ID.Value }}"
+    - name: kuapa-dwaso-notification-secrets
+      namespace: default
+      kind: Secret
+      creationPolicy: Owner
+      template:
+        engineVersion: v1
+        data:
+          NOTIFICATION_DELIVERY_SECRET: "{{ .NOTIFICATION_DELIVERY_SECRET.Value }}"
+          WEB_PUSH_VAPID_PRIVATE_KEY: "{{ .WEB_PUSH_VAPID_PRIVATE_KEY.Value }}"
     - name: cloudflare-tunnel-token
       namespace: default
       kind: Secret

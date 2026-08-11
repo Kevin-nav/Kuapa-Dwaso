@@ -1,5 +1,6 @@
 import { canCreateDispute, canManageDisputes } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 import {
@@ -14,6 +15,7 @@ import {
   requireAdminPermission,
   warehouseScopeTarget,
 } from "./workflowHelpers";
+import { previousClientActionResult, recordClientAction } from "./clientActions";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -83,11 +85,17 @@ export const create = mutation({
     warehouseId: v.optional(v.id("warehouses")),
     summary: v.string(),
     metadata: v.optional(genericRecord),
+    clientActionId: v.optional(v.string()),
   },
   returns: v.id("disputes"),
   handler: async (ctx, args) => {
     await assertActorRoleMatchesUser(ctx.db, args);
     assertCanCreateDispute(args.actorRole);
+    if (args.actorUserId !== undefined) {
+      const actionKind = args.actorRole === "warehouse_agent" ? "ops_dispute_create" : "farmer_dispute_create";
+      const previous = await previousClientActionResult(ctx, args.actorUserId, actionKind, args.clientActionId);
+      if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"disputes">;
+    }
     if (args.actorRole === "admin") {
       if (args.actorUserId === undefined) {
         throw new Error("Admin dispute creation requires actorUserId.");
@@ -144,6 +152,10 @@ export const create = mutation({
         relatedEntityType: "dispute",
         relatedEntityId: disputeId,
       });
+    }
+
+    if (args.actorUserId !== undefined) {
+      await recordClientAction(ctx, { actorUserId: args.actorUserId, clientActionId: args.clientActionId, actionKind: args.actorRole === "warehouse_agent" ? "ops_dispute_create" : "farmer_dispute_create", resultEntityId: disputeId });
     }
 
     return disputeId;

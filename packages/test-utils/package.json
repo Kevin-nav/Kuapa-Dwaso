@@ -15,6 +15,7 @@
     "benchmark:performance": "node src/performance-lighthouse.mjs",
     "benchmark:profiles": "node src/performance-suite.mjs",
     "benchmark:compare": "node src/performance-compare.mjs",
+    "pwa:verify": "node src/pwa-verify.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

@@ -66,7 +66,7 @@ export function SiteHeader({
             href={loginHref}
             className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
           >
-            Log in
+            Open app
           </a>
           <a
             href={joinHref}
@@ -89,7 +89,7 @@ export function SiteHeader({
             href={loginHref}
             className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
           >
-            Log in
+            Open app
           </a>
           <a
             href={joinHref}

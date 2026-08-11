@@ -3,9 +3,13 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, IdCard, Truck, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
+import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+
+const ProfilePwaTools = dynamic(() => import("../pwa/ProfilePwaTools").then((module) => module.ProfilePwaTools), { ssr: false });
 
 export default function TransporterLayout({ children }: { children: ReactNode }) {
   const { firebaseUser, principal, isLoading } = useAuth();
@@ -43,6 +47,7 @@ export default function TransporterLayout({ children }: { children: ReactNode })
       </main>
     );
   }
+  const activePrincipal = principal!;
 
   const isActive = (path: string) => {
     if (path === "/transporter") {
@@ -53,6 +58,7 @@ export default function TransporterLayout({ children }: { children: ReactNode })
 
   return (
     <>
+      <AppConnectivity ownerUserId={activePrincipal.userId} />
       <header className="transporter-top-navbar">
         <div className="transporter-navbar-container">
           <Link href="/transporter" className="transporter-navbar-logo-area">
@@ -72,7 +78,9 @@ export default function TransporterLayout({ children }: { children: ReactNode })
         </div>
       </header>
 
-      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}</main>
+      <WorkspaceSwitcher principal={activePrincipal} current="transporter" />
+
+      <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/transporter/profile" ? <ProfilePwaTools /> : null}</main>
       <nav className="bottom-nav">
         <Link href="/transporter" className={`nav-link ${isActive("/transporter") ? "nav-link-active" : ""}`}>
           <Home size={22} />

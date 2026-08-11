@@ -56,6 +56,12 @@ expiry. Unpaid reservations expire automatically at their deadline, while a
 successful payment removes the reservation expiry. SMS remains concise and transactional; detailed instructions and the
 durable action always remain in the application.
 
+Eligible in-app notifications may fan out to active Web Push subscriptions.
+Push is opt-in, uses generic lock-screen copy, and routes only to same-origin
+relative actions. Push delivery state is separate from in-app read state. A
+missing, revoked, or failed push subscription never suppresses SMS, email, or
+the canonical in-app notification.
+
 ## Actual financial definitions
 
 - **Gross produce value (actual):** value of recorded sales; never labelled as Kuapa Dwaso revenue.

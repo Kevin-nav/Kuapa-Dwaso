@@ -1,5 +1,6 @@
 import { canCreateFarmerProfile, canVerifyFarmer } from "@kuapa-dwaso/permissions";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
 import {
@@ -18,6 +19,7 @@ import {
   requireWarehouseAgentAssignedToWarehouse,
   warehouseScopeTarget,
 } from "./workflowHelpers";
+import { previousClientActionResult, recordClientAction } from "./clientActions";
 
 const verificationStatus = v.union(v.literal("pending"), v.literal("verified"), v.literal("rejected"));
 const farmerStatus = v.union(v.literal("active"), v.literal("suspended"), v.literal("deactivated"));
@@ -125,11 +127,14 @@ export const createProfile = mutation({
     preferredWarehouseId: v.optional(v.id("warehouses")),
     registrationSource: v.optional(registrationSource),
     userId: v.optional(v.id("users")),
+    clientActionId: v.optional(v.string()),
   },
   returns: v.id("farmers"),
   handler: async (ctx, args) => {
     const actor = await getActor(ctx, args.actorUserId);
     assertAllowed(canCreateFarmerProfile(actor.role), "Actor cannot create farmer profiles.");
+    const previous = await previousClientActionResult(ctx, actor._id, "ops_farmer_register", args.clientActionId);
+    if (previous?.resultEntityId !== undefined) return previous.resultEntityId as Id<"farmers">;
 
     const existingByPhone = await ctx.db
       .query("farmers")
@@ -193,6 +198,8 @@ export const createProfile = mutation({
       relatedEntityType: "farmer",
       relatedEntityId: farmerId,
     });
+
+    await recordClientAction(ctx, { actorUserId: actor._id, clientActionId: args.clientActionId, actionKind: "ops_farmer_register", resultEntityId: farmerId });
 
     return farmerId;
   },

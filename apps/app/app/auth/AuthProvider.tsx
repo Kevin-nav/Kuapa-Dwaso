@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import type { User } from "firebase/auth";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import type { CurrentPlatformPrincipal } from "@kuapa-dwaso/types";
+import { clearPwaData, disableWebPush } from "@kuapa-dwaso/utils/pwa";
 import { api } from "../../../../convex/_generated/api";
 import { firebaseAuth } from "./firebase";
 
@@ -44,6 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       principal,
       isLoading: isFirebaseLoading || (firebaseUser !== null && principal === undefined),
       signOut: async () => {
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
+        if (firebaseUser !== null && apiBaseUrl !== undefined) await disableWebPush({ apiBaseUrl, getToken: () => firebaseUser.getIdToken() }).catch(() => undefined);
+        await clearPwaData().catch(() => undefined);
         await signOut(firebaseAuth);
       },
     }),

@@ -212,6 +212,9 @@ type ClaimedSmsNotification = {
   idempotencyKey: string;
 };
 
+type PushSubscriptionArgs = { actorUserId: string; surface: "app" | "ops" | "admin"; endpoint: string; endpointHash: string; p256dh: string; auth: string; expirationTime?: number };
+type ClaimedPushDelivery = { deliveryId: string; subscriptionId: string; endpoint: string; keys: { p256dh: string; auth: string }; actionUrl: string; idempotencyKey: string };
+
 const createInvitation = makeFunctionReference<
   "mutation",
   CreateInvitationArgs,
@@ -265,6 +268,13 @@ const claimPendingSmsDeliveries = makeFunctionReference<
   ClaimPendingSmsDeliveriesArgs,
   ClaimedSmsNotification[]
 >("notifications:claimPendingSmsDeliveries");
+
+const upsertPushSubscription = makeFunctionReference<"mutation", PushSubscriptionArgs & { serviceSecret: string }, string>("pushSubscriptions:upsert");
+const revokePushSubscription = makeFunctionReference<"mutation", { serviceSecret: string; actorUserId: string; endpointHash: string }, boolean>("pushSubscriptions:revoke");
+const getPushSubscriptionStatus = makeFunctionReference<"query", { serviceSecret: string; actorUserId: string; endpointHash: string }, boolean>("pushSubscriptions:getStatus");
+const revokePushSubscriptionByProvider = makeFunctionReference<"mutation", { serviceSecret: string; subscriptionId: string }, boolean>("pushSubscriptions:revokeByProvider");
+const claimPendingPushDeliveries = makeFunctionReference<"mutation", { serviceSecret: string; limit?: number; retryProcessingBefore?: number }, ClaimedPushDelivery[]>("webPushDeliveries:claimPending");
+const updatePushDeliveryStatus = makeFunctionReference<"mutation", { serviceSecret: string; deliveryId: string; status: "sent" | "failed"; error?: string }, string>("webPushDeliveries:updateStatus");
 
 const getPendingInvitationByTokenHash = makeFunctionReference<
   "query",
@@ -362,6 +372,13 @@ export class ConvexPlatformProvider {
     return await this.getClient().mutation(claimPendingSmsDeliveries, args);
   }
 
+  async upsertPushSubscription(args: PushSubscriptionArgs): Promise<string> { return await this.getClient().mutation(upsertPushSubscription, { ...args, serviceSecret: this.getNotificationServiceSecret() }); }
+  async revokePushSubscription(args: { actorUserId: string; endpointHash: string }): Promise<boolean> { return await this.getClient().mutation(revokePushSubscription, { ...args, serviceSecret: this.getNotificationServiceSecret() }); }
+  async getPushSubscriptionStatus(args: { actorUserId: string; endpointHash: string }): Promise<boolean> { return await this.getClient().query(getPushSubscriptionStatus, { ...args, serviceSecret: this.getNotificationServiceSecret() }); }
+  async revokePushSubscriptionByProvider(subscriptionId: string): Promise<boolean> { return await this.getClient().mutation(revokePushSubscriptionByProvider, { subscriptionId, serviceSecret: this.getNotificationServiceSecret() }); }
+  async claimPendingPushDeliveries(args: { limit?: number; retryProcessingBefore?: number }): Promise<ClaimedPushDelivery[]> { return await this.getClient().mutation(claimPendingPushDeliveries, { ...args, serviceSecret: this.getNotificationServiceSecret() }); }
+  async updatePushDeliveryStatus(args: { deliveryId: string; status: "sent" | "failed"; error?: string }): Promise<string> { return await this.getClient().mutation(updatePushDeliveryStatus, { ...args, serviceSecret: this.getNotificationServiceSecret() }); }
+
   async getInstitutionWelcomeEmailContext(args: { actorUserId: string; buyerId: string }): Promise<InstitutionWelcomeContext | null> {
     return await this.getClient().query(getInstitutionWelcomeEmailContext, args);
   }
@@ -396,5 +413,11 @@ export class ConvexPlatformProvider {
     }
     this.client = new ConvexHttpClient(env.auth.convexUrl);
     return this.client;
+  }
+
+  private getNotificationServiceSecret(): string {
+    const secret = getApiEnvironment().notifications.deliverySecret;
+    if (secret === undefined || secret.length < 16) throw new ServiceUnavailableException("Notification service authorization is not configured.");
+    return secret;
   }
 }
