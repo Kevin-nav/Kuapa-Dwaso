@@ -228,3 +228,17 @@ POST /payments/webhooks/paystack
 Confirm Firebase allowed domains, privileged MFA, reCAPTCHA behavior, R2 CORS
 for deployed browser origins, Arkesel sender ID approval, and Paystack account
 status before production cutover.
+
+For installable application origins, also configure `WEB_PUSH_PROVIDER=vapid`,
+`WEB_PUSH_VAPID_SUBJECT`, `WEB_PUSH_VAPID_PUBLIC_KEY`, and
+`WEB_PUSH_VAPID_PRIVATE_KEY` in Infisical. Verify `/manifest.webmanifest` and
+`/sw.js` over HTTPS, then run:
+
+```text
+corepack pnpm pwa:verify -- <app-origin> <ops-origin> <admin-origin>
+```
+
+If a PWA release must be rolled back, keep `/sw.js` available and deploy a
+cleanup worker that deletes `kuapa-*` caches and unregisters itself. Removing
+the file or registration component alone does not remove workers already
+installed in browsers.
