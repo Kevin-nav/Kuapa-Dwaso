@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AUTH_CODE_VALIDITY_MS,
   getAuthErrorCode,
   getAuthErrorMessage,
   shouldCreateInvitedEmailAccountAfterSignInFailure,
 } from "../src/index.ts";
+
+test("uses one application-owned verification window", () => {
+  assert.equal(AUTH_CODE_VALIDITY_MS, 5 * 60 * 1000);
+});
 
 test("extracts Firebase error codes without depending on the Firebase SDK", () => {
   assert.equal(getAuthErrorCode({ code: "auth/invalid-phone-number" }), "auth/invalid-phone-number");
@@ -64,6 +69,21 @@ test("maps throttling, network, account, and credential errors", () => {
     getAuthErrorMessage({ code: "auth/invalid-credential" }, "sign-in"),
     "The email or password is incorrect.",
   );
+});
+
+test("maps additional Firebase failures without exposing provider codes", () => {
+  const cases = [
+    ["auth/invalid-email", "Enter a valid email address"],
+    ["auth/missing-verification-code", "Enter the complete verification code"],
+    ["auth/popup-blocked", "blocked the sign-in window"],
+    ["auth/requires-recent-login", "sign in again"],
+    ["auth/weak-password", "stronger password"],
+  ];
+  for (const [code, expected] of cases) {
+    const message = getAuthErrorMessage({ code }, "sign-in");
+    assert.match(message, new RegExp(expected, "i"));
+    assert.doesNotMatch(message, /auth\//i);
+  }
 });
 
 test("creates an invited account after Firebase's ambiguous missing-user errors", () => {

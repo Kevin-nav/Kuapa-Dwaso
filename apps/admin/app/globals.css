@@ -390,7 +390,7 @@ body {
 
 /* --- Redesigned Split Auth Layout --- */
 .auth-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr;
   background: #f6f7f9;
@@ -417,7 +417,7 @@ body {
       ),
       url("/auth-bg-v1.webp") center/cover no-repeat;
     color: #ffffff;
-    min-height: 100vh;
+    min-height: 100dvh;
     position: sticky;
     top: 0;
   }
@@ -477,12 +477,14 @@ body {
   justify-content: center;
   align-items: center;
   padding: 32px 24px;
-  min-height: 100vh;
+  min-height: 100dvh;
+  min-width: 0;
 }
 
 .auth-inner {
   width: 100%;
   max-width: 460px;
+  min-width: 0;
 }
 
 /* Brand styling */
@@ -565,6 +567,27 @@ body {
   flex-direction: column;
   gap: 16px;
   margin-bottom: 20px;
+  min-width: 0;
+}
+
+@media (max-width: 420px) {
+  .auth-main {
+    padding: 24px 12px;
+  }
+
+  .auth-card {
+    padding: 18px 14px;
+  }
+
+  .auth-head h1 {
+    font-size: clamp(1.45rem, 8vw, 1.75rem);
+    overflow-wrap: anywhere;
+  }
+
+  .auth-input-group,
+  .auth-tabs {
+    min-width: 0;
+  }
 }
 
 .auth-input-group {

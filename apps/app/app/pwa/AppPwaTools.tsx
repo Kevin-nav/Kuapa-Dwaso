@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ConnectivityState, CurrentPlatformPrincipal, SelfServiceWorkspace } from "@kuapa-dwaso/types";
-import { ConnectivityBanner, InstallAppCard } from "@kuapa-dwaso/ui/pwa";
+import { ConnectivityBanner } from "@kuapa-dwaso/ui/pwa";
 import { authorizedSelfServiceWorkspaces, listOfflineActions, saveWorkspacePreference } from "@kuapa-dwaso/utils/pwa";
 
 export function AppConnectivity({ ownerUserId }: { ownerUserId?: string }) {
@@ -29,8 +29,4 @@ export function WorkspaceSwitcher({ principal, current }: { principal: CurrentPl
   const workspaces = useMemo(() => authorizedSelfServiceWorkspaces(principal), [principal]);
   if (workspaces.length < 2) return null;
   return <div aria-label="Switch workspace" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "8px 16px" }}>{workspaces.map((workspace) => <button type="button" className={workspace === current ? "btn btn-primary" : "btn btn-secondary"} key={workspace} onClick={() => { void saveWorkspacePreference(principal.userId, workspace); router.push(`/${workspace}`); }}>{workspace[0]?.toUpperCase()}{workspace.slice(1)}</button>)}</div>;
-}
-
-export function ProductInstallCard() {
-  return <InstallAppCard appName="Kuapa Dwaso" />;
 }

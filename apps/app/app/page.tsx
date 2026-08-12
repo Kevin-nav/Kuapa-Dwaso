@@ -6,7 +6,6 @@ import { readWorkspacePreference, resolveSelfServiceWorkspace } from "@kuapa-dwa
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth/AuthProvider";
-import { ProductInstallCard } from "./pwa/AppPwaTools";
 
 export default function ProductHomePage() {
   const { firebaseUser, principal, isLoading, signOut } = useAuth();
@@ -95,7 +94,6 @@ export default function ProductHomePage() {
             </Link>
           </div>
         )}
-        <ProductInstallCard />
       </section>
     </main>
   );

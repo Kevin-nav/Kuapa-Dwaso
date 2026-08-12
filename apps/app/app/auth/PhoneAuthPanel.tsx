@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
+import { AUTH_CODE_VALIDITY_MS, getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -11,7 +11,7 @@ import {
   type User,
 } from "firebase/auth";
 import { firebaseAuth } from "./firebase";
-import { OtpInput } from "@kuapa-dwaso/ui";
+import { OtpExpiryCountdown, OtpInput } from "@kuapa-dwaso/ui";
 
 type PhoneAuthPanelProps = {
   onVerified: (user: User) => Promise<void> | void;
@@ -22,9 +22,9 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
-  const [status, setStatus] = useState<string>("Enter a phone number to receive an OTP.");
   const [error, setError] = useState<string | undefined>();
-  const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number>();
+  const [isCodeExpired, setIsCodeExpired] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
@@ -49,7 +49,7 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
   const sendOtp = async (event?: FormEvent) => {
     event?.preventDefault();
     setError(undefined);
-    setErrorCode(undefined);
+    setIsCodeExpired(false);
     setIsSending(true);
     try {
       const formattedPhone = normalizeGhanaPhoneNumber(phoneNumber);
@@ -57,15 +57,14 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
       clearVerifier();
       setPhoneNumber(formattedPhone);
       setConfirmation(result);
-      setStatus("OTP sent. Enter the code from SMS.");
+      setOtp("");
+      setCodeExpiresAt(Date.now() + AUTH_CODE_VALIDITY_MS);
     } catch (err) {
       clearVerifier();
       const code = getAuthErrorCode(err);
-      setErrorCode(code);
-      setError(err instanceof Error && code === undefined
-        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+      setError(err instanceof Error && code === undefined && err.message.startsWith("Ghana phone number")
+        ? "Enter a valid Ghana phone number, such as 054 123 4567."
         : getAuthErrorMessage(err, "send-phone-code"));
-      setStatus("No code was sent. You can try again.");
     } finally {
       setIsSending(false);
     }
@@ -77,23 +76,20 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
       await sendOtp();
       return;
     }
+    if (isCodeExpired) {
+      setError("This code has expired. Request a new code to continue.");
+      return;
+    }
     setError(undefined);
-    setErrorCode(undefined);
     setIsVerifying(true);
     try {
       const credential = await confirmation.confirm(otp.trim());
-      setStatus("Phone verified.");
       await onVerified(credential.user);
     } catch (err) {
       const code = getAuthErrorCode(err);
-      setErrorCode(code);
       if (code === "auth/code-expired" || code === "auth/session-expired") {
-        setConfirmation(null);
-        setOtp("");
+        setIsCodeExpired(true);
         clearVerifier();
-        setStatus("Request a new verification code to continue.");
-      } else {
-        setStatus("The code was not verified. Check it and try again.");
       }
       setError(getAuthErrorMessage(err, "verify-phone-code"));
     } finally {
@@ -118,14 +114,13 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="054 123 4567 or +233 54 123 4567"
+              placeholder="054 123 4567"
               value={phoneNumber}
               onChange={(event) => setPhoneNumber(event.target.value)}
               disabled={isSending}
               required
             />
           </div>
-          <span className="field-help">Enter it with or without +233. Standard SMS rates may apply.</span>
         </div>
       ) : (
         <>
@@ -138,8 +133,9 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
                 onClick={() => {
                   setConfirmation(null);
                   setOtp("");
+                  setCodeExpiresAt(undefined);
+                  setIsCodeExpired(false);
                   clearVerifier();
-                  setStatus("Enter a phone number to receive an OTP.");
                 }}
               >
                 Change number
@@ -162,21 +158,29 @@ export function PhoneAuthPanel({ onVerified, submitLabel = "Verify phone" }: Pho
               value={otp}
               onChange={setOtp}
               length={6}
-              disabled={isVerifying}
+              disabled={isVerifying || isCodeExpired}
               aria-label="Phone verification code"
             />
-            <span className="field-help">Enter the 6-digit code we sent you.</span>
+            {codeExpiresAt === undefined ? null : (
+              <OtpExpiryCountdown
+                key={codeExpiresAt}
+                expiresAt={codeExpiresAt}
+                onExpire={() => {
+                  setIsCodeExpired(true);
+                  setError("This code has expired. Request a new code to continue.");
+                }}
+              />
+            )}
           </div>
         </>
       )}
 
       <div id="phone-auth-recaptcha" />
-      {status && <p className="auth-status">{status}</p>}
-      {error !== undefined && <p className="auth-error">{error}{errorCode !== undefined ? <small style={{ display: "block", marginTop: 4 }}>Reference: {errorCode}</small> : null}</p>}
+      {error !== undefined && <p className="auth-error">{error}</p>}
 
       <div className="btn-row">
-        <button type="submit" className="btn btn-primary" disabled={isSending || isVerifying}>
-          {isSending ? "Sending..." : isVerifying ? "Verifying..." : confirmation === null ? "Send code" : submitLabel}
+        <button type="submit" className="btn btn-primary" disabled={isSending || isVerifying || (confirmation !== null && (isCodeExpired || otp.length !== 6))}>
+          {isSending ? "Sending..." : isVerifying ? "Verifying..." : confirmation === null ? "Send code" : isCodeExpired ? "Code expired" : submitLabel}
         </button>
         {confirmation !== null && (
           <button type="button" className="btn btn-ghost" onClick={() => void sendOtp()} disabled={isSending || isVerifying}>

@@ -34,28 +34,49 @@ export type AuthOperation =
   | "verify-mfa-code"
   | "enroll-mfa";
 
+/**
+ * KuapaDwaso's application-owned SMS verification window.
+ * Firebase does not expose a browser-side expiry timestamp, so every web
+ * surface enforces this same limit and requires a fresh challenge afterward.
+ */
+export const AUTH_CODE_VALIDITY_MS = 5 * 60 * 1000;
+
 const authErrorMessages: Readonly<Record<string, string>> = {
   "auth/app-not-authorized": "This site is not authorized for phone verification. Please contact support.",
   "auth/billing-not-enabled": "SMS sign-in is not available for this service. Please contact support.",
   "auth/captcha-check-failed": "The security check could not be completed. Refresh the page and try again.",
   "auth/code-expired": "That verification code has expired. Request a new code and try again.",
   "auth/credential-already-in-use": "This sign-in method is already linked to another account.",
+  "auth/email-already-exists": "An account already exists for this email. Sign in instead.",
   "auth/email-already-in-use": "An account already exists for this email. Sign in with its current password.",
   "auth/internal-error": "The phone verification service returned an error. Please try again in a few minutes.",
   "auth/invalid-app-credential": "The security check expired or was rejected. Refresh the page and try again.",
   "auth/invalid-credential": "The email or password is incorrect.",
+  "auth/invalid-email": "Enter a valid email address and try again.",
+  "auth/invalid-multi-factor-session": "This security check has expired. Start sign-in again.",
   "auth/invalid-phone-number": "Enter a complete, valid phone number and try again.",
   "auth/invalid-verification-code": "That verification code is incorrect. Check the code and try again.",
+  "auth/maximum-second-factor-count-exceeded": "This account already has the maximum number of security methods.",
   "auth/missing-app-credential": "The security check did not complete. Refresh the page and try again.",
+  "auth/missing-email": "Enter your email address to continue.",
+  "auth/missing-multi-factor-info": "Choose a security method to continue.",
   "auth/missing-phone-number": "Enter a phone number to continue.",
+  "auth/missing-verification-code": "Enter the complete verification code to continue.",
+  "auth/multi-factor-info-not-found": "That security method is no longer available. Start sign-in again.",
   "auth/network-request-failed": "Check your internet connection and try again.",
   "auth/operation-not-allowed": "Phone sign-in is not enabled for this service. Please contact support.",
+  "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups and try again.",
+  "auth/popup-closed-by-user": "The sign-in window was closed before sign-in finished.",
   "auth/quota-exceeded": "The SMS sending limit has been reached. Please wait and try again later.",
+  "auth/requires-recent-login": "For your security, sign in again before making this change.",
   "auth/session-expired": "This verification session has expired. Request a new code and try again.",
   "auth/too-many-requests": "Too many attempts were made. Wait a few minutes, then try again.",
   "auth/unauthorized-domain": "Phone verification is temporarily unavailable. Please try again later.",
+  "auth/unsupported-first-factor": "That sign-in method cannot be used with this security check.",
   "auth/user-disabled": "This account has been disabled. Contact support if you think this is a mistake.",
+  "auth/user-mismatch": "This security check belongs to a different account. Sign in again.",
   "auth/user-not-found": "The email or password is incorrect.",
+  "auth/weak-password": "Choose a stronger password with at least six characters.",
   "auth/wrong-password": "The email or password is incorrect.",
 };
 

@@ -11,7 +11,7 @@ type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Pro
 const deviceCardStyle: CSSProperties = {
   width: "100%",
   maxWidth: 760,
-  padding: "18px 20px",
+  padding: "clamp(14px, 4vw, 20px)",
   border: "1px solid rgba(45, 138, 78, 0.18)",
   borderRadius: 18,
   background: "linear-gradient(135deg, #ffffff 0%, #f7faf4 100%)",
@@ -19,7 +19,7 @@ const deviceCardStyle: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   alignItems: "center",
-  gap: 16,
+  gap: "clamp(12px, 3vw, 16px)",
 };
 
 const deviceActionStyle: CSSProperties = {
@@ -107,7 +107,7 @@ export function InstallAppCard({ appName }: { appName: string }) {
           }
         } else setShowHelp((current) => !current);
       })(); }}>{isInstalling ? "Opening…" : promptEvent === null ? "Installation help" : "Install app"}</button>
-      {showHelp ? <small style={{ flexBasis: "100%", marginLeft: 60, padding: "10px 12px", borderRadius: 12, background: "#eef6ef", color: "#365440", lineHeight: 1.5 }}>{isIos ? "In Safari, tap Share, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to home screen."}</small> : null}
+      {showHelp ? <small role="status" style={{ flexBasis: "100%", padding: "10px 12px", borderRadius: 12, background: "#eef6ef", color: "#365440", lineHeight: 1.5 }}>{isIos ? "In Safari, tap Share, then Add to Home Screen." : "Open your browser menu and choose Install app or Add to home screen."}</small> : null}
     </section>
   );
 }

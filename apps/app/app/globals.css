@@ -729,7 +729,7 @@ textarea.form-input {
 
 /* --- Redesigned Auth Layout --- */
 .auth-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr;
   background: var(--color-bg);
@@ -741,11 +741,13 @@ textarea.form-input {
   justify-content: center;
   align-items: flex-start;
   padding: 32px 20px 64px;
+  min-width: 0;
 }
 
 .auth-inner {
   width: 100%;
   max-width: 460px;
+  min-width: 0;
 }
 
 /* For compatibility with centered templates like invite accept */
@@ -982,9 +984,32 @@ textarea.form-input {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 24px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+@media (max-width: 420px) {
+  .auth-main {
+    padding: 24px 12px 48px;
+  }
+
+  .auth-card,
+  .auth-panel {
+    padding: 18px 14px;
+  }
+
+  .auth-head h1 {
+    font-size: clamp(1.45rem, 8vw, 1.75rem);
+    overflow-wrap: anywhere;
+  }
+
+  .field,
+  .auth-input-group,
+  .phone-input {
+    min-width: 0;
+  }
 }
 .field {
   display: flex;
@@ -1324,7 +1349,7 @@ textarea.form-input {
       ),
       url("/auth-bg-v1.webp") center/cover no-repeat;
     color: #fff;
-    min-height: 100vh;
+    min-height: 100dvh;
     position: sticky;
     top: 0;
   }
@@ -1466,4 +1491,3 @@ textarea.form-input {
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
-

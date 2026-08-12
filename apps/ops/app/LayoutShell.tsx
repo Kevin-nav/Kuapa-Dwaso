@@ -3,7 +3,7 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
@@ -20,9 +20,9 @@ import {
   ChevronDown,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Bell,
 } from "lucide-react";
-import { InstallAppCard, PushNotificationController } from "@kuapa-dwaso/ui/pwa";
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -32,10 +32,6 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [syncError, setSyncError] = useState<string>();
-  const getPushToken = useCallback(async () => {
-    if (firebaseUser === null) throw new Error("Sign in again to change notification settings.");
-    return await firebaseUser.getIdToken();
-  }, [firebaseUser]);
   const isAuthRoute = pathname === "/auth";
   const hasWarehouseAccess = firebaseUser !== null && principal?.role === "warehouse_agent";
 
@@ -98,6 +94,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     { href: "/inventory", label: "Inventory", icon: <Package size={20} /> },
     { href: "/farmers", label: "Farmers", icon: <Search size={20} /> },
     { href: "/disputes/new", label: "Issues", icon: <AlertTriangle size={20} /> },
+    { href: "/notifications", label: "Notifications", icon: <Bell size={20} /> },
   ];
 
   return (
@@ -201,6 +198,14 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
                 </div>
 
                 <div className="profile-dropdown-footer">
+                  <Link
+                    href="/notifications"
+                    className="btn-logout"
+                    onClick={() => setShowProfileMenu(false)}
+                  >
+                    <Bell size={16} />
+                    <span>Notifications &amp; app</span>
+                  </Link>
                   <button 
                     type="button" 
                     className="btn-logout"
@@ -303,7 +308,6 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           )}
           {syncError === undefined ? null : <div className="offline-banner" role="alert"><AlertTriangle size={20} /><span>{syncError} Try again when the connection is stable.</span></div>}
           {children}
-          <div style={{ marginTop: 24, display: "grid", gap: 14 }}><InstallAppCard appName="Kuapa Dwaso Warehouse" /><PushNotificationController surface="ops" apiBaseUrl={process.env.NEXT_PUBLIC_API_URL} ownerKey={firebaseUser!.uid} getToken={getPushToken} /></div>
         </div>
       </main>
 

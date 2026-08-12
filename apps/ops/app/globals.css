@@ -81,6 +81,62 @@ a {
   text-decoration: none;
 }
 
+.ops-device-settings {
+  width: 100%;
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+.ops-device-settings-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.ops-device-settings-intro h2,
+.ops-device-settings-intro p {
+  margin: 0;
+}
+
+.ops-device-settings-intro p {
+  margin-top: 5px;
+  color: var(--gray-600);
+  line-height: 1.55;
+}
+
+.ops-device-settings-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--color-info-bg);
+  color: var(--color-field);
+}
+
+.ops-device-settings-grid,
+.ops-device-setting-group {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ops-device-settings-grid {
+  gap: 20px;
+}
+
+.ops-device-setting-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gray-600);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .ops-auth-gate {
   min-height: 100vh;
   display: grid;
@@ -104,7 +160,7 @@ a {
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 
 .ops-auth-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow-y: auto;
   display: grid;
   background: #f7f8f3;
@@ -123,15 +179,18 @@ a {
     #f7f8f3;
 }
 
-.ops-auth-card-wrap { width: min(100%, 470px); }
+.ops-auth-card-wrap {
+  width: min(100%, 470px);
+  min-width: 0;
+}
 .ops-auth-mobile-brand, .ops-auth-brand { display: flex; align-items: center; gap: 10px; }
-.ops-auth-mobile-brand { margin-bottom: 36px; color: var(--color-ink); }
+.ops-auth-mobile-brand { margin-bottom: 32px; color: var(--color-ink); }
 .ops-auth-brand { color: #fff; font-size: 1.08rem; font-weight: 850; }
-.ops-auth-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--color-field); color: #fff; }
+.ops-auth-brand-mark { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 13px; background: var(--color-field); color: #fff; flex-shrink: 0; }
 .ops-auth-kicker { color: var(--color-field); font-size: 0.75rem; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; }
-.ops-auth-head { margin-bottom: 24px; }
-.ops-auth-head h2 { margin: 7px 0 8px; font-size: clamp(1.8rem, 5vw, 2.35rem); line-height: 1.08; letter-spacing: -0.035em; }
-.ops-auth-head > p:last-child { color: var(--gray-600); line-height: 1.6; }
+.ops-auth-head { margin-bottom: 24px; min-width: 0; }
+.ops-auth-head h2 { margin: 7px 0 8px; font-size: clamp(1.5rem, 5vw, 2.35rem); line-height: 1.1; letter-spacing: -0.035em; overflow-wrap: break-word; }
+.ops-auth-head > p:last-child { color: var(--gray-600); line-height: 1.6; font-size: clamp(0.88rem, 2.5vw, 1rem); }
 
 .ops-auth-card {
   display: grid;
@@ -141,61 +200,28 @@ a {
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 24px 70px rgba(15, 31, 20, 0.1);
+  min-width: 0;
+  max-width: 100%;
 }
 
-.ops-auth-field { display: grid; gap: 8px; }
+.ops-auth-field { display: grid; gap: 8px; min-width: 0; }
 .ops-auth-field label { font-size: 0.88rem; font-weight: 800; }
 .ops-auth-field-help { color: var(--gray-500); font-size: 0.78rem; line-height: 1.45; }
-.ops-auth-input-wrap { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; padding: 0 14px; border: 1.5px solid var(--color-line); border-radius: 13px; color: var(--gray-500); transition: border-color .15s, box-shadow .15s; }
+.ops-auth-input-wrap { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; padding: 0 14px; border: 1.5px solid var(--color-line); border-radius: 13px; color: var(--gray-500); transition: border-color .15s, box-shadow .15s; min-width: 0; }
 .ops-auth-input-wrap:focus-within { border-color: var(--color-field); box-shadow: 0 0 0 4px rgba(45, 138, 78, 0.12); }
-.ops-auth-input-wrap input { min-width: 0; padding: 14px 0; border: 0; outline: 0; background: transparent; color: var(--color-ink); font: inherit; font-size: 1rem; }
+.ops-auth-input-wrap input { min-width: 0; padding: 14px 0; border: 0; outline: 0; background: transparent; color: var(--color-ink); font: inherit; font-size: 1rem; width: 100%; }
 .ops-auth-status { color: var(--gray-600); font-size: 0.86rem; line-height: 1.5; }
-.ops-auth-submit { min-height: 52px; border: 0; border-radius: 13px; display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--color-field); color: #fff; font: inherit; font-weight: 850; cursor: pointer; }
+.ops-auth-submit { min-height: 52px; border: 0; border-radius: 13px; display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--color-field); color: #fff; font: inherit; font-weight: 850; cursor: pointer; width: 100%; }
 .ops-auth-submit:hover { background: var(--color-field-dark); }
 .ops-auth-submit:disabled { opacity: .55; cursor: wait; }
-.ops-auth-secondary { border: 0; background: transparent; color: var(--color-field-dark); font: inherit; font-size: .88rem; font-weight: 800; cursor: pointer; }
+.ops-auth-secondary { border: 0; background: transparent; color: var(--color-field-dark); font: inherit; font-size: .88rem; font-weight: 800; cursor: pointer; padding: 4px 0; }
 .ops-auth-help { margin-top: 18px; color: var(--gray-500); font-size: .8rem; text-align: center; }
-.ops-auth-error, .ops-auth-notice { display: grid; grid-template-columns: auto 1fr; gap: 11px; padding: 13px; border-radius: 13px; }
+.ops-auth-error, .ops-auth-notice { display: grid; grid-template-columns: auto 1fr; gap: 11px; padding: 13px; border-radius: 13px; min-width: 0; }
 .ops-auth-error { background: var(--color-danger-bg); color: var(--color-danger); border: 1px solid var(--color-danger-border); }
-.ops-auth-error > span { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--color-danger); color: #fff; font-weight: 900; }
-.ops-auth-error p, .ops-auth-notice p { font-size: .84rem; line-height: 1.45; }
+.ops-auth-error > span { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: var(--color-danger); color: #fff; font-weight: 900; flex-shrink: 0; }
+.ops-auth-error p, .ops-auth-notice p { font-size: .84rem; line-height: 1.45; overflow-wrap: break-word; }
 .ops-auth-notice { margin-bottom: 16px; background: var(--color-warning-bg); color: var(--color-warning); border: 1px solid var(--color-warning-border); }
 .ops-auth-notice strong { display: block; margin-bottom: 3px; }
-
-/* OTP 6-box input */
-.ops-otp-group {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-.ops-otp-slot {
-  width: 50px;
-  height: 58px;
-  border: 1.5px solid var(--color-line);
-  border-radius: 13px;
-  background: var(--color-surface-raised);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 1.45rem;
-  font-weight: 800;
-  text-align: center;
-  caret-color: var(--color-field);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-}
-.ops-otp-slot:focus {
-  outline: none;
-  border-color: var(--color-field);
-  box-shadow: 0 0 0 4px rgba(45, 138, 78, 0.12);
-  transform: scale(1.04);
-}
-.ops-otp-slot:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.ops-otp-slot:not(:placeholder-shown),
-.ops-otp-slot[value]:not([value=""]) {
-  border-color: var(--color-field-light);
-}
 
 @media (min-width: 900px) {
   .ops-auth-layout { grid-template-columns: minmax(390px, .9fr) 1.1fr; }
@@ -1465,6 +1491,22 @@ textarea:focus-visible {
   .section-card {
     padding: 14px;
   }
+
+  .ops-auth-main {
+    padding: 16px 10px;
+  }
+
+  .ops-auth-card {
+    padding: 16px 12px;
+    border-radius: 14px;
+    gap: 12px;
+  }
+
+  .ops-auth-submit {
+    min-height: 48px;
+    font-size: 0.92rem;
+  }
+
 }
 
 /* Responsive Grid Adjustments */
@@ -1778,6 +1820,24 @@ textarea:focus-visible {
   }
   .profile-menu-backdrop {
     background-color: rgba(15, 31, 20, 0.4);
+  }
+
+  .ops-auth-main {
+    padding: 24px 16px;
+  }
+  .ops-auth-card {
+    padding: 20px 16px;
+    border-radius: 18px;
+    gap: 16px;
+  }
+  .ops-auth-mobile-brand {
+    margin-bottom: 24px;
+  }
+  .ops-auth-head {
+    margin-bottom: 18px;
+  }
+  .ops-auth-head h2 {
+    font-size: clamp(1.45rem, 5.5vw, 1.85rem);
   }
 }
 

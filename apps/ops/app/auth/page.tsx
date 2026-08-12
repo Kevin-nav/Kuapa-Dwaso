@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
+import { AUTH_CODE_VALIDITY_MS, getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
+import { OtpExpiryCountdown, OtpInput } from "@kuapa-dwaso/ui";
 import { ArrowRight, CheckCircle2, PackageCheck, ShieldCheck, Smartphone, Warehouse } from "lucide-react";
-import { OtpInput } from "./OtpInput";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -20,9 +20,9 @@ export default function OpsAuthPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
-  const [status, setStatus] = useState("Warehouse agents sign in with the phone number linked by invite acceptance.");
   const [error, setError] = useState<string | undefined>();
-  const [errorCode, setErrorCode] = useState<string | undefined>();
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number>();
+  const [isCodeExpired, setIsCodeExpired] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const recaptchaRef = useRef<RecaptchaVerifierType | null>(null);
   const router = useRouter();
@@ -48,10 +48,10 @@ export default function OpsAuthPage() {
     return recaptchaRef.current;
   };
 
-  const sendOtp = async (event: FormEvent) => {
-    event.preventDefault();
+  const sendOtp = async (event?: FormEvent) => {
+    event?.preventDefault();
     setError(undefined);
-    setErrorCode(undefined);
+    setIsCodeExpired(false);
     setIsWorking(true);
     try {
       const normalizedPhoneNumber = normalizeGhanaPhoneNumber(phoneNumber);
@@ -59,15 +59,14 @@ export default function OpsAuthPage() {
       clearVerifier();
       setPhoneNumber(normalizedPhoneNumber);
       setConfirmation(result);
-      setStatus("OTP sent. Enter the SMS code to sign in.");
+      setOtp("");
+      setCodeExpiresAt(Date.now() + AUTH_CODE_VALIDITY_MS);
     } catch (err) {
       clearVerifier();
       const code = getAuthErrorCode(err);
-      setErrorCode(code);
-      setError(err instanceof Error && code === undefined
-        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+      setError(err instanceof Error && code === undefined && err.message.startsWith("Ghana phone number")
+        ? "Enter a valid Ghana phone number, such as 054 123 4567."
         : getAuthErrorMessage(err, "send-phone-code"));
-      setStatus("No code was sent. You can try again.");
     } finally {
       setIsWorking(false);
     }
@@ -78,22 +77,19 @@ export default function OpsAuthPage() {
     if (confirmation === null) {
       return;
     }
+    if (isCodeExpired) {
+      setError("This code has expired. Request a new code to continue.");
+      return;
+    }
     setError(undefined);
-    setErrorCode(undefined);
     setIsWorking(true);
     try {
       await confirmation.confirm(otp.trim());
-      setStatus("Signed in. The ops console will use your platform principal when it resolves.");
     } catch (err) {
       const code = getAuthErrorCode(err);
-      setErrorCode(code);
       if (code === "auth/code-expired" || code === "auth/session-expired") {
-        setConfirmation(null);
-        setOtp("");
+        setIsCodeExpired(true);
         clearVerifier();
-        setStatus("Request a new verification code to continue.");
-      } else {
-        setStatus("The code was not verified. Check it and try again.");
       }
       setError(getAuthErrorMessage(err, "verify-phone-code"));
     } finally {
@@ -135,22 +131,30 @@ export default function OpsAuthPage() {
             <div className="ops-auth-field">
               <label htmlFor="opsPhone">Warehouse-agent phone</label>
               <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="Enter phone number" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
-              <small className="ops-auth-field-help">You can enter the number with or without +233.</small>
             </div>
             {confirmation !== null ? (
               <div className="ops-auth-field">
                 <label>Six-digit verification code</label>
-                <OtpInput value={otp} onChange={setOtp} disabled={isWorking} />
+                <OtpInput value={otp} onChange={setOtp} disabled={isWorking || isCodeExpired} />
+                {codeExpiresAt === undefined ? null : (
+                  <OtpExpiryCountdown
+                    key={codeExpiresAt}
+                    expiresAt={codeExpiresAt}
+                    onExpire={() => {
+                      setIsCodeExpired(true);
+                      setError("This code has expired. Request a new code to continue.");
+                    }}
+                  />
+                )}
               </div>
             ) : null}
             <div id="ops-phone-recaptcha" />
-            <p className="ops-auth-status">{status}</p>
-            {error !== undefined ? <div className="ops-auth-error" role="alert"><span>!</span><p>{error}{errorCode !== undefined ? <small style={{ display: "block", marginTop: 5, opacity: 0.78 }}>Reference: {errorCode}</small> : null}</p></div> : null}
-            <button className="ops-auth-submit" type="submit" disabled={isWorking}>{isWorking ? "Please wait…" : confirmation === null ? <>Send secure code <ArrowRight size={18} /></> : <>Verify and enter console <ArrowRight size={18} /></>}</button>
-            {confirmation !== null ? <button className="ops-auth-secondary" type="button" disabled={isWorking} onClick={() => { setConfirmation(null); setOtp(""); setError(undefined); }}>Use a different number</button> : null}
+            {error !== undefined ? <div className="ops-auth-error" role="alert"><span>!</span><p>{error}</p></div> : null}
+            <button className="ops-auth-submit" type="submit" disabled={isWorking || (confirmation !== null && (isCodeExpired || otp.length !== 6))}>{isWorking ? "Please wait…" : confirmation === null ? <>Send secure code <ArrowRight size={18} /></> : isCodeExpired ? "Code expired" : <>Verify and enter console <ArrowRight size={18} /></>}</button>
+            {confirmation !== null ? <button className="ops-auth-secondary" type="button" disabled={isWorking} onClick={() => void sendOtp()}>Resend code</button> : null}
+            {confirmation !== null ? <button className="ops-auth-secondary" type="button" disabled={isWorking} onClick={() => { setConfirmation(null); setOtp(""); setCodeExpiresAt(undefined); setIsCodeExpired(false); setError(undefined); }}>Use a different number</button> : null}
             {firebaseUser !== null ? <button className="ops-auth-secondary" type="button" onClick={() => void signOut()}>Sign out current account</button> : null}
           </form>
-          <p className="ops-auth-help">No invitation or warehouse assignment? Contact your platform administrator.</p>
         </div>
       </section>
     </main>

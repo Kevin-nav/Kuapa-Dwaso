@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
+import { AUTH_CODE_VALIDITY_MS, getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
 import type {
   MultiFactorError,
   MultiFactorResolver,
@@ -36,7 +36,7 @@ import {
   Copy,
   CheckCircle2,
 } from "lucide-react";
-import { OtpInput } from "@kuapa-dwaso/ui";
+import { OtpExpiryCountdown, OtpInput } from "@kuapa-dwaso/ui";
 import { firebaseAuth } from "./firebase";
 import { useAdminAuth } from "./AdminAuthProvider";
 
@@ -100,9 +100,7 @@ export default function AdminAuthPage() {
   const { firebaseUser, principal, signOut } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState(
-    "Admins and warehouse managers can sign in with Google or email/password.",
-  );
+  const [status, setStatus] = useState("");
   const [error, setError] = useState<string | undefined>();
   const [isWorking, setIsWorking] = useState(false);
   const [inviteToken, setInviteToken] = useState("");
@@ -113,10 +111,14 @@ export default function AdminAuthPage() {
   const [selectedMfaFactorIndex, setSelectedMfaFactorIndex] = useState(0);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaVerificationId, setMfaVerificationId] = useState("");
+  const [mfaVerificationExpiresAt, setMfaVerificationExpiresAt] = useState<number>();
+  const [isMfaVerificationExpired, setIsMfaVerificationExpired] = useState(false);
   const [mfaPhoneNumber, setMfaPhoneNumber] = useState("");
   const [mfaEnrollmentCode, setMfaEnrollmentCode] = useState("");
   const [mfaEnrollmentVerificationId, setMfaEnrollmentVerificationId] =
     useState("");
+  const [mfaEnrollmentExpiresAt, setMfaEnrollmentExpiresAt] = useState<number>();
+  const [isMfaEnrollmentExpired, setIsMfaEnrollmentExpired] = useState(false);
   const [totpSecret, setTotpSecret] = useState<TotpSecret | undefined>();
   const [totpEnrollmentUri, setTotpEnrollmentUri] = useState("");
   const [totpEnrollmentCode, setTotpEnrollmentCode] = useState("");
@@ -351,6 +353,9 @@ export default function AdminAuthPage() {
       );
       clearRecaptchaVerifier();
       setMfaVerificationId(verificationId);
+      setMfaCode("");
+      setIsMfaVerificationExpired(false);
+      setMfaVerificationExpiresAt(Date.now() + AUTH_CODE_VALIDITY_MS);
       setStatus("MFA challenge sent. Enter the code to complete sign-in.");
     } catch (err) {
       clearRecaptchaVerifier();
@@ -361,6 +366,13 @@ export default function AdminAuthPage() {
   };
 
   const completeMfaSignIn = async () => {
+    if (
+      mfaResolver?.hints[selectedMfaFactorIndex]?.factorId === PhoneMultiFactorGenerator.FACTOR_ID &&
+      isMfaVerificationExpired
+    ) {
+      setError("This code has expired. Request a new code to continue.");
+      return;
+    }
     setError(undefined);
     setIsWorking(true);
     try {
@@ -395,9 +407,15 @@ export default function AdminAuthPage() {
       await mfaResolver.resolveSignIn(assertion);
       setMfaResolver(undefined);
       setMfaVerificationId("");
+      setMfaVerificationExpiresAt(undefined);
+      setIsMfaVerificationExpired(false);
       setMfaCode("");
       setStatus("MFA sign-in complete.");
     } catch (err) {
+      const code = getAuthErrorCode(err);
+      if (code === "auth/code-expired" || code === "auth/session-expired") {
+        setIsMfaVerificationExpired(true);
+      }
       setError(getAuthErrorMessage(err, "verify-mfa-code"));
     } finally {
       setIsWorking(false);
@@ -515,13 +533,16 @@ export default function AdminAuthPage() {
       );
       clearRecaptchaVerifier();
       setMfaEnrollmentVerificationId(verificationId);
+      setMfaEnrollmentCode("");
+      setIsMfaEnrollmentExpired(false);
+      setMfaEnrollmentExpiresAt(Date.now() + AUTH_CODE_VALIDITY_MS);
       setStatus(
         "MFA enrollment challenge sent. Enter the code to finish enrollment.",
       );
     } catch (err) {
       clearRecaptchaVerifier();
-      setError(err instanceof Error && getAuthErrorCode(err) === undefined
-        ? "Enter a Ghana phone number such as 054 123 4567 or +233 54 123 4567."
+      setError(err instanceof Error && getAuthErrorCode(err) === undefined && err.message.startsWith("Ghana phone number")
+        ? "Enter a valid Ghana phone number, such as 054 123 4567."
         : getAuthErrorMessage(err, "enroll-mfa"));
     } finally {
       setIsWorking(false);
@@ -529,6 +550,10 @@ export default function AdminAuthPage() {
   };
 
   const completeMfaEnrollment = async () => {
+    if (isMfaEnrollmentExpired) {
+      setError("This code has expired. Request a new code to continue.");
+      return;
+    }
     setError(undefined);
     setIsWorking(true);
     try {
@@ -545,11 +570,17 @@ export default function AdminAuthPage() {
       await multiFactor(firebaseUser).enroll(assertion, "Admin SMS");
       setMfaEnrollmentCode("");
       setMfaEnrollmentVerificationId("");
+      setMfaEnrollmentExpiresAt(undefined);
+      setIsMfaEnrollmentExpired(false);
       setStatus(
         "Firebase SMS MFA factor enrolled. Refresh the token before accepting an MFA-required invite.",
       );
       await getIdToken(firebaseUser, true);
     } catch (err) {
+      const code = getAuthErrorCode(err);
+      if (code === "auth/code-expired" || code === "auth/session-expired") {
+        setIsMfaEnrollmentExpired(true);
+      }
       setError(getAuthErrorMessage(err, "enroll-mfa"));
     } finally {
       setIsWorking(false);
@@ -726,6 +757,8 @@ export default function AdminAuthPage() {
                       onChange={(event) => {
                         setSelectedMfaFactorIndex(Number(event.target.value));
                         setMfaVerificationId("");
+                        setMfaVerificationExpiresAt(undefined);
+                        setIsMfaVerificationExpired(false);
                       }}
                       className="auth-input"
                     >
@@ -748,9 +781,19 @@ export default function AdminAuthPage() {
                     value={mfaCode}
                     onChange={setMfaCode}
                     length={6}
-                    disabled={isWorking}
+                    disabled={isWorking || isMfaVerificationExpired}
                     aria-label="MFA verification code"
                   />
+                  {mfaResolver.hints[selectedMfaFactorIndex]?.factorId === PhoneMultiFactorGenerator.FACTOR_ID && mfaVerificationExpiresAt !== undefined ? (
+                    <OtpExpiryCountdown
+                      key={mfaVerificationExpiresAt}
+                      expiresAt={mfaVerificationExpiresAt}
+                      onExpire={() => {
+                        setIsMfaVerificationExpired(true);
+                        setError("This code has expired. Request a new code to continue.");
+                      }}
+                    />
+                  ) : null}
                 </div>
 
                 <div
@@ -778,7 +821,7 @@ export default function AdminAuthPage() {
                       mfaCode.trim().length === 0 ||
                       (mfaResolver.hints[selectedMfaFactorIndex]?.factorId ===
                         PhoneMultiFactorGenerator.FACTOR_ID &&
-                        mfaVerificationId.length === 0)
+                        (mfaVerificationId.length === 0 || isMfaVerificationExpired))
                     }
                     onClick={() => void completeMfaSignIn()}
                     className="auth-btn-primary"
@@ -1221,10 +1264,9 @@ export default function AdminAuthPage() {
                         type="tel"
                         inputMode="tel"
                         autoComplete="tel"
-                        placeholder="054 123 4567 or +233 54 123 4567"
+                        placeholder="054 123 4567"
                         className="auth-input"
                       />
-                      <small style={{ color: "#6b7280" }}>You can enter the number with or without +233.</small>
                     </div>
                     {mfaEnrollmentVerificationId.length > 0 && (
                       <div className="auth-input-group">
@@ -1234,9 +1276,19 @@ export default function AdminAuthPage() {
                           value={mfaEnrollmentCode}
                           onChange={setMfaEnrollmentCode}
                           length={6}
-                          disabled={isWorking}
+                          disabled={isWorking || isMfaEnrollmentExpired}
                           aria-label="SMS MFA verification code"
                         />
+                        {mfaEnrollmentExpiresAt === undefined ? null : (
+                          <OtpExpiryCountdown
+                            key={mfaEnrollmentExpiresAt}
+                            expiresAt={mfaEnrollmentExpiresAt}
+                            onExpire={() => {
+                              setIsMfaEnrollmentExpired(true);
+                              setError("This code has expired. Request a new code to continue.");
+                            }}
+                          />
+                        )}
                       </div>
                     )}
                     <div style={{ display: "flex", gap: "10px" }}>
@@ -1252,7 +1304,7 @@ export default function AdminAuthPage() {
                         <button
                           type="button"
                           disabled={
-                            isWorking || mfaEnrollmentCode.trim().length === 0
+                            isWorking || isMfaEnrollmentExpired || mfaEnrollmentCode.trim().length !== 6
                           }
                           onClick={() => void completeMfaEnrollment()}
                           className="auth-btn-primary"

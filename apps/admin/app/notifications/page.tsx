@@ -1,16 +1,24 @@
 "use client";
 
+import { useCallback } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { DataTable, StatusBadge, gray, palette } from "@kuapa-dwaso/dashboard-ui";
 import { OperationalAccessGate } from "../operational/OperationalAccessGate";
 import { useOperationalAdminData } from "../operational/useOperationalAdminData";
+import { InstallAppCard, PushNotificationController } from "@kuapa-dwaso/ui/pwa";
 
 export default function NotificationsPage() {
   const { access, notifications } = useOperationalAdminData();
   const markRead = useMutation(api.notifications.markRead);
   const acknowledge = useMutation(api.notifications.acknowledge);
+  const getPushToken = useCallback(async () => {
+    if (access.firebaseUser === null) {
+      throw new Error("Sign in again to change notification settings.");
+    }
+    return await access.firebaseUser.getIdToken();
+  }, [access.firebaseUser]);
 
   return (
     <OperationalAccessGate
@@ -28,6 +36,26 @@ export default function NotificationsPage() {
             Admin-safe lookup of platform notification records and delivery state.
           </p>
         </div>
+
+        <section aria-labelledby="device-notification-heading" style={{ display: "grid", gap: 14 }}>
+          <div>
+            <h2 id="device-notification-heading" style={{ fontSize: "1.125rem", fontWeight: 800, color: gray[900], margin: 0 }}>
+              Notifications on this device
+            </h2>
+            <p style={{ fontSize: "0.875rem", color: gray[500], margin: "4px 0 0" }}>
+              Install the admin app or choose whether this browser may show important operational alerts.
+            </p>
+          </div>
+          <InstallAppCard appName="Kuapa Dwaso Admin" />
+          {access.firebaseUser === null ? null : (
+            <PushNotificationController
+              surface="admin"
+              apiBaseUrl={process.env.NEXT_PUBLIC_API_URL}
+              ownerKey={access.firebaseUser.uid}
+              getToken={getPushToken}
+            />
+          )}
+        </section>
 
         <DataTable
           data={notifications}
