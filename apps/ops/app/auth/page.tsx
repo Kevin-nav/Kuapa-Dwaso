@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { getAuthErrorCode, getAuthErrorMessage, normalizeGhanaPhoneNumber } from "@kuapa-dwaso/utils";
-import { ArrowRight, CheckCircle2, KeyRound, PackageCheck, ShieldCheck, Smartphone, Warehouse } from "lucide-react";
+import { ArrowRight, CheckCircle2, PackageCheck, ShieldCheck, Smartphone, Warehouse } from "lucide-react";
+import { OtpInput } from "./OtpInput";
 import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
@@ -138,8 +139,8 @@ export default function OpsAuthPage() {
             </div>
             {confirmation !== null ? (
               <div className="ops-auth-field">
-                <label htmlFor="opsOtp">Six-digit verification code</label>
-                <div className="ops-auth-input-wrap"><KeyRound size={19} /><input id="opsOtp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value)} required /></div>
+                <label>Six-digit verification code</label>
+                <OtpInput value={otp} onChange={setOtp} disabled={isWorking} />
               </div>
             ) : null}
             <div id="ops-phone-recaptcha" />
