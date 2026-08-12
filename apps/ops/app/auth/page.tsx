@@ -133,7 +133,7 @@ export default function OpsAuthPage() {
           <form className="ops-auth-card" onSubmit={(event) => void (confirmation === null ? sendOtp(event) : verifyOtp(event))}>
             <div className="ops-auth-field">
               <label htmlFor="opsPhone">Warehouse-agent phone</label>
-              <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="054 123 4567 or +233 54 123 4567" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
+              <div className="ops-auth-input-wrap"><Smartphone size={19} /><input id="opsPhone" type="tel" inputMode="tel" autoComplete="tel" placeholder="Enter phone number" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} disabled={confirmation !== null || isWorking} required /></div>
               <small className="ops-auth-field-help">You can enter the number with or without +233.</small>
             </div>
             {confirmation !== null ? (
