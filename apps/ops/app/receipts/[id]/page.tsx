@@ -220,7 +220,7 @@ export default function ReceiptPage({ params }: PageProps) {
           
           {/* Large Monospace code chip */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "12px" }}>
-            <span className="code-chip" style={{ fontSize: "28px", padding: "6px 16px" }}>
+            <span className="code-chip" style={{ fontSize: "clamp(18px, 5vw, 28px)", padding: "6px 16px" }}>
               {batch.receiptCode}
             </span>
             <button 

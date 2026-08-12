@@ -458,7 +458,7 @@ function InventoryContent() {
           )}
 
           {/* Actions Tray */}
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+          <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexWrap: "wrap" }}>
             {(activeBatch.status === "received" || activeBatch.status === "verified") && (
               <button 
                 type="button" 
