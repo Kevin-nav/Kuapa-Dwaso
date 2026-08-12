@@ -4,31 +4,30 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kuapa Dwaso | Scheduled Market Delivery",
+  title: "Kuapa Dwaso | A Buyer Before Produce Moves",
   description:
-    "Traders order verified warehouse stock before published cutoffs for scheduled delivery to selected market destinations.",
+    "Kuapa Dwaso connects buyer demand with farmers who can supply it and coordinates the journey from agreement to delivery.",
   keywords: [
     "agriculture",
-    "warehouse aggregation",
+    "agricultural market access",
     "Ghana",
     "smallholder farmers",
-    "produce storage",
     "produce buyers",
-    "dispatch",
-    "scheduled market delivery",
+    "produce aggregation",
+    "farm produce delivery",
   ],
   openGraph: {
-    title: "Kuapa Dwaso | Scheduled Market Delivery",
+    title: "Kuapa Dwaso | A Buyer Before Produce Moves",
     description:
-      "Published order cutoffs and scheduled delivery of confirmed trader orders to selected market destinations.",
+      "Connecting buyer demand with farmers who can supply it, then helping produce reach the right market.",
     type: "website",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Kuapa Dwaso | Warehouse Produce Aggregation",
+    title: "Kuapa Dwaso | A Buyer Before Produce Moves",
     description:
-      "Farmers store locally. Traders order for published market delivery days.",
+      "A clearer journey from buyer demand to farmer supply and delivery.",
   },
 };
 
@@ -52,7 +51,10 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" className={`${jakarta.variable} ${outfit.variable} scroll-smooth`}>
+    <html
+      lang="en"
+      className={`${jakarta.variable} ${outfit.variable} scroll-smooth`}
+    >
       <body className="antialiased font-sans bg-brand-surface text-brand-ink">
         {children}
       </body>

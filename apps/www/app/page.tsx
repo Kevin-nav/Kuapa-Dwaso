@@ -1,65 +1,47 @@
+import { officialContactHref } from "@kuapa-dwaso/config";
 import Image from "next/image";
+import { Suspense } from "react";
 import heroImage from "../public/image1.webp";
-import warehouseImage from "../public/image3.webp";
-import { SiteHeader } from "./site-header";
-import { SiteFooter } from "./site-footer";
+import fieldImage from "../public/image3.webp";
+import type { PublicBlogPost } from "./blog/data";
 import { getLatestPosts } from "./blog/data";
 import { StoryCard } from "./blog/story-card";
+import { SiteFooter } from "./site-footer";
+import { Logo, SiteHeader } from "./site-header";
 
-const proofPoints = [
-  ["Warehouse-verified", "Produce is received, weighed, graded, and recorded"],
-  ["Storage receipts", "Farmers get clear records for every inventory batch"],
-  ["Published cutoffs", "Traders know when orders close and payment is due"],
+const promises = [
+  ["Demand comes first", "We begin with a real buyer requirement"],
+  ["Terms stay clear", "You see the important terms before you decide"],
   [
-    "Scheduled delivery",
-    "Confirmed orders move to selected market destinations",
+    "Quality gets checked",
+    "Produce is checked against what the buyer asked for",
+  ],
+  [
+    "Delivery is coordinated",
+    "We bring supply together for a practical journey",
   ],
 ] as const;
 
 const steps = [
   {
-    title: "Farmers deposit produce",
-    body: "Farmers bring produce to a nearby community warehouse instead of carrying goods blindly to the city.",
+    title: "A buyer tells us what they need",
+    body: "We capture the crop, quantity, quality, location, date, and payment expectations.",
   },
   {
-    title: "Warehouse agents record inventory",
-    body: "Warehouse agents weigh, grade, photograph, and create inventory batches with storage receipts.",
+    title: "We find farmers who can supply it",
+    body: "We check available produce and bring together enough supply for the request.",
   },
   {
-    title: "Buyers order verified stock",
-    body: "Traders order before a published cutoff for a dated run to a selected market destination or collection point.",
+    title: "Everyone sees the terms",
+    body: "Farmers review the offer and decide whether it works for them before produce moves.",
   },
   {
-    title: "Orders travel together",
-    body: "Kuapa Dwaso aggregates confirmed orders and prepares one scheduled market delivery without mixing incompatible loads.",
-  },
-] as const;
-
-const audiences = [
-  {
-    title: "For Farmers",
-    href: "#how",
-    body: "Store produce locally, track storage fees, see sale status, and receive one-way SMS updates.",
+    title: "We check and coordinate",
+    body: "Quality is checked, quantities are brought together, and transport is arranged.",
   },
   {
-    title: "For Market Traders and Bulk Buyers",
-    href: "#buyers",
-    body: "See selected destinations, published delivery days, order cutoffs, payment deadlines, and available warehouse stock.",
-  },
-  {
-    title: "For Transporters",
-    href: "#how",
-    body: "Receive assigned dispatch details and share concise operational updates for scheduled runs.",
-  },
-  {
-    title: "For Invited Staff",
-    href: "#access",
-    body: "Use the secure invitation you received to join the correct warehouse or administrative workspace.",
-  },
-  {
-    title: "For Warehouses",
-    href: "#warehouse",
-    body: "Run intake, receipts, storage fee tracking, reservations, sales, dispatches, and audit-ready operations.",
+    title: "The order is delivered",
+    body: "Delivery, buyer acceptance, payment, and farmer settlement are recorded clearly.",
   },
 ] as const;
 
@@ -88,10 +70,7 @@ export default async function LandingPage({
 }) {
   const appAuthHref = getAppAuthHref();
   const appLoginHref = getAppLoginHref();
-  const [params, latestPosts] = await Promise.all([
-    searchParams,
-    getLatestPosts(3),
-  ]);
+  const params = await searchParams;
   const inviteToken =
     typeof params.token === "string" ? params.token : undefined;
 
@@ -99,117 +78,63 @@ export default async function LandingPage({
     <div className="min-h-screen bg-brand-surface text-brand-ink">
       <SiteHeader joinHref={appAuthHref} loginHref={appLoginHref} />
       <main>
-        <HeroSection appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
-        <ProofBar />
-        <WarehouseSection />
+        <HeroSection appAuthHref={appAuthHref} />
+        <PilotNote />
+        <PromiseBar />
+        <MarketSection appAuthHref={appAuthHref} />
         <HowItWorks />
-        <AudienceCards
-          appAuthHref={appAuthHref}
-          appLoginHref={appLoginHref}
-          {...(inviteToken === undefined ? {} : { inviteToken })}
-        />
-        <LatestStories posts={latestPosts} />
-        <FinalCta appAuthHref={appAuthHref} appLoginHref={appLoginHref} />
+        <AudienceSection appAuthHref={appAuthHref} />
+        <BrandSection />
+        <Suspense fallback={<FieldStoriesFallback />}>
+          <LatestStories />
+        </Suspense>
+        {inviteToken === undefined ? null : (
+          <InvitedAccess loginHref={appLoginHref} inviteToken={inviteToken} />
+        )}
+        <FinalCta appAuthHref={appAuthHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
     </div>
   );
 }
 
-function LatestStories({
-  posts,
-}: {
-  posts: Awaited<ReturnType<typeof getLatestPosts>>;
-}) {
-  return (
-    <section className="bg-[#f4f2e9] py-20 sm:py-24">
-      <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        <div className="flex items-end justify-between gap-5">
-          <div>
-            <p className="eyebrow">From the field</p>
-            <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
-              Stories &amp; Insights
-            </h2>
-          </div>
-          <a
-            className="hidden font-bold text-brand-field sm:block"
-            href="/blog"
-          >
-            Explore all stories →
-          </a>
-        </div>
-        <div className="blog-related__grid mt-10">
-          {posts.length > 0 ? (
-            posts.map((post) => <StoryCard key={post._id} post={post} />)
-          ) : (
-            <div className="stories-empty">
-              <h3>Field stories and practical insights are on the way.</h3>
-              <p className="mt-3 max-w-2xl text-brand-ink/65">
-                Visit Stories &amp; Insights for official notes on warehouse
-                visits, partnerships, community events, and market access.
-              </p>
-            </div>
-          )}
-        </div>
-        <a
-          className="mt-7 inline-block font-bold text-brand-field sm:hidden"
-          href="/blog"
-        >
-          Explore all stories →
-        </a>
-      </div>
-    </section>
-  );
-}
-
-function HeroSection({
-  appAuthHref,
-  appLoginHref,
-}: {
-  appAuthHref: string;
-  appLoginHref: string;
-}) {
+function HeroSection({ appAuthHref }: { appAuthHref: string }) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
         src={heroImage}
-        alt="Produce vendors and operators at a Ghana market"
+        alt="Produce sellers and buyers at a market in Ghana"
         fill
         priority
         sizes="100vw"
         className="object-cover object-[66%_center] sm:object-[70%_center]"
       />
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(100deg, rgba(15, 31, 20, 0.94) 0%, rgba(15, 31, 20, 0.82) 34%, rgba(15, 31, 20, 0.18) 64%, rgba(15, 31, 20, 0.42) 100%)",
-        }}
-      />
+      <div className="hero-scrim absolute inset-0" />
       <div className="relative mx-auto w-full max-w-6xl px-5 pb-14 pt-28 sm:px-6 sm:pb-20 sm:pt-40">
-        <div className="max-w-xl">
+        <div className="max-w-3xl">
           <p className="eyebrow text-brand-gold">
-            Warehouse-based produce aggregation
+            Farmer&apos;s Market · Ghana
           </p>
-          <h1 className="mt-4 font-display text-[length:var(--text-hero)] font-bold leading-[1.05] text-white">
-            Store locally.
+          <h1 className="mt-4 max-w-3xl font-display text-[length:var(--text-hero)] font-bold leading-[1.02] text-white">
+            We find the buyer
             <br />
-            <span className="text-[#7dd8a0]">Sell from verified stock.</span>
+            <span className="text-[#8ae0a8]">before the produce moves.</span>
           </h1>
-          <p className="mt-6 max-w-lg text-base leading-relaxed text-white/85 sm:text-lg">
-            Traders place orders before a published cutoff. Kuapa Dwaso
-            aggregates confirmed orders and delivers produce to selected market
-            destinations on scheduled days.
+          <p className="mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
+            Kuapa Dwaso connects buyer demand with farmers who can supply it,
+            then helps make the journey from agreement to delivery clear and
+            dependable.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <a href={appAuthHref} className="btn-primary">
-              Join the pilot
+              I grow produce
             </a>
-            <a href={appLoginHref} className="btn-ghost">
-              Log in
+            <a href={appAuthHref} className="btn-ghost">
+              I want to buy
             </a>
-            <a href="#buyers" className="btn-ghost">
-              Source inventory
+            <a href="#how" className="hero-text-link">
+              See how it works
+              <ArrowIcon />
             </a>
           </div>
         </div>
@@ -218,17 +143,32 @@ function HeroSection({
   );
 }
 
-function ProofBar() {
+function PilotNote() {
   return (
-    <section className="border-b border-brand-line bg-brand-surface">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-5 gap-y-8 px-5 py-9 sm:px-6 sm:py-10 md:grid-cols-4">
-        {proofPoints.map(([title, sub]) => (
-          <div key={title}>
-            <p className="font-display text-lg font-bold text-brand-ink">
+    <aside className="border-b border-brand-line bg-brand-gold/15">
+      <p className="mx-auto max-w-6xl px-5 py-3 text-center text-sm font-semibold leading-relaxed text-brand-ink sm:px-6">
+        Kuapa Dwaso is in its pilot stage. We are building with a focused group
+        of farmers, buyers, and agricultural partners.
+      </p>
+    </aside>
+  );
+}
+
+function PromiseBar() {
+  return (
+    <section
+      aria-label="What you can expect"
+      className="border-b border-brand-line bg-brand-surface"
+    >
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-5 gap-y-8 px-5 py-10 sm:px-6 md:grid-cols-4 md:py-12">
+        {promises.map(([title, body], index) => (
+          <div key={title} className="promise-item">
+            <span aria-hidden="true">0{index + 1}</span>
+            <p className="mt-3 font-display text-lg font-bold text-brand-ink">
               {title}
             </p>
             <p className="mt-1 text-sm leading-relaxed text-brand-ink/60">
-              {sub}
+              {body}
             </p>
           </div>
         ))}
@@ -237,33 +177,58 @@ function ProofBar() {
   );
 }
 
-function WarehouseSection() {
+function MarketSection({ appAuthHref }: { appAuthHref: string }) {
   return (
-    <section id="warehouse" className="bg-brand-ink py-20 text-white sm:py-24">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-2 lg:gap-16">
+    <section id="market" className="bg-brand-ink py-20 text-white sm:py-24">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <div>
-          <p className="eyebrow text-[#7dd8a0]">
-            The warehouse is the trust point
-          </p>
-          <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
-            Every batch has a place, an owner, a status, and a fee record.
+          <p className="eyebrow text-[#8ae0a8]">A clearer way to trade</p>
+          <h2 className="mt-4 max-w-xl font-display text-[length:var(--text-h2)] font-bold leading-tight">
+            Less uncertainty for both sides of the market.
           </h2>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-white/70 sm:text-lg">
-            The platform tracks who owns the produce, where it is stored, how
-            much is available, what has been reserved or sold, and which fees
-            were applied at the time.
-          </p>
+          <div className="mt-9 grid gap-8 sm:grid-cols-2">
+            <div>
+              <p className="market-label">For farmers</p>
+              <h3 className="mt-3 font-display text-2xl font-semibold">
+                Know the opportunity before you move your produce.
+              </h3>
+              <p className="mt-3 leading-relaxed text-white/68">
+                See what a buyer needs and understand the important terms before
+                you decide.
+              </p>
+            </div>
+            <div>
+              <p className="market-label">For buyers</p>
+              <h3 className="mt-3 font-display text-2xl font-semibold">
+                Reach farmers who can meet a real requirement.
+              </h3>
+              <p className="mt-3 leading-relaxed text-white/68">
+                Share what you need and receive produce checked against the
+                quality you agreed to.
+              </p>
+            </div>
+          </div>
+          <a
+            href={appAuthHref}
+            className="mt-9 inline-flex items-center gap-2 font-bold text-[#8ae0a8]"
+          >
+            Take part in the pilot
+            <ArrowIcon />
+          </a>
         </div>
-        <figure className="relative overflow-hidden rounded-2xl bg-white/5">
+        <figure className="market-figure relative overflow-hidden">
           <Image
-            src={warehouseImage}
-            alt="Produce being checked and recorded at market"
+            src={fieldImage}
+            alt="People checking produce together at a market"
             width={1440}
             height={960}
-            sizes="(max-width: 1024px) 100vw, 50vw"
+            sizes="(max-width: 1024px) 100vw, 45vw"
             placeholder="blur"
             className="aspect-[4/3] h-full w-full object-cover object-[52%_center]"
           />
+          <figcaption>
+            Good trade begins with a shared understanding.
+          </figcaption>
         </figure>
       </div>
     </section>
@@ -274,23 +239,29 @@ function HowItWorks() {
   return (
     <section id="how" className="bg-brand-surface py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        <p className="eyebrow">How it works</p>
-        <h2 className="mt-4 max-w-xl font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
-          From warehouse intake to sale and dispatch.
-        </h2>
+        <div className="grid gap-6 lg:grid-cols-[0.75fr_1.25fr] lg:gap-16">
+          <div>
+            <p className="eyebrow">How it works</p>
+            <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
+              From a real need to a completed delivery.
+            </h2>
+          </div>
+          <p className="max-w-xl self-end text-base leading-relaxed text-brand-ink/65 sm:text-lg">
+            Kuapa Dwaso stays involved through the journey so farmers and buyers
+            are not left to coordinate everything alone.
+          </p>
+        </div>
 
-        <ol className="mt-12 grid gap-8 lg:mt-16 lg:grid-cols-2">
+        <ol className="process-grid mt-12 lg:mt-16">
           {steps.map((step, index) => (
-            <li key={step.title} className="flex gap-5 sm:gap-6">
-              <span className="step-number">{index + 1}</span>
-              <div>
-                <h3 className="font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
-                  {step.title}
-                </h3>
-                <p className="mt-2 text-base leading-relaxed text-brand-ink/70">
-                  {step.body}
-                </p>
-              </div>
+            <li key={step.title} className="process-step">
+              <span className="process-number">0{index + 1}</span>
+              <h3 className="mt-6 font-display text-[length:var(--text-h3)] font-semibold text-brand-ink">
+                {step.title}
+              </h3>
+              <p className="mt-3 text-base leading-relaxed text-brand-ink/68">
+                {step.body}
+              </p>
             </li>
           ))}
         </ol>
@@ -299,103 +270,202 @@ function HowItWorks() {
   );
 }
 
-function AudienceCards({
-  appAuthHref,
-  appLoginHref,
-  inviteToken,
+function AudienceSection({ appAuthHref }: { appAuthHref: string }) {
+  return (
+    <section
+      id="people"
+      className="border-y border-brand-line bg-[#edf1e7] py-20 sm:py-24"
+    >
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <p className="eyebrow">Built around real people</p>
+        <h2 className="mt-4 max-w-2xl font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
+          Tell us what you grow, what you need, or how you can help.
+        </h2>
+        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-3 md:gap-6">
+          <AudienceCard
+            number="01"
+            title="Farmers"
+            body="Share what you grow and hear about buyer opportunities that fit your produce."
+            linkLabel="Join as a farmer"
+            href={appAuthHref}
+          />
+          <AudienceCard
+            number="02"
+            title="Buyers"
+            body="Tell us the crop, quantity, quality, place, and date your business needs."
+            linkLabel="Join as a buyer"
+            href={appAuthHref}
+          />
+          <AudienceCard
+            number="03"
+            title="Partners"
+            body="Work with us across farmer access, agriculture, quality, transport, and market connections."
+            linkLabel="Talk with our team"
+            href={officialContactHref}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AudienceCard({
+  number,
+  title,
+  body,
+  linkLabel,
+  href,
 }: {
-  appAuthHref: string;
-  appLoginHref: string;
-  inviteToken?: string;
+  number: string;
+  title: string;
+  body: string;
+  linkLabel: string;
+  href: string;
 }) {
   return (
-    <section id="buyers" className="bg-brand-surface py-20 sm:py-24">
+    <a href={href} className="audience-card">
+      <span className="audience-number">{number}</span>
+      <h3 className="mt-8 font-display text-2xl font-semibold text-brand-ink">
+        {title}
+      </h3>
+      <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/68">
+        {body}
+      </p>
+      <span className="card-arrow">
+        {linkLabel}
+        <ArrowIcon />
+      </span>
+    </a>
+  );
+}
+
+function BrandSection() {
+  return (
+    <section className="overflow-hidden bg-brand-surface py-16 sm:py-20">
+      <div className="mx-auto grid max-w-6xl gap-8 px-5 sm:px-6 md:grid-cols-[auto_1fr] md:items-center md:gap-12">
+        <Logo className="h-28 w-28 text-brand-field sm:h-32 sm:w-32" />
+        <div>
+          <p className="eyebrow">Our name</p>
+          <p className="mt-4 max-w-3xl font-display text-3xl font-semibold leading-snug text-brand-ink sm:text-4xl">
+            Kuapa Dwaso means <em>Farmer&apos;s Market</em> in Akan. It is the
+            idea at the heart of what we are building.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+async function LatestStories() {
+  const posts = await Promise.race([
+    getLatestPosts(3),
+    new Promise<PublicBlogPost[]>((resolve) => {
+      setTimeout(() => resolve([]), 3000);
+    }),
+  ]);
+
+  if (posts.length === 0) {
+    return <FieldStoriesFallback />;
+  }
+
+  return (
+    <section className="bg-[#f4f2e9] py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-5 sm:px-6">
-        <p className="eyebrow">Who it is for</p>
-        <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-brand-ink">
-          One warehouse network, clear roles.
-        </h2>
-        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-2 lg:grid-cols-3 md:gap-6">
-          {audiences.map((audience) => (
-            <a
-              key={audience.title}
-              href={
-                audience.title === "For Invited Staff"
-                  ? new URL(
-                      `/invites/accept${inviteToken === undefined ? "" : `?token=${encodeURIComponent(inviteToken)}`}`,
-                      appLoginHref,
-                    ).toString()
-                  : audience.href
-              }
-              className="audience-card"
-            >
-              <h3 className="font-display text-xl font-semibold text-brand-ink">
-                {audience.title}
-              </h3>
-              <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
-                {audience.body}
-              </p>
-              <span className="card-arrow">
-                Learn more
-                <ArrowIcon />
-              </span>
-            </a>
-          ))}
-          <a id="access" href={appLoginHref} className="audience-card">
-            <h3 className="font-display text-xl font-semibold text-brand-ink">
-              For Existing Users
-            </h3>
-            <p className="mt-3 flex-1 text-base leading-relaxed text-brand-ink/70">
-              Log in once and Kuapa Dwaso routes your verified identity to the
-              right workspace.
-            </p>
-            <span className="card-arrow">
-              Log in
-              <ArrowIcon />
-            </span>
+        <div className="flex items-end justify-between gap-5">
+          <div>
+            <p className="eyebrow">Learning from the field</p>
+            <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
+              Stories and insights
+            </h2>
+          </div>
+          <a
+            className="hidden font-bold text-brand-field sm:block"
+            href="/blog"
+          >
+            Explore our stories
           </a>
         </div>
-        <p className="mt-6 text-sm text-brand-ink/60">
-          New farmers, traders, and partners can register for the pilot. Staff
-          access is invitation-only.
-        </p>
+        <div className="blog-related__grid landing-stories mt-10">
+          {posts.map((post) => (
+            <StoryCard key={post._id} post={post} />
+          ))}
+        </div>
         <a
-          href={appAuthHref}
-          className="mt-4 inline-flex font-bold text-brand-field"
+          className="mt-7 inline-block font-bold text-brand-field sm:hidden"
+          href="/blog"
         >
-          Register for the pilot
+          Explore our stories
         </a>
       </div>
     </section>
   );
 }
 
-function FinalCta({
-  appAuthHref,
-  appLoginHref,
+function FieldStoriesFallback() {
+  return (
+    <section className="bg-[#f4f2e9] py-20 sm:py-24">
+      <div className="mx-auto grid max-w-6xl gap-8 px-5 sm:px-6 md:grid-cols-[1fr_auto] md:items-end md:gap-16">
+        <div>
+          <p className="eyebrow">Learning from the field</p>
+          <h2 className="mt-4 max-w-2xl font-display text-[length:var(--text-h2)] font-bold leading-tight">
+            We listen before we build.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-relaxed text-brand-ink/65 sm:text-lg">
+            Our direction is shaped by conversations with farmers, buyers, and
+            agricultural partners. Read what we are learning as the pilot takes
+            shape.
+          </p>
+        </div>
+        <a className="field-stories-link" href="/blog">
+          Explore our stories
+          <ArrowIcon />
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function InvitedAccess({
+  loginHref,
+  inviteToken,
 }: {
-  appAuthHref: string;
-  appLoginHref: string;
+  loginHref: string;
+  inviteToken: string;
 }) {
+  const inviteHref = new URL(
+    `/invites/accept?token=${encodeURIComponent(inviteToken)}`,
+    loginHref,
+  ).toString();
+
+  return (
+    <aside className="bg-brand-surface px-5 py-5 text-center text-sm text-brand-ink/65 sm:px-6">
+      Have a staff invitation?{" "}
+      <a className="font-bold text-brand-field" href={inviteHref}>
+        Continue to your invitation
+      </a>
+    </aside>
+  );
+}
+
+function FinalCta({ appAuthHref }: { appAuthHref: string }) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
-      <div className="relative mx-auto max-w-2xl px-5 sm:px-6">
-        <h2 className="font-display text-[length:var(--text-h2)] font-bold leading-tight text-white">
-          Order for a published delivery day.
+      <div className="final-cta-pattern absolute inset-0" aria-hidden="true" />
+      <div className="relative mx-auto max-w-3xl px-5 sm:px-6">
+        <p className="eyebrow justify-center text-brand-gold">Take part</p>
+        <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight text-white">
+          Tell us what you grow or what you need to buy.
         </h2>
-        <p className="mt-4 text-base leading-relaxed text-white/85 sm:text-lg">
-          Choose an available destination and run, order before cutoff, pay by
-          the stated deadline, and follow reservation and preparation updates.
+        <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/82 sm:text-lg">
+          Join the pilot and help shape a more dependable way for produce to
+          reach the right market.
         </p>
-        <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
+        <div className="mt-8 grid gap-3 sm:flex sm:justify-center sm:gap-4">
           <a href={appAuthHref} className="btn-light">
-            Join the pilot
+            I grow produce
           </a>
-          <a href={appLoginHref} className="btn-ghost">
-            Log in
-          </a>
-          <a href="#buyers" className="btn-ghost">
-            Explore roles
+          <a href={appAuthHref} className="btn-ghost">
+            I want to buy
           </a>
         </div>
       </div>

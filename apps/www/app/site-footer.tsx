@@ -14,25 +14,24 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
               </span>
             </a>
             <p className="mt-4 text-sm leading-relaxed text-white/60">
-              Warehouse-based produce aggregation and scheduled market delivery
-              for farmers, traders, partners, and transporters in Ghana.
+              Connecting buyer demand with farmers who can supply it, then
+              helping produce reach the right market.
             </p>
           </div>
           <FooterLinks
             title="Product"
             links={[
               ["How it works", "/#how"],
-              ["For farmers", "/#how"],
-              ["For buyers", "/#buyers"],
-              ["For warehouses", "/#warehouse"],
+              ["For farmers", "/#market"],
+              ["For buyers", "/#market"],
+              ["For partners", "/#people"],
             ]}
           />
           <FooterLinks
             title="Company"
             links={[
-              ["Stories & Insights", "/blog"],
-              ["About", "/#how"],
-              ["Partners", "/#warehouse"],
+              ["Stories and insights", "/blog"],
+              ["About", "/#market"],
               ["Contact", officialContactHref],
               ["Join the pilot", appAuthHref],
             ]}
@@ -43,8 +42,8 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
             </h3>
             <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm text-white/60">
-                Farmers receive one-way SMS updates for receipts, fees, sales,
-                dispatches, and payments.
+                Farmers receive simple SMS updates for important transaction
+                events and payments.
               </p>
             </div>
           </div>

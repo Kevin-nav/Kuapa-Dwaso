@@ -1,8 +1,8 @@
 const navLinks = [
   ["How it works", "/#how"],
-  ["Warehouse model", "/#warehouse"],
-  ["Who it is for", "/#buyers"],
-  ["Stories & Insights", "/blog"],
+  ["For farmers", "/#market"],
+  ["For buyers", "/#people"],
+  ["Stories", "/blog"],
 ] as const;
 
 export function Logo({ className }: { className?: string }) {
@@ -44,7 +44,7 @@ export function SiteHeader({
           aria-label="Kuapa Dwaso home"
         >
           <Logo className="h-8 w-8" />
-          <span className="font-display text-lg font-bold text-brand-ink">
+          <span className="whitespace-nowrap font-display text-lg font-bold text-brand-ink">
             Kuapa Dwaso
           </span>
         </a>
@@ -76,15 +76,7 @@ export function SiteHeader({
           </a>
         </div>
 
-        <div className="flex items-center gap-4 md:hidden">
-          <a
-            href="/blog"
-            aria-current={isStoriesPath ? "page" : undefined}
-            aria-label="Stories & Insights"
-            className="nav-link"
-          >
-            Stories
-          </a>
+        <div className="flex items-center gap-3 md:hidden">
           <a
             href={loginHref}
             className="text-sm font-bold text-brand-ink/72 transition-colors hover:text-brand-field"
