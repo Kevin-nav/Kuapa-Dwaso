@@ -2,7 +2,14 @@
 
 ## Detailed Business Direction and Phased Operating Plan
 
-**Status:** Current business source of truth
+**Status:** Historical where it conflicts with the demand-led maize pilot contracts
+
+For maize pilot implementation, use the
+[implementation backlog](maize-pilot-software-tickets.md),
+[ADR-0005](../decisions/ADR-0005-demand-led-maize-pilot-boundary.md), and the
+[frozen contracts](../technical/maize-pilot-contracts.md). In particular, this
+older document's default coordination-only ownership model and 10% commission
+are not approved production defaults for the pilot software.
 
 **Last updated:** 10 August 2026
 

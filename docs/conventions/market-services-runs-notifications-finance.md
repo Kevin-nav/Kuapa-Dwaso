@@ -1,5 +1,12 @@
 # Market Services, Delivery Runs, Notifications, and Finance
 
+This convention describes the implemented warehouse-run branch. The planned
+demand-led maize pilot uses separate buyer requests, procurement lots,
+fulfilment plans, payment transactions, and financial entries. It does not make
+warehouse, inventory reservation, or recurring market-run fields optional. See
+[ADR-0005](../decisions/ADR-0005-demand-led-maize-pilot-boundary.md) and the
+[pilot contracts](../technical/maize-pilot-contracts.md).
+
 ## Schedule, run, and dispatch are separate
 
 A `marketServiceSchedule` is a recurring service promise configured for one
@@ -76,3 +83,9 @@ the canonical in-app notification.
 
 This implementation does not infer operating expenses, contribution margins, construction
 costs, lending projections, or other values not supported by product records.
+
+Reports that include the planned pilot must select the warehouse or pilot source
+before aggregation. They return the two branches separately. A labelled combined
+view may add only values with matching currency, unit, actual or estimate basis,
+and economic definition. Pilot procurement lots never accrue warehouse storage
+fees automatically.

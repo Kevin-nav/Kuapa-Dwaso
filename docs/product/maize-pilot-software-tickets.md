@@ -542,7 +542,7 @@ Statuses: `Not started`, `In progress`, `Blocked`, `Complete`. Record verificati
 
 | Ticket | Status | Implementation reference / verification / limitations |
 | --- | --- | --- |
-| KD-01 | Not started | |
+| KD-01 | Complete | ADR-0005 and `docs/technical/maize-pilot-contracts.md` freeze the separate pilot boundary, 23-table persistence map, authenticated API/access matrix, transition and cancellation guards, financial posting ownership, migration/rollback order, and Scenario A/B traces. Required conventions and documentation entry points updated. Verified with contract checks and `git diff --check`; no migration or application code ran. |
 | KD-02 | Not started | |
 | KD-03 | Not started | |
 | KD-04 | Not started | |

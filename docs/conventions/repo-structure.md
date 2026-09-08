@@ -19,13 +19,18 @@ apps/admin/
 apps/api/
 ```
 
-`apps/ops/` is the warehouse operations app for warehouse-agent workflows:
-produce intake, receipt lookup, inventory condition/status updates, dispatch
-preparation, and local warehouse support. It is intended for an operations
-subdomain such as `ops.<domain>`.
+`apps/ops/` is the operations app. It supports warehouse-agent workflows such
+as produce intake, receipt lookup, inventory condition/status updates, dispatch
+preparation, and local warehouse support. It also supports demand-led pilot
+sourcing, inspection, collection, and custody work for users with an explicit
+pilot programme assignment. A warehouse assignment does not grant pilot access,
+and a pilot assignment does not require or create a warehouse. The app is
+intended for an operations subdomain such as `ops.<domain>`.
 
 `apps/admin/` is for platform administration: warehouse setup, fee
-configuration, warehouse-agent approval, oversight, disputes, audit, and reporting.
+configuration, warehouse-agent approval, pilot programme configuration and
+assignments, commercial and purchasing review, oversight, disputes, audit, and
+reporting.
 
 `apps/app/` is for farmer, buyer, and transporter self-service workflows.
 
