@@ -1,6 +1,7 @@
 import type { MarketplaceRole } from "@kuapa-dwaso/types";
 import type { PilotCapability } from "@kuapa-dwaso/types/pilot";
 import type { PilotRequestStatus } from "@kuapa-dwaso/types/pilot";
+import type { PilotOfferStatus } from "@kuapa-dwaso/types/pilot";
 
 export type PilotAssignmentGrant = {
   programmeId: string;
@@ -155,4 +156,22 @@ export function getPilotConfirmationBlockers(input: {
   if (input.committedGrams < input.confirmedGrams)
     blockers.push("accepted_farmer_commitments_insufficient");
   return blockers;
+}
+
+export const allowedPilotOfferTransitions: Readonly<
+  Record<PilotOfferStatus, readonly PilotOfferStatus[]>
+> = {
+  draft: ["sent", "expired", "withdrawn"],
+  sent: ["draft", "accepted", "declined", "expired", "withdrawn"],
+  accepted: ["withdrawn"],
+  declined: [],
+  expired: [],
+  withdrawn: [],
+};
+
+export function canTransitionPilotOffer(
+  current: PilotOfferStatus,
+  next: PilotOfferStatus,
+): boolean {
+  return allowedPilotOfferTransitions[current].includes(next);
 }

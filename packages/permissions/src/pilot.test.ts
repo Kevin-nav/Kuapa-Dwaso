@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canReadPilotResource,
+  canTransitionPilotOffer,
   getPilotFieldVisibility,
   getPilotConfirmationBlockers,
   pilotAssignmentAllows,
@@ -105,6 +106,14 @@ test("confirmation reports stale terms, expiry, quantity mismatch, and supply sh
     }),
     [],
   );
+});
+
+test("farmer offers require renewed acceptance after revised sent terms", () => {
+  assert.equal(canTransitionPilotOffer("draft", "sent"), true);
+  assert.equal(canTransitionPilotOffer("sent", "draft"), true);
+  assert.equal(canTransitionPilotOffer("sent", "accepted"), true);
+  assert.equal(canTransitionPilotOffer("accepted", "sent"), false);
+  assert.equal(canTransitionPilotOffer("declined", "accepted"), false);
 });
 
 test("buyer, farmer, and driver reads remain owner or assignment scoped", () => {

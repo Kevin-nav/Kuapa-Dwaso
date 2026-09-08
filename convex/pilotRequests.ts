@@ -366,6 +366,7 @@ async function closeAgreement(
     `Pilot request cannot move from ${request.status} to under_review.`,
   );
   const now = Date.now();
+  await invalidateSupplyForAgreement(ctx, request, revision._id);
   await ctx.db.patch(revision._id, { state: "withdrawn" });
   await ctx.db.patch(request._id, {
     status: "under_review",
@@ -392,6 +393,83 @@ async function closeAgreement(
     revisionId: revision._id,
     revisionState: "withdrawn" as const,
   };
+}
+
+async function invalidateSupplyForAgreement(
+  ctx: MutationCtx,
+  request: Doc<"pilotBuyerRequests">,
+  agreementRevisionId: Id<"pilotBuyerAgreementRevisions">,
+) {
+  const revisions = await ctx.db
+    .query("pilotFarmerOfferRevisions")
+    .withIndex("by_request_created_at", (q) => q.eq("requestId", request._id))
+    .collect();
+  const affectedRevisions = revisions.filter(
+    (revision) => revision.buyerAgreementRevisionId === agreementRevisionId,
+  );
+  for (const revision of affectedRevisions) {
+    const reservations = await ctx.db
+      .query("pilotFundingReservations")
+      .withIndex("by_offer_revision", (q) =>
+        q.eq("farmerOfferRevisionId", revision._id),
+      )
+      .collect();
+    assertAllowed(
+      reservations.every(
+        (reservation) =>
+          reservation.status !== "active" &&
+          reservation.status !== "partly_consumed",
+      ),
+      "Funded purchase terms require cancellation and finance resolution.",
+    );
+  }
+  const offerIds = new Set(
+    affectedRevisions.map((revision) => revision.offerId),
+  );
+  const now = Date.now();
+  for (const offerId of offerIds) {
+    const allocations = await ctx.db
+      .query("pilotAllocations")
+      .withIndex("by_offer", (q) => q.eq("offerId", offerId))
+      .collect();
+    for (const allocation of allocations) {
+      if (
+        !["provisional", "committed", "quality_cleared"].includes(
+          allocation.status,
+        )
+      )
+        continue;
+      const lots = await ctx.db
+        .query("pilotProcurementLots")
+        .withIndex("by_allocation", (q) => q.eq("allocationId", allocation._id))
+        .collect();
+      assertAllowed(
+        lots.length === 0,
+        "Buyer terms cannot change after collection without cancellation disposition.",
+      );
+      await ctx.db.patch(allocation._id, {
+        releasedGrams: allocation.allocatedGrams,
+        status: "released",
+        releaseReason: "buyer_agreement_superseded",
+        version: allocation.version + 1,
+        updatedAt: now,
+      });
+      const declaration = await ctx.db.get(allocation.declarationId);
+      if (declaration !== null && declaration.status === "exhausted")
+        await ctx.db.patch(declaration._id, {
+          status: "active",
+          version: declaration.version + 1,
+          updatedAt: now,
+        });
+    }
+    const offer = await ctx.db.get(offerId);
+    if (offer !== null && ["draft", "sent", "accepted"].includes(offer.status))
+      await ctx.db.patch(offer._id, {
+        status: "withdrawn",
+        version: offer.version + 1,
+        updatedAt: now,
+      });
+  }
 }
 
 export const createDraft = mutation({
@@ -722,8 +800,10 @@ export const createAgreementRevision = mutation({
     if (
       current !== null &&
       (current.state === "proposed" || current.state === "acknowledged")
-    )
+    ) {
+      await invalidateSupplyForAgreement(ctx, request, current._id);
       await ctx.db.patch(current._id, { state: "superseded" });
+    }
     const latestRevision = await ctx.db
       .query("pilotBuyerAgreementRevisions")
       .withIndex("by_request_revision", (q) => q.eq("requestId", request._id))
@@ -922,17 +1002,25 @@ export const confirm = mutation({
       .query("pilotAllocations")
       .withIndex("by_request_status", (q) => q.eq("requestId", request._id))
       .collect();
-    const committedGrams = allocations
-      .filter(
-        (allocation) =>
-          allocation.status === "committed" ||
-          allocation.status === "quality_cleared",
+    let committedGrams = 0;
+    for (const allocation of allocations) {
+      if (
+        allocation.status !== "committed" &&
+        allocation.status !== "quality_cleared"
       )
-      .reduce(
-        (sum, allocation) =>
-          sum + allocation.allocatedGrams - allocation.releasedGrams,
-        0,
-      );
+        continue;
+      const [offer, offerRevision] = await Promise.all([
+        ctx.db.get(allocation.offerId),
+        ctx.db.get(allocation.offerRevisionId),
+      ]);
+      if (
+        offer?.status !== "accepted" ||
+        offer.acceptedRevisionId !== allocation.offerRevisionId ||
+        offerRevision?.buyerAgreementRevisionId !== revision._id
+      )
+        continue;
+      committedGrams += allocation.allocatedGrams - allocation.releasedGrams;
+    }
     const blockers = getPilotConfirmationBlockers({
       revisionState: revision.state,
       expiresAt: revision.expiresAt,
