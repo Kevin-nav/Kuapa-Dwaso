@@ -8,6 +8,7 @@ import {
   assertPilotLocation,
   assertPilotQuantityGrams,
   assertPilotRequestTerms,
+  evaluatePilotInspectionQuality,
 } from "./pilot.ts";
 
 const specification = {
@@ -114,5 +115,97 @@ test("requires a named location and bounded integer microdegrees", () => {
   assert.throws(
     () => assertPilotLocation({ label: "Farm", latitudeE6: 90_000_001 }),
     /microdegrees/,
+  );
+});
+
+const completeInspection = {
+  specification,
+  grossWeightGrams: 205_000,
+  tareWeightGrams: 5_000,
+  acceptedGrams: 200_000,
+  rejectedGrams: 0,
+  moisturePermille: 120,
+  contaminationResult: "passed" as const,
+  additionalReadings: [
+    {
+      code: "aflatoxin",
+      label: "Aflatoxin test",
+      value: "sample pass",
+      passed: true,
+    },
+  ],
+  evidenceCount: 1,
+};
+
+test("derives passed, partial, failed, and pending inspection states", () => {
+  assert.deepEqual(evaluatePilotInspectionQuality(completeInspection), {
+    measuredGrams: 200_000,
+    qualityStatus: "passed",
+    missingRequiredResults: [],
+  });
+  assert.equal(
+    evaluatePilotInspectionQuality({
+      ...completeInspection,
+      acceptedGrams: 180_000,
+      rejectedGrams: 20_000,
+    }).qualityStatus,
+    "partial",
+  );
+  assert.equal(
+    evaluatePilotInspectionQuality({
+      ...completeInspection,
+      acceptedGrams: 0,
+      rejectedGrams: 200_000,
+      moisturePermille: 140,
+    }).qualityStatus,
+    "failed",
+  );
+  assert.deepEqual(
+    evaluatePilotInspectionQuality({
+      ...completeInspection,
+      acceptedGrams: 0,
+      evidenceCount: 0,
+    }),
+    {
+      measuredGrams: 200_000,
+      qualityStatus: "pending",
+      missingRequiredResults: ["evidence"],
+    },
+  );
+  assert.deepEqual(
+    evaluatePilotInspectionQuality({
+      ...completeInspection,
+      acceptedGrams: 0,
+      contaminationResult: "not_recorded",
+      additionalReadings: [],
+    }).missingRequiredResults,
+    ["contamination", "aflatoxin"],
+  );
+});
+
+test("rejects impossible inspection weights and premature clearance", () => {
+  assert.throws(
+    () =>
+      evaluatePilotInspectionQuality({
+        ...completeInspection,
+        tareWeightGrams: 205_000,
+      }),
+    /Gross weight/,
+  );
+  assert.throws(
+    () =>
+      evaluatePilotInspectionQuality({
+        ...completeInspection,
+        acceptedGrams: 199_999,
+      }),
+    /reconcile exactly/,
+  );
+  assert.throws(
+    () =>
+      evaluatePilotInspectionQuality({
+        ...completeInspection,
+        evidenceCount: 0,
+      }),
+    /Pending inspections cannot clear/,
   );
 });

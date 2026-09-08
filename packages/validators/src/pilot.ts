@@ -5,9 +5,11 @@ import {
   type DatasetProvenance,
   type PilotChargeTerm,
   type PilotCommercialMode,
+  type PilotAdditionalReading,
   type PilotLocation,
   type PilotMaizeSpecification,
   type PilotPaymentTerm,
+  type PilotQualityStatus,
   type PilotRate,
 } from "@kuapa-dwaso/types/pilot";
 
@@ -21,6 +23,7 @@ export type PilotValidationErrorCode =
   | "INVALID_PAGINATION"
   | "INVALID_MODE"
   | "INVALID_LOCATION"
+  | "INVALID_INSPECTION"
   | "INVALID_SPECIFICATION"
   | "INVALID_PAYMENT_TERM"
   | "INVALID_CHARGE_TERM";
@@ -112,6 +115,148 @@ export function assertPilotQuantityGrams(
       `${fieldName} must be a positive integer number of grams.`,
     );
   }
+}
+
+export type PilotInspectionQualityInput = {
+  specification: PilotMaizeSpecification;
+  grossWeightGrams: unknown;
+  tareWeightGrams: unknown;
+  acceptedGrams: unknown;
+  rejectedGrams: unknown;
+  moisturePermille?: unknown;
+  contaminationResult: "passed" | "failed" | "not_recorded";
+  additionalReadings: PilotAdditionalReading[];
+  evidenceCount: number;
+};
+
+export type PilotInspectionQualityResult = {
+  measuredGrams: number;
+  qualityStatus: Exclude<PilotQualityStatus, "superseded">;
+  missingRequiredResults: string[];
+};
+
+export function evaluatePilotInspectionQuality(
+  input: PilotInspectionQualityInput,
+): PilotInspectionQualityResult {
+  assertPilotMaizeSpecification(input.specification);
+  if (
+    !isPositiveInteger(input.grossWeightGrams) ||
+    !isNonNegativeInteger(input.tareWeightGrams) ||
+    input.tareWeightGrams >= input.grossWeightGrams
+  ) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "Gross weight must be positive and greater than the non-negative tare weight.",
+    );
+  }
+  if (
+    !isNonNegativeInteger(input.acceptedGrams) ||
+    !isNonNegativeInteger(input.rejectedGrams)
+  ) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "Accepted and rejected weights must be non-negative integer grams.",
+    );
+  }
+  const measuredGrams = input.grossWeightGrams - input.tareWeightGrams;
+  const classifiedGrams = input.acceptedGrams + input.rejectedGrams;
+  if (classifiedGrams !== 0 && classifiedGrams !== measuredGrams) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "Accepted and rejected weights must reconcile exactly to net measured weight.",
+    );
+  }
+  const missingRequiredResults: string[] = [];
+  let hasFailure = false;
+  const readingCodes = new Set<string>();
+  for (const reading of input.additionalReadings) {
+    if (
+      reading.code.trim().length === 0 ||
+      reading.label.trim().length === 0 ||
+      reading.value.trim().length === 0 ||
+      readingCodes.has(reading.code)
+    ) {
+      throw new PilotValidationError(
+        "INVALID_INSPECTION",
+        "Additional readings require unique codes, labels, and recorded values.",
+      );
+    }
+    readingCodes.add(reading.code);
+    if (reading.passed === false) hasFailure = true;
+  }
+  const moistureMaximum = input.specification.moistureMaximumPermille;
+  if (moistureMaximum !== undefined) {
+    if (!isNonNegativeInteger(input.moisturePermille)) {
+      missingRequiredResults.push("moisture");
+    } else if (input.moisturePermille > moistureMaximum) {
+      hasFailure = true;
+    }
+  } else if (
+    input.moisturePermille !== undefined &&
+    (!isNonNegativeInteger(input.moisturePermille) ||
+      input.moisturePermille > 1000)
+  ) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "Moisture must be an integer from 0 to 1000 permille.",
+    );
+  }
+  if (input.specification.contaminationCheckRequired) {
+    if (input.contaminationResult === "not_recorded") {
+      missingRequiredResults.push("contamination");
+    } else if (input.contaminationResult === "failed") {
+      hasFailure = true;
+    }
+  } else if (input.contaminationResult === "failed") {
+    hasFailure = true;
+  }
+  const readings = new Map(
+    input.additionalReadings.map((reading) => [reading.code, reading]),
+  );
+  for (const criterion of input.specification.additionalCriteria) {
+    if (!criterion.required) continue;
+    const reading = readings.get(criterion.code);
+    if (reading === undefined || reading.passed === undefined) {
+      missingRequiredResults.push(criterion.code);
+    } else if (!reading.passed) {
+      hasFailure = true;
+    }
+  }
+  if (!isNonNegativeInteger(input.evidenceCount)) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "Evidence count must be a non-negative integer.",
+    );
+  }
+  if (input.evidenceCount === 0) missingRequiredResults.push("evidence");
+  if (missingRequiredResults.length > 0) {
+    if (classifiedGrams !== 0) {
+      throw new PilotValidationError(
+        "INVALID_INSPECTION",
+        "Pending inspections cannot clear or reject quantity until required results and evidence exist.",
+      );
+    }
+    return { measuredGrams, qualityStatus: "pending", missingRequiredResults };
+  }
+  if (input.acceptedGrams > 0 && input.rejectedGrams > 0) {
+    return { measuredGrams, qualityStatus: "partial", missingRequiredResults };
+  }
+  if (hasFailure) {
+    if (input.acceptedGrams !== 0 || input.rejectedGrams !== measuredGrams) {
+      throw new PilotValidationError(
+        "INVALID_INSPECTION",
+        "A failed whole-lot inspection must reject the full net weight.",
+      );
+    }
+    return { measuredGrams, qualityStatus: "failed", missingRequiredResults };
+  }
+  if (input.acceptedGrams !== measuredGrams || input.rejectedGrams !== 0) {
+    throw new PilotValidationError(
+      "INVALID_INSPECTION",
+      "A passing whole-lot inspection must clear the full net weight; use identified sublots for a partial result.",
+    );
+  }
+  return { measuredGrams, qualityStatus: "passed", missingRequiredResults };
 }
 
 export function assertPilotMoneyPesewas(

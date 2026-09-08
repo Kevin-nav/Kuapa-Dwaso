@@ -188,7 +188,7 @@ All tables include `createdAt`. Mutable head records also include `updatedAt` an
 
 `pilotInspections`
 
-- Insert-only fields: `programmeId`, `requestId`, `lotId`, `allocationId`, `buyerAgreementRevisionId`, optional `supersedesInspectionId`, `samplingMethod`, `testMethod`, `sampleCount`, optional `moisturePermille`, `contaminationResult` of `passed`, `failed`, or `not_recorded`, `additionalReadings`, `measuredGrams`, `acceptedGrams`, `rejectedGrams`, `qualityStatus`, `reasonCode`, `notes`, `evidenceUploadAssetIds`, `inspectedByUserId`, `inspectedAt`, `createdAt`.
+- Insert-only fields: `programmeId`, `requestId`, `lotId`, `allocationId`, `buyerAgreementRevisionId`, optional `supersedesInspectionId`, `samplingMethod`, `testMethod`, `sampleCount`, optional `moisturePermille`, `contaminationResult` of `passed`, `failed`, or `not_recorded`, `additionalReadings`, optional `grossWeightGrams` and `tareWeightGrams` for additive compatibility, `measuredGrams`, `acceptedGrams`, `rejectedGrams`, `qualityStatus`, `reasonCode`, `notes`, `evidenceUploadAssetIds`, `inspectedByUserId`, `inspectedAt`, `createdAt`.
 - A correction inserts a new row and marks the earlier row's sole mutable lifecycle field `qualityStatus: "superseded"`. Missing required tests produce `pending`.
 - Indexes: `by_lot_created_at`, `by_lot_quality`, `by_request_quality`, `by_inspector_created_at`.
 
@@ -357,8 +357,9 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 
 | API | Arguments | Result | Consumer / owner |
 | --- | --- | --- | --- |
-| `pilotInspections.record` | allocation, agreement revision, readings, quantities, evidence, idempotency key | inspection and lot/sublot summaries | assigned inspector; KD-07 |
+| `pilotInspections.record` | allocation, agreement revision, gross/tare weights, readings, classified quantities, optional assessed facility, evidence, idempotency key | inspection and lot/sublot summaries | assigned inspector; KD-07 |
 | `pilotInspections.correct` | inspection ID, corrected typed record, reason, idempotency key | new inspection and superseded ID | assigned inspector; KD-07 |
+| `pilotInspections.getReceipt` | inspection ID | actor-safe private printable receipt model | farmer, buyer, assigned ops, admin; KD-07 |
 | `pilotLots.recordDisposition` | lot ID, disposition, owner consent when required, evidence, expected version, idempotency key | lot and issue summaries | scoped ops; KD-07/KD-10 |
 | `pilotLots.listForActor` | page args/filter | actor-safe lots | farmer, ops, admin; KD-07/KD-12/KD-13 |
 | `pilotFulfilment.createPlan` | request/agreement IDs, windows/destination, idempotency key | plan ID/version/blockers | assigned ops; KD-08 |
