@@ -96,6 +96,20 @@ test("upload purposes are constrained to compatible evidence entities", () => {
     }),
     false,
   );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_inspection_evidence",
+      relatedEntityType: "pilotInspections",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_financial_evidence",
+      relatedEntityType: "pilotIssues",
+    }),
+    false,
+  );
   assert.throws(
     () =>
       assertUploadPurposeAllowedForRelatedEntity({

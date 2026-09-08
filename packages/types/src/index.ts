@@ -1258,6 +1258,13 @@ export const uploadAssetPurposes = [
   "profile_evidence",
   "blog_hero_image",
   "blog_content_image",
+  "pilot_inspection_evidence",
+  "pilot_collection_evidence",
+  "pilot_custody_evidence",
+  "pilot_acceptance_evidence",
+  "pilot_financial_evidence",
+  "pilot_issue_evidence",
+  "pilot_facility_assessment",
 ] as const;
 export type UploadAssetPurpose = (typeof uploadAssetPurposes)[number];
 
@@ -1284,6 +1291,13 @@ export const uploadRelatedEntityTypes = [
   "dispatch",
   "dispute",
   "blog_post",
+  "pilotFacilities",
+  "pilotInspections",
+  "pilotProcurementLots",
+  "pilotCustodyEvents",
+  "pilotBuyerAcceptances",
+  "pilotFinancialEntries",
+  "pilotIssues",
 ] as const;
 export type UploadRelatedEntityType = (typeof uploadRelatedEntityTypes)[number];
 
@@ -1292,6 +1306,7 @@ export type UploadAsset = TimestampFields & {
   ownerUserId: string;
   ownerProfileType?: ProfileType;
   ownerProfileId?: string;
+  pilotProgrammeId?: string;
   purpose: UploadAssetPurpose;
   status: UploadAssetStatus;
   accessLevel: UploadAccessLevel;

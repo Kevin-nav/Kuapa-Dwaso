@@ -1017,6 +1017,20 @@ export function isUploadPurposeAllowedForRelatedEntity(input: {
     case "blog_hero_image":
     case "blog_content_image":
       return input.relatedEntityType === "blog_post";
+    case "pilot_inspection_evidence":
+      return input.relatedEntityType === "pilotInspections";
+    case "pilot_collection_evidence":
+      return input.relatedEntityType === "pilotProcurementLots";
+    case "pilot_custody_evidence":
+      return input.relatedEntityType === "pilotCustodyEvents";
+    case "pilot_acceptance_evidence":
+      return input.relatedEntityType === "pilotBuyerAcceptances";
+    case "pilot_financial_evidence":
+      return input.relatedEntityType === "pilotFinancialEntries";
+    case "pilot_issue_evidence":
+      return input.relatedEntityType === "pilotIssues";
+    case "pilot_facility_assessment":
+      return input.relatedEntityType === "pilotFacilities";
   }
 }
 

@@ -543,7 +543,7 @@ Statuses: `Not started`, `In progress`, `Blocked`, `Complete`. Record verificati
 | Ticket | Status | Implementation reference / verification / limitations |
 | --- | --- | --- |
 | KD-01 | Complete | ADR-0005 and `docs/technical/maize-pilot-contracts.md` freeze the separate pilot boundary, 23-table persistence map, authenticated API/access matrix, transition and cancellation guards, financial posting ownership, migration/rollback order, and Scenario A/B traces. Required conventions and documentation entry points updated. Verified with contract checks and `git diff --check`; no migration or application code ran. |
-| KD-02 | Not started | |
+| KD-02 | Complete | Added closed pilot types, validators, exact gram/pesewa calculations, bounded pagination, 23 additive Convex tables/indexes, and optional pilot upload metadata. Legacy warehouse fields remain unchanged; pilot evidence APIs fail closed pending KD-03 authorization. Verified 8 validator tests, 57 utility tests, schema TypeScript validation, package lint, and all 13 workspace typecheck tasks. `convex codegen` could not run without `CONVEX_DEPLOYMENT`; the checked-in generated `DataModel` already derives from `typeof schema`, and direct schema typechecking passed. |
 | KD-03 | Not started | |
 | KD-04 | Not started | |
 | KD-05 | Not started | |

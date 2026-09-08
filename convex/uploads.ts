@@ -40,6 +40,13 @@ const uploadPurpose = v.union(
   v.literal("profile_evidence"),
   v.literal("blog_hero_image"),
   v.literal("blog_content_image"),
+  v.literal("pilot_inspection_evidence"),
+  v.literal("pilot_collection_evidence"),
+  v.literal("pilot_custody_evidence"),
+  v.literal("pilot_acceptance_evidence"),
+  v.literal("pilot_financial_evidence"),
+  v.literal("pilot_issue_evidence"),
+  v.literal("pilot_facility_assessment"),
 );
 const uploadStatus = v.union(
   v.literal("pending_upload"),
@@ -63,6 +70,13 @@ const relatedEntityType = v.union(
   v.literal("dispatch"),
   v.literal("dispute"),
   v.literal("blog_post"),
+  v.literal("pilotFacilities"),
+  v.literal("pilotInspections"),
+  v.literal("pilotProcurementLots"),
+  v.literal("pilotCustodyEvents"),
+  v.literal("pilotBuyerAcceptances"),
+  v.literal("pilotFinancialEntries"),
+  v.literal("pilotIssues"),
 );
 
 type UploadPurpose =
@@ -73,7 +87,14 @@ type UploadPurpose =
   | "dispatch_proof_photo"
   | "profile_evidence"
   | "blog_hero_image"
-  | "blog_content_image";
+  | "blog_content_image"
+  | "pilot_inspection_evidence"
+  | "pilot_collection_evidence"
+  | "pilot_custody_evidence"
+  | "pilot_acceptance_evidence"
+  | "pilot_financial_evidence"
+  | "pilot_issue_evidence"
+  | "pilot_facility_assessment";
 
 type UploadStatus =
   | "pending_upload"
@@ -92,7 +113,24 @@ type RelatedEntityType =
   | "inventory_batch"
   | "dispatch"
   | "dispute"
-  | "blog_post";
+  | "blog_post"
+  | "pilotFacilities"
+  | "pilotInspections"
+  | "pilotProcurementLots"
+  | "pilotCustodyEvents"
+  | "pilotBuyerAcceptances"
+  | "pilotFinancialEntries"
+  | "pilotIssues";
+
+const pilotRelatedEntityTypes: readonly RelatedEntityType[] = [
+  "pilotFacilities",
+  "pilotInspections",
+  "pilotProcurementLots",
+  "pilotCustodyEvents",
+  "pilotBuyerAcceptances",
+  "pilotFinancialEntries",
+  "pilotIssues",
+];
 
 function actorCanCreateUploadForOwner(
   actor: { _id: Id<"users">; role: string },
@@ -133,6 +171,11 @@ async function requireActorCanUseRelatedEntity(
     }
     return;
   }
+
+  assertAllowed(
+    !pilotRelatedEntityTypes.includes(relatedEntityType),
+    "Pilot evidence access is unavailable until pilot identity checks are enabled.",
+  );
 
   if (relatedEntityType === "inventory_batch") {
     const batch = await ctx.db.get(relatedEntityId as Id<"inventoryBatches">);
@@ -364,6 +407,11 @@ export const createPending = mutation({
     const isBlogMedia =
       args.purpose === "blog_hero_image" ||
       args.purpose === "blog_content_image";
+    const isPilotEvidence = args.purpose.startsWith("pilot_");
+    assertAllowed(
+      !isPilotEvidence,
+      "Pilot evidence uploads are unavailable until pilot identity checks are enabled.",
+    );
     assertAllowed(
       actorCanCreateUploadForOwner(actor, ownerUserId),
       "Actor cannot create uploads for this owner.",
