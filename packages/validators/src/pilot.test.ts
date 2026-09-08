@@ -5,6 +5,7 @@ import {
   assertBoundedPagination,
   assertExpectedVersion,
   assertPilotChargeTerm,
+  assertPilotLocation,
   assertPilotQuantityGrams,
   assertPilotRequestTerms,
 } from "./pilot.ts";
@@ -98,5 +99,20 @@ test("rejects missing terms and invalid windows", () => {
       }),
     (error) =>
       error instanceof PilotValidationError && error.code === "INVALID_WINDOW",
+  );
+});
+
+test("requires a named location and bounded integer microdegrees", () => {
+  assert.doesNotThrow(() =>
+    assertPilotLocation({
+      label: "Buyer collection point",
+      latitudeE6: 5_603_717,
+      longitudeE6: -186_964,
+    }),
+  );
+  assert.throws(() => assertPilotLocation({ label: "  " }), /label/);
+  assert.throws(
+    () => assertPilotLocation({ label: "Farm", latitudeE6: 90_000_001 }),
+    /microdegrees/,
   );
 });

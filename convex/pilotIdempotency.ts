@@ -5,15 +5,50 @@ import { assertAllowed } from "./workflowHelpers";
 export type PilotEntityType =
   Doc<"pilotIdempotencyKeys">["resultRefs"][number]["entityType"];
 
+type PilotIdempotencyInput = {
+  programmeId: Id<"pilotProgrammes">;
+  actorUserId: Id<"users">;
+  operationName: string;
+  idempotencyKey: string;
+  requestHash: string;
+};
+
+export async function getPilotIdempotencyReplay(
+  ctx: MutationCtx,
+  input: PilotIdempotencyInput,
+): Promise<Doc<"pilotIdempotencyKeys"> | null> {
+  assertAllowed(
+    input.idempotencyKey.trim().length >= 8,
+    "Idempotency key must contain at least 8 characters.",
+  );
+  const existing = await ctx.db
+    .query("pilotIdempotencyKeys")
+    .withIndex("by_actor_operation_key", (query) =>
+      query
+        .eq("actorUserId", input.actorUserId)
+        .eq("operationName", input.operationName)
+        .eq("idempotencyKey", input.idempotencyKey),
+    )
+    .unique();
+  if (existing === null) return null;
+  assertAllowed(
+    existing.programmeId === input.programmeId,
+    "Idempotency key belongs to another programme.",
+  );
+  assertAllowed(
+    existing.requestHash === input.requestHash,
+    "Idempotency key was already used with a different payload.",
+  );
+  assertAllowed(
+    existing.status === "completed",
+    "The original idempotent operation has not completed.",
+  );
+  return existing;
+}
+
 export async function beginPilotIdempotency(
   ctx: MutationCtx,
-  input: {
-    programmeId: Id<"pilotProgrammes">;
-    actorUserId: Id<"users">;
-    operationName: string;
-    idempotencyKey: string;
-    requestHash: string;
-  },
+  input: PilotIdempotencyInput,
 ): Promise<
   | { kind: "started"; receiptId: Id<"pilotIdempotencyKeys"> }
   | { kind: "replay"; receipt: Doc<"pilotIdempotencyKeys"> }
