@@ -264,6 +264,7 @@ export const pilotTables = {
     updatedAt: v.number(),
   })
     .index("by_buyer_status", ["buyerId", "status"])
+    .index("by_buyer_programme_status", ["buyerId", "programmeId", "status"])
     .index("by_programme_status", ["programmeId", "status"])
     .index("by_programme_delivery_window", [
       "programmeId",

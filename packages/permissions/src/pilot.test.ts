@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   canReadPilotResource,
   getPilotFieldVisibility,
+  getPilotConfirmationBlockers,
   pilotAssignmentAllows,
+  canTransitionPilotRequest,
 } from "./pilot.ts";
 
 const activeAssignment = {
@@ -62,6 +64,46 @@ test("programme assignment is explicit, capability-bound, and immediately revoca
       now: 2_000,
     }),
     false,
+  );
+});
+
+test("buyer request terminal and ordered workflow states cannot be skipped", () => {
+  assert.equal(canTransitionPilotRequest("draft", "submitted"), true);
+  assert.equal(canTransitionPilotRequest("draft", "confirmed"), false);
+  assert.equal(canTransitionPilotRequest("submitted", "under_review"), true);
+  assert.equal(canTransitionPilotRequest("quoted", "confirmed"), true);
+  assert.equal(canTransitionPilotRequest("quoted", "under_review"), true);
+  assert.equal(canTransitionPilotRequest("cancelled", "submitted"), false);
+  assert.equal(canTransitionPilotRequest("closed", "disputed"), false);
+});
+
+test("confirmation reports stale terms, expiry, quantity mismatch, and supply shortfall", () => {
+  assert.deepEqual(
+    getPilotConfirmationBlockers({
+      revisionState: "superseded",
+      expiresAt: 99,
+      revisionGrams: 4_900_000,
+      confirmedGrams: 5_000_000,
+      committedGrams: 4_800_000,
+      now: 100,
+    }),
+    [
+      "buyer_agreement_not_acknowledged",
+      "buyer_agreement_expired",
+      "confirmed_quantity_requires_matching_revision",
+      "accepted_farmer_commitments_insufficient",
+    ],
+  );
+  assert.deepEqual(
+    getPilotConfirmationBlockers({
+      revisionState: "acknowledged",
+      expiresAt: 101,
+      revisionGrams: 5_000_000,
+      confirmedGrams: 5_000_000,
+      committedGrams: 5_000_000,
+      now: 100,
+    }),
+    [],
   );
 });
 

@@ -1,5 +1,6 @@
 import type { MarketplaceRole } from "@kuapa-dwaso/types";
 import type { PilotCapability } from "@kuapa-dwaso/types/pilot";
+import type { PilotRequestStatus } from "@kuapa-dwaso/types/pilot";
 
 export type PilotAssignmentGrant = {
   programmeId: string;
@@ -102,4 +103,56 @@ export function getPilotFieldVisibility(input: {
     finance: false,
     custody: true,
   };
+}
+
+export const allowedPilotRequestTransitions: Readonly<
+  Record<PilotRequestStatus, readonly PilotRequestStatus[]>
+> = {
+  draft: ["submitted", "cancelled"],
+  submitted: ["under_review", "cancelled"],
+  under_review: ["quoted", "cancelled", "disputed"],
+  quoted: ["under_review", "quoted", "confirmed", "cancelled", "disputed"],
+  confirmed: ["fulfilling", "cancelled", "disputed"],
+  fulfilling: ["delivered", "cancelled", "disputed"],
+  delivered: ["closed", "disputed"],
+  closed: [],
+  cancelled: [],
+  disputed: ["cancelled", "closed"],
+};
+
+export function canTransitionPilotRequest(
+  current: PilotRequestStatus,
+  next: PilotRequestStatus,
+): boolean {
+  return allowedPilotRequestTransitions[current].includes(next);
+}
+
+export type PilotConfirmationBlocker =
+  | "buyer_agreement_not_acknowledged"
+  | "buyer_agreement_expired"
+  | "confirmed_quantity_requires_matching_revision"
+  | "accepted_farmer_commitments_insufficient";
+
+export function getPilotConfirmationBlockers(input: {
+  revisionState:
+    | "proposed"
+    | "acknowledged"
+    | "superseded"
+    | "expired"
+    | "withdrawn";
+  expiresAt: number;
+  revisionGrams: number;
+  confirmedGrams: number;
+  committedGrams: number;
+  now: number;
+}): PilotConfirmationBlocker[] {
+  const blockers: PilotConfirmationBlocker[] = [];
+  if (input.revisionState !== "acknowledged")
+    blockers.push("buyer_agreement_not_acknowledged");
+  if (input.expiresAt <= input.now) blockers.push("buyer_agreement_expired");
+  if (input.revisionGrams !== input.confirmedGrams)
+    blockers.push("confirmed_quantity_requires_matching_revision");
+  if (input.committedGrams < input.confirmedGrams)
+    blockers.push("accepted_farmer_commitments_insufficient");
+  return blockers;
 }

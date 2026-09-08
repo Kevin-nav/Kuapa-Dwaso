@@ -5,6 +5,7 @@ import {
   type DatasetProvenance,
   type PilotChargeTerm,
   type PilotCommercialMode,
+  type PilotLocation,
   type PilotMaizeSpecification,
   type PilotPaymentTerm,
   type PilotRate,
@@ -19,6 +20,7 @@ export type PilotValidationErrorCode =
   | "INVALID_REVISION"
   | "INVALID_PAGINATION"
   | "INVALID_MODE"
+  | "INVALID_LOCATION"
   | "INVALID_SPECIFICATION"
   | "INVALID_PAYMENT_TERM"
   | "INVALID_CHARGE_TERM";
@@ -62,6 +64,42 @@ export function isPilotCommercialMode(
   value: unknown,
 ): value is PilotCommercialMode {
   return isOneOf(pilotCommercialModes, value);
+}
+
+export function assertPilotLocation(
+  value: unknown,
+): asserts value is PilotLocation {
+  if (typeof value !== "object" || value === null) {
+    throw new PilotValidationError(
+      "INVALID_LOCATION",
+      "Collection or delivery location is required.",
+    );
+  }
+  const location = value as Partial<PilotLocation>;
+  if (
+    typeof location.label !== "string" ||
+    location.label.trim().length === 0
+  ) {
+    throw new PilotValidationError(
+      "INVALID_LOCATION",
+      "Location label is required.",
+    );
+  }
+  if (
+    (location.latitudeE6 !== undefined &&
+      (!isSafeInteger(location.latitudeE6) ||
+        location.latitudeE6 < -90_000_000 ||
+        location.latitudeE6 > 90_000_000)) ||
+    (location.longitudeE6 !== undefined &&
+      (!isSafeInteger(location.longitudeE6) ||
+        location.longitudeE6 < -180_000_000 ||
+        location.longitudeE6 > 180_000_000))
+  ) {
+    throw new PilotValidationError(
+      "INVALID_LOCATION",
+      "Location coordinates must be valid integer microdegrees.",
+    );
+  }
 }
 
 export function assertPilotQuantityGrams(
