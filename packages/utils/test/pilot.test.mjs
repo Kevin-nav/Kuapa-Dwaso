@@ -8,6 +8,7 @@ import {
   getPilotExactAmount,
   kilogramsToGrams,
   pilotAllocationFits,
+  getPilotReadinessBlockers,
   pilotOrderSource,
   pilotPurchasingBudgetAvailablePesewas,
   reconcilePilotLineAmounts,
@@ -147,6 +148,57 @@ test("competing commitments cannot allocate more than declared supply", () => {
     }),
     true,
   );
+});
+
+test("readiness blocks the 4,800 kg shortfall and over-capacity plan", () => {
+  const blockers = getPilotReadinessBlockers({
+    plannedGrams: 5_000_000,
+    clearedGrams: 4_800_000,
+    agreementCurrent: true,
+    agreementExpiresAt: 10_000,
+    now: 1_000,
+    collectionWindowStartAt: 2_000,
+    collectionWindowEndAt: 3_000,
+    deliveryWindowStartAt: 4_000,
+    deliveryWindowEndAt: 5_000,
+    agreementDeliveryWindowStartAt: 3_500,
+    agreementDeliveryWindowEndAt: 5_500,
+    driverAssigned: true,
+    driverEligible: true,
+    vehicleCapacityGrams: 4_900_000,
+    financialReleaseSatisfied: true,
+    hasBlockingIssue: false,
+  });
+  assert.deepEqual(blockers, [
+    "cleared_quantity_shortfall",
+    "vehicle_capacity_shortfall",
+  ]);
+});
+
+test("readiness fails closed when the agreement or finance release is stale", () => {
+  const blockers = getPilotReadinessBlockers({
+    plannedGrams: 200_000,
+    clearedGrams: 200_000,
+    agreementCurrent: false,
+    agreementExpiresAt: 900,
+    now: 1_000,
+    collectionWindowStartAt: 2_000,
+    collectionWindowEndAt: 3_000,
+    deliveryWindowStartAt: 4_000,
+    deliveryWindowEndAt: 5_000,
+    agreementDeliveryWindowStartAt: 4_000,
+    agreementDeliveryWindowEndAt: 5_000,
+    driverAssigned: true,
+    driverEligible: true,
+    vehicleCapacityGrams: 200_000,
+    financialReleaseSatisfied: false,
+    hasBlockingIssue: false,
+  });
+  assert.deepEqual(blockers, [
+    "agreement_not_current",
+    "agreement_expired",
+    "financial_release_required",
+  ]);
 });
 
 test("keeps warehouse and pilot references discriminated", () => {

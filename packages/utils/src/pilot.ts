@@ -202,6 +202,68 @@ export function pilotAllocationFits(input: {
   );
 }
 
+export type PilotReadinessBlocker =
+  | "agreement_not_current"
+  | "agreement_expired"
+  | "cleared_quantity_shortfall"
+  | "collection_window_invalid"
+  | "delivery_window_invalid"
+  | "driver_not_assigned"
+  | "driver_not_eligible"
+  | "vehicle_capacity_shortfall"
+  | "financial_release_required"
+  | "blocking_issue";
+
+export function getPilotReadinessBlockers(input: {
+  plannedGrams: number;
+  clearedGrams: number;
+  agreementCurrent: boolean;
+  agreementExpiresAt: number;
+  now: number;
+  collectionWindowStartAt: number;
+  collectionWindowEndAt: number;
+  deliveryWindowStartAt: number;
+  deliveryWindowEndAt: number;
+  agreementDeliveryWindowStartAt: number;
+  agreementDeliveryWindowEndAt: number;
+  driverAssigned: boolean;
+  driverEligible: boolean;
+  vehicleCapacityGrams?: number;
+  financialReleaseSatisfied: boolean;
+  hasBlockingIssue: boolean;
+}): PilotReadinessBlocker[] {
+  assertSafeInteger(input.plannedGrams, "plannedGrams", false);
+  assertSafeInteger(input.clearedGrams, "clearedGrams", true);
+  const blockers: PilotReadinessBlocker[] = [];
+  if (!input.agreementCurrent) blockers.push("agreement_not_current");
+  if (input.agreementExpiresAt <= input.now) blockers.push("agreement_expired");
+  if (input.clearedGrams < input.plannedGrams)
+    blockers.push("cleared_quantity_shortfall");
+  if (
+    input.collectionWindowStartAt >= input.collectionWindowEndAt ||
+    input.collectionWindowStartAt < input.now
+  )
+    blockers.push("collection_window_invalid");
+  if (
+    input.deliveryWindowStartAt >= input.deliveryWindowEndAt ||
+    input.deliveryWindowStartAt < input.agreementDeliveryWindowStartAt ||
+    input.deliveryWindowEndAt > input.agreementDeliveryWindowEndAt
+  )
+    blockers.push("delivery_window_invalid");
+  if (!input.driverAssigned) blockers.push("driver_not_assigned");
+  if (input.driverAssigned && !input.driverEligible)
+    blockers.push("driver_not_eligible");
+  if (
+    input.vehicleCapacityGrams === undefined ||
+    input.vehicleCapacityGrams < input.plannedGrams
+  )
+    blockers.push("vehicle_capacity_shortfall");
+  if (!input.financialReleaseSatisfied)
+    blockers.push("financial_release_required");
+  if (input.hasBlockingIssue) blockers.push("blocking_issue");
+  return blockers;
+}
+
 function greatestCommonDivisor(left: bigint, right: bigint): bigint {
   let a = left;
   let b = right;

@@ -1023,9 +1023,9 @@ export function isUploadPurposeAllowedForRelatedEntity(input: {
     case "pilot_collection_evidence":
       return input.relatedEntityType === "pilotProcurementLots";
     case "pilot_custody_evidence":
-      return input.relatedEntityType === "pilotCustodyEvents";
+      return input.relatedEntityType === "pilotCustodyEvents" || input.relatedEntityType === "pilotProcurementLots";
     case "pilot_acceptance_evidence":
-      return input.relatedEntityType === "pilotBuyerAcceptances";
+      return input.relatedEntityType === "pilotBuyerAcceptances" || input.relatedEntityType === "pilotProcurementLots";
     case "pilot_financial_evidence":
       return input.relatedEntityType === "pilotFinancialEntries";
     case "pilot_issue_evidence":

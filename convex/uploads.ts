@@ -621,10 +621,15 @@ export const createPending = mutation({
         args.purpose === "blog_content_image",
       "Only approved public media purposes may be publicly readable.",
     );
+    const stagedLotEvidence =
+      args.relatedEntityType === "pilotProcurementLots" &&
+      (args.purpose === "pilot_collection_evidence" ||
+        args.purpose === "pilot_custody_evidence" ||
+        args.purpose === "pilot_acceptance_evidence");
     await requireActorCanUseRelatedEntity(
       ctx,
       actor,
-      "manage",
+      stagedLotEvidence ? "read" : "manage",
       args.relatedEntityType,
       relatedEntityId,
       args.pilotProgrammeId,
