@@ -19,6 +19,7 @@ type CreateInviteBody = {
   targetEmail?: string;
   targetPhoneNumber?: string;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: {
     roleKey: AdminRoleKey;
     scopeType: AdminScopeType;
@@ -74,7 +75,7 @@ export class InvitationsController {
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : "Invalid invitation delivery mode.");
     }
-    const phonePrimary = body.type === "warehouse_agent_invite" || body.type === "transporter_invite";
+    const phonePrimary = body.type === "warehouse_agent_invite" || body.type === "pilot_operations_invite" || body.type === "transporter_invite";
     if (phonePrimary && (body.targetPhoneNumber === undefined || body.targetPhoneNumber.trim().length === 0)) {
       throw new BadRequestException("Warehouse-agent and transporter invitations require the phone number that will be verified at acceptance.");
     }
@@ -96,6 +97,11 @@ export class InvitationsController {
     }
     if ((body.type === "admin_invite" || body.type === "warehouse_manager_invite") && body.mfaRequirement !== undefined && body.mfaRequirement !== "totp_required" && body.mfaRequirement !== "required") {
       throw new BadRequestException("Privileged invitations require MFA.");
+    }
+    if (body.type === "pilot_operations_invite" &&
+      (body.pilotProgrammeId === undefined || body.pilotProgrammeId.trim().length === 0 ||
+        body.linkedProfileId === undefined || body.linkedProfileId.trim().length === 0)) {
+      throw new BadRequestException("Pilot operations invitations require a programme and an approved operations profile.");
     }
 
     const token = this.tokens.createToken();
@@ -136,6 +142,9 @@ export class InvitationsController {
     if (body.linkedProfileId !== undefined) {
       createInvitationArgs.linkedProfileId = body.linkedProfileId;
     }
+    if (body.pilotProgrammeId !== undefined) {
+      createInvitationArgs.pilotProgrammeId = body.pilotProgrammeId;
+    }
     if (body.pendingAdminRoleAssignment !== undefined) {
       createInvitationArgs.pendingAdminRoleAssignment = body.pendingAdminRoleAssignment;
     }
@@ -146,7 +155,7 @@ export class InvitationsController {
       createInvitationArgs.messageId = delivery.messageId;
     }
 
-    const invitationId = await this.convex.createInvitation(createInvitationArgs);
+    const invitationId = await this.convex.createInvitation(createInvitationArgs, principal.firebaseIdToken);
     const response: { invitationId: string; deliveryProvider: string; messageId?: string; manualInviteUrl?: string } = {
       invitationId,
       deliveryProvider: delivery.provider
@@ -208,7 +217,7 @@ export class InvitationsController {
     return await this.convex.acceptInvitation({
       tokenHash: this.tokens.hashToken(body.token),
       identity
-    });
+    }, bearerToken);
   }
 
   @Get("pending/:token")

@@ -38,11 +38,12 @@ const roleKeys: AdminRoleKey[] = [
   "admin_viewer",
 ];
 
-const scopeTypes: AdminScopeType[] = ["global", "region", "district", "warehouse", "destination_market"];
+const scopeTypes: AdminScopeType[] = ["global", "region", "district", "warehouse", "destination_market", "pilot_programme"];
 const inviteTypes: PlatformInvitationType[] = [
   "admin_invite",
   "warehouse_manager_invite",
   "warehouse_agent_invite",
+  "pilot_operations_invite",
   "transporter_invite",
 ];
 const tabs = ["Invites", "Admin Users", "Groups", "Permission Preview"] as const;
@@ -412,6 +413,8 @@ function InvitesPanel({
   const [channel, setChannel] = useState<InvitationChannel>("email");
   const [targetEmail, setTargetEmail] = useState("");
   const [targetPhoneNumber, setTargetPhoneNumber] = useState("");
+  const [pilotProgrammeId, setPilotProgrammeId] = useState("");
+  const [linkedProfileId, setLinkedProfileId] = useState("");
   const [roleKey, setRoleKey] = useState<AdminRoleKey>("admin_viewer");
   const [scopeType, setScopeType] = useState<AdminScopeType>("global");
   const [scopeValue, setScopeValue] = useState("");
@@ -440,9 +443,13 @@ function InvitesPanel({
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         mfaRequirement,
       };
-      const phonePrimary = type === "warehouse_agent_invite" || type === "transporter_invite";
+      const phonePrimary = type === "warehouse_agent_invite" || type === "pilot_operations_invite" || type === "transporter_invite";
       if (channel === "email") body.targetEmail = targetEmail.trim();
       if (phonePrimary) body.targetPhoneNumber = normalizeGhanaPhoneNumber(targetPhoneNumber);
+      if (type === "pilot_operations_invite") {
+        body.pilotProgrammeId = pilotProgrammeId.trim();
+        body.linkedProfileId = linkedProfileId.trim();
+      }
       if (type === "admin_invite" || type === "warehouse_manager_invite") {
         body.pendingAdminRoleAssignment = {
           roleKey: type === "warehouse_manager_invite" ? "warehouse_manager" : roleKey,
@@ -509,8 +516,14 @@ function InvitesPanel({
           </select>
         </Field>
         {channel === "email" && <Field label="Delivery email"><input type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} required style={inputStyle} /></Field>}
-        {(type === "warehouse_agent_invite" || type === "transporter_invite") && (
+        {(type === "warehouse_agent_invite" || type === "pilot_operations_invite" || type === "transporter_invite") && (
           <Field label="Verified sign-in phone"><input type="tel" inputMode="tel" autoComplete="tel" value={targetPhoneNumber} onChange={(event) => setTargetPhoneNumber(event.target.value)} required placeholder="054 123 4567 or +233 54 123 4567" style={inputStyle} /></Field>
+        )}
+        {type === "pilot_operations_invite" && (
+          <>
+            <Field label="Pilot programme ID"><input value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle} /></Field>
+            <Field label="Approved operations profile ID"><input value={linkedProfileId} onChange={(event) => setLinkedProfileId(event.target.value)} required style={inputStyle} /></Field>
+          </>
         )}
         {(type === "admin_invite" || type === "warehouse_manager_invite") && (
           <>

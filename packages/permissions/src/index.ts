@@ -91,6 +91,22 @@ export const adminPermissionKeys = [
   "blog:read",
   "blog:write",
   "blog:publish",
+  "pilotProgrammes:read",
+  "pilotProgrammes:manage",
+  "pilotAssignments:read",
+  "pilotAssignments:manage",
+  "pilotRequests:read",
+  "pilotRequests:manage",
+  "pilotSupply:read",
+  "pilotSupply:manage",
+  "pilotQuality:read",
+  "pilotQuality:manage",
+  "pilotFulfilment:read",
+  "pilotFulfilment:manage",
+  "pilotFinance:read",
+  "pilotFinance:manage",
+  "pilotIssues:read",
+  "pilotIssues:manage",
 ] as const;
 export type AdminPermissionKey = (typeof adminPermissionKeys)[number];
 
@@ -105,6 +121,7 @@ export type AdminScopeTargetDescriptor = {
   region?: string;
   district?: string;
   destinationMarket?: string;
+  pilotProgrammeId?: string;
 };
 
 function normalizeScopeValue(value: string | undefined): string | undefined {
@@ -135,6 +152,9 @@ export function adminScopeMatchesTarget(
   }
   if (grant.scopeType === "destination_market") {
     return scopeValuesMatch(grant.scopeValue ?? grant.scopeId, target.destinationMarket);
+  }
+  if (grant.scopeType === "pilot_programme") {
+    return target.pilotProgrammeId !== undefined && grant.scopeId === target.pilotProgrammeId;
   }
   return false;
 }
@@ -191,6 +211,14 @@ const readOnlyAdminPermissions = [
   "invitations:read",
   "profileLinks:read",
   "uploads:read",
+  "pilotProgrammes:read",
+  "pilotAssignments:read",
+  "pilotRequests:read",
+  "pilotSupply:read",
+  "pilotQuality:read",
+  "pilotFulfilment:read",
+  "pilotFinance:read",
+  "pilotIssues:read",
 ] as const satisfies readonly AdminPermissionKey[];
 
 export const adminPermissionsByRole: Record<
@@ -237,6 +265,21 @@ export const adminPermissionsByRole: Record<
     "profileLinks:manage",
     "uploads:read",
     "uploads:manage",
+    "pilotProgrammes:read",
+    "pilotProgrammes:manage",
+    "pilotAssignments:read",
+    "pilotAssignments:manage",
+    "pilotRequests:read",
+    "pilotRequests:manage",
+    "pilotSupply:read",
+    "pilotSupply:manage",
+    "pilotQuality:read",
+    "pilotQuality:manage",
+    "pilotFulfilment:read",
+    "pilotFulfilment:manage",
+    "pilotFinance:read",
+    "pilotIssues:read",
+    "pilotIssues:manage",
   ]),
   warehouse_manager: new Set([
     "warehouses:read",
@@ -270,6 +313,13 @@ export const adminPermissionsByRole: Record<
     "profileLinks:manage",
     "uploads:read",
     "uploads:manage",
+    "pilotProgrammes:read",
+    "pilotAssignments:read",
+    "pilotRequests:read",
+    "pilotSupply:read",
+    "pilotQuality:read",
+    "pilotFulfilment:read",
+    "pilotIssues:read",
   ]),
   finance_manager: new Set([
     "fees:read",
@@ -287,6 +337,15 @@ export const adminPermissionsByRole: Record<
     "auditLogs:read",
     "reports:read",
     "uploads:read",
+    "pilotProgrammes:read",
+    "pilotAssignments:read",
+    "pilotRequests:read",
+    "pilotSupply:read",
+    "pilotQuality:read",
+    "pilotFulfilment:read",
+    "pilotFinance:read",
+    "pilotFinance:manage",
+    "pilotIssues:read",
   ]),
   support_officer: new Set([
     "warehouses:read",
@@ -308,6 +367,14 @@ export const adminPermissionsByRole: Record<
     "invitations:read",
     "profileLinks:read",
     "uploads:read",
+    "pilotProgrammes:read",
+    "pilotAssignments:read",
+    "pilotRequests:read",
+    "pilotSupply:read",
+    "pilotQuality:read",
+    "pilotFulfilment:read",
+    "pilotIssues:read",
+    "pilotIssues:manage",
   ]),
   auditor: new Set([
     "warehouses:read",
@@ -329,8 +396,16 @@ export const adminPermissionsByRole: Record<
     "invitations:read",
     "profileLinks:read",
     "uploads:read",
+    "pilotProgrammes:read",
+    "pilotAssignments:read",
+    "pilotRequests:read",
+    "pilotSupply:read",
+    "pilotQuality:read",
+    "pilotFulfilment:read",
+    "pilotFinance:read",
+    "pilotIssues:read",
   ]),
-  analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "payments:read", "payouts:read", "dispatches:read", "marketSchedules:read", "marketRuns:read"]),
+  analyst: new Set(["reports:read", "warehouses:read", "inventory:read", "orders:read", "sales:read", "payments:read", "payouts:read", "dispatches:read", "marketSchedules:read", "marketRuns:read", "pilotProgrammes:read", "pilotRequests:read", "pilotSupply:read", "pilotQuality:read", "pilotFulfilment:read", "pilotFinance:read", "pilotIssues:read"]),
   admin_viewer: new Set(readOnlyAdminPermissions),
 };
 

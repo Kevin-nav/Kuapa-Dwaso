@@ -2,6 +2,7 @@ import type { MarketplaceRole, MfaRequirement, MfaStatus, OnboardingState, UserS
 
 export type AuthPrincipal = {
   authProviderId: string;
+  firebaseIdToken?: string;
   userId?: string;
   roles: MarketplaceRole[];
   status?: UserStatus;

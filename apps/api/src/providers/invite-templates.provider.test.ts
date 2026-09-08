@@ -46,6 +46,7 @@ describe("InviteTemplatesProvider", () => {
     expect(roleLabelForInviteType("admin_invite")).toBe("admin");
     expect(roleLabelForInviteType("warehouse_manager_invite")).toBe("warehouse manager");
     expect(roleLabelForInviteType("warehouse_agent_invite")).toBe("warehouse agent");
+    expect(roleLabelForInviteType("pilot_operations_invite")).toBe("pilot operator");
     expect(roleLabelForInviteType("transporter_invite")).toBe("transporter");
   });
 });

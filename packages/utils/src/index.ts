@@ -947,6 +947,7 @@ export function assertInviteIdentityVerification(input: {
 }): void {
   const phonePrimary =
     input.invitationType === "warehouse_agent_invite" ||
+    input.invitationType === "pilot_operations_invite" ||
     input.invitationType === "transporter_invite";
   if (phonePrimary) {
     if (
