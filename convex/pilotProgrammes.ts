@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
 import {
   adminAccessHasPermissionForScope,
   cleanOptionalText,
@@ -41,6 +41,12 @@ function safeProgramme(programme: Doc<"pilotProgrammes">) {
     status: programme.status,
     datasetProvenance: programme.datasetProvenance,
     commercialConfigurationStatus: programme.commercialConfigurationStatus,
+    demoContext: {
+      programmeId: programme._id,
+      programmeName: programme.name,
+      dataMode: programme.datasetProvenance,
+      ...(programme.datasetId === undefined ? {} : { datasetId: programme.datasetId }),
+    },
     version: programme.version,
   };
 }
@@ -152,6 +158,8 @@ export const create = mutation({
       cleanOptionalText(args.datasetId) === undefined
     )
       throw new Error("Sample programmes require a dataset ID.");
+    const district = cleanOptionalText(args.district);
+    const datasetId = cleanOptionalText(args.datasetId);
     const now = Date.now();
     const programmeId = await ctx.db.insert("pilotProgrammes", {
       code,
@@ -160,14 +168,10 @@ export const create = mutation({
       currency: "GHS",
       timezone: "Africa/Accra",
       region: args.region.trim(),
-      ...(cleanOptionalText(args.district) === undefined
-        ? {}
-        : { district: cleanOptionalText(args.district) }),
+      ...(district === undefined ? {} : { district }),
       status: "draft",
       datasetProvenance: args.datasetProvenance,
-      ...(cleanOptionalText(args.datasetId) === undefined
-        ? {}
-        : { datasetId: cleanOptionalText(args.datasetId) }),
+      ...(datasetId === undefined ? {} : { datasetId }),
       commercialConfigurationStatus: "missing",
       version: 0,
       createdByUserId: principal._id,

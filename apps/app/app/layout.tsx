@@ -4,6 +4,7 @@ import { PwaRuntime } from "@kuapa-dwaso/ui/pwa";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { AuthProvider } from "./auth/AuthProvider";
 import { AppOutboxReplayer } from "./pwa/AppOutboxReplayer";
+import { PilotDemoIndicator } from "./pilot/PilotDemoIndicator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <ConvexClientProvider>
-          <AuthProvider><AppOutboxReplayer />{children}</AuthProvider>
+          <AuthProvider><AppOutboxReplayer /><PilotDemoIndicator />{children}</AuthProvider>
         </ConvexClientProvider>
         <PwaRuntime enabled={process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_PWA_DEV === "true"} />
       </body>

@@ -6,6 +6,9 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { SampleDataBanner } from "@kuapa-dwaso/ui/pilot";
+import { api } from "../../../convex/_generated/api";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
 import { useWarehouse } from "./context/WarehouseContext";
 import {
@@ -34,6 +37,13 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [syncError, setSyncError] = useState<string>();
   const isAuthRoute = pathname === "/auth";
   const hasWarehouseAccess = firebaseUser !== null && principal?.role === "warehouse_agent";
+  const pilotProgrammes = useQuery(
+    api.pilotProgrammes.listAvailable,
+    !hasWarehouseAccess || principal?.status !== "active" ? "skip" : { limit: 20 },
+  ) as { page: Array<{ demoContext: { programmeId: string; programmeName: string; dataMode: "live" | "sample_only"; datasetId?: string } }> } | undefined;
+  const sampleProgrammes = pilotProgrammes?.page
+    .map((programme) => programme.demoContext)
+    .filter((context) => context.dataMode === "sample_only") ?? [];
 
   useEffect(() => {
     if (!isAuthRoute && !isAuthLoading && !hasWarehouseAccess) {
@@ -298,6 +308,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
       {/* Main Panel Content Area */}
       <main className="main-content">
+        <SampleDataBanner programmes={sampleProgrammes} />
         <div className="content-container">
           {/* Offline warning notification banner */}
           {isOffline && (
