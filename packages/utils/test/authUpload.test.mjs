@@ -119,3 +119,20 @@ test("upload purposes are constrained to compatible evidence entities", () => {
     /not allowed/,
   );
 });
+
+test("custody and acceptance evidence can be staged against an existing pilot lot", () => {
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_custody_evidence",
+      relatedEntityType: "pilotProcurementLots",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_acceptance_evidence",
+      relatedEntityType: "pilotProcurementLots",
+    }),
+    true,
+  );
+});

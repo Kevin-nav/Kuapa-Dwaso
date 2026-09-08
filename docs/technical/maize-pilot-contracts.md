@@ -267,7 +267,7 @@ All tables include `createdAt`. Mutable head records also include `updatedAt` an
 
 `uploadAssets` gains optional `pilotProgrammeId`. Its purpose union gains `pilot_inspection_evidence`, `pilot_collection_evidence`, `pilot_custody_evidence`, `pilot_acceptance_evidence`, `pilot_financial_evidence`, `pilot_issue_evidence`, and `pilot_facility_assessment`. Its related-entity union gains the corresponding pilot table names.
 
-All pilot evidence uses `accessLevel: "private"`. Attachment verifies the principal can access the programme and related entity, that the purpose matches the entity, and that the upload owner may perform the action. Every signed read repeats the related-entity check. A stale assignment, copied object key, or known upload ID grants nothing. Financial evidence requires the owner party or `pilotFinance:read`; exact farm coordinates are limited to the farmer, assigned fulfilment staff while needed, and authorized admin or support staff.
+All pilot evidence uses `accessLevel: "private"`. Attachment verifies the principal can access the programme and related entity, that the purpose matches the entity, and that the upload owner may perform the action. Custody and buyer-acceptance evidence may be staged against an existing procurement lot before the immutable event or acceptance exists; the completed mutation references the staged asset. Every signed read repeats the related-entity check. A stale assignment, copied object key, or known upload ID grants nothing. Financial evidence requires the owner party or `pilotFinance:read`; exact farm coordinates are limited to the farmer, assigned fulfilment staff while needed, and authorized admin or support staff.
 
 ## Permission and assignment contract
 
