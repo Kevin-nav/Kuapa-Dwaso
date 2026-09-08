@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { AdminShell } from "@kuapa-dwaso/dashboard-ui";
+import { SampleDataBanner } from "@kuapa-dwaso/ui/pilot";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useAdminAuth } from "./auth/AdminAuthProvider";
@@ -31,6 +32,13 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
       ? "skip"
       : { actorUserId, adminUserId: actorUserId },
   );
+  const pilotProgrammes = useQuery(
+    api.pilotProgrammes.listAvailable,
+    actorUserId === undefined ? "skip" : { limit: 20 },
+  ) as { page: Array<{ demoContext: { programmeId: string; programmeName: string; dataMode: "live" | "sample_only"; datasetId?: string } }> } | undefined;
+  const sampleProgrammes = pilotProgrammes?.page
+    .map((programme) => programme.demoContext)
+    .filter((context) => context.dataMode === "sample_only") ?? [];
 
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;
@@ -54,6 +62,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
       }}
       showStories={effectiveAccess?.permissions.includes("blog:read") === true}
     >
+      <SampleDataBanner programmes={sampleProgrammes} />
       {children}
     </AdminShell>
   );

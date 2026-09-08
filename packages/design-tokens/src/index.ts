@@ -85,3 +85,13 @@ export const gray = {
 export const spacing = {
   controlPadding: "0.75rem 1rem",
 } as const;
+
+export const pilotLedger = {
+  paper: "#fffdf5",
+  paperMuted: "#f4f0df",
+  rule: "#d8d0b5",
+  maize: "#d9a514",
+  maizeSoft: "#fff3bf",
+  stamp: "#7a4c08",
+  inkMuted: "#586257",
+} as const;
