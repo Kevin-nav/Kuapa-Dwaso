@@ -1,5 +1,6 @@
 import type {
   PilotBagMeasurement,
+  PilotChargeTerm,
   PilotOrderRef,
   PilotRate,
 } from "@kuapa-dwaso/types/pilot";
@@ -145,6 +146,59 @@ export function calculatePilotAmountPesewas(input: {
   return toSafeNumber(
     roundHalfUpRatio(exact.numerator, exact.denominator),
     "amountPesewas",
+  );
+}
+
+export function calculatePilotOfferAmounts(input: {
+  offeredGrams: number;
+  priceRate: PilotRate;
+  chargeTerms: readonly PilotChargeTerm[];
+}): {
+  expectedGrossPesewas: number;
+  expectedChargesPesewas: number;
+  expectedNetPesewas: number;
+} {
+  const expectedGrossPesewas = calculatePilotAmountPesewas({
+    quantityGrams: input.offeredGrams,
+    rate: input.priceRate,
+  });
+  const expectedChargesPesewas = input.chargeTerms
+    .filter((term) => term.payer === "farmer")
+    .reduce(
+      (sum, term) =>
+        sum +
+        calculatePilotAmountPesewas({
+          quantityGrams: input.offeredGrams,
+          basisPesewas: expectedGrossPesewas,
+          rate: term.rate,
+        }),
+      0,
+    );
+  if (expectedChargesPesewas > expectedGrossPesewas)
+    throw new Error("Farmer charges cannot exceed expected gross proceeds.");
+  return {
+    expectedGrossPesewas,
+    expectedChargesPesewas,
+    expectedNetPesewas: expectedGrossPesewas - expectedChargesPesewas,
+  };
+}
+
+export function pilotAllocationFits(input: {
+  declaredGrams: number;
+  activeAllocatedGrams: number;
+  proposedGrams: number;
+  replacingActiveGrams?: number;
+}): boolean {
+  assertSafeInteger(input.declaredGrams, "declaredGrams", true);
+  assertSafeInteger(input.activeAllocatedGrams, "activeAllocatedGrams", true);
+  assertSafeInteger(input.proposedGrams, "proposedGrams", false);
+  const replacingActiveGrams = input.replacingActiveGrams ?? 0;
+  assertSafeInteger(replacingActiveGrams, "replacingActiveGrams", true);
+  if (replacingActiveGrams > input.activeAllocatedGrams)
+    throw new Error("Replacement quantity exceeds active allocation.");
+  return (
+    input.activeAllocatedGrams - replacingActiveGrams + input.proposedGrams <=
+    input.declaredGrams
   );
 }
 

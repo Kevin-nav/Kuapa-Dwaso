@@ -362,6 +362,7 @@ export type PilotFarmerOfferRevision = {
   programmeId: string;
   requestId: string;
   declarationId: string;
+  buyerAgreementRevisionId: string;
   revision: number;
   supersedesRevisionId?: string;
   commercialMode: PilotCommercialMode;

@@ -3,9 +3,11 @@ import test from "node:test";
 import {
   bagsToGrams,
   calculatePilotAmountPesewas,
+  calculatePilotOfferAmounts,
   createPilotBagMeasurement,
   getPilotExactAmount,
   kilogramsToGrams,
+  pilotAllocationFits,
   pilotOrderSource,
   pilotPurchasingBudgetAvailablePesewas,
   reconcilePilotLineAmounts,
@@ -63,6 +65,88 @@ test("allocates an aggregate rounding remainder by stable line ID", () => {
     { id: "farmer-b", amountPesewas: 0 },
     { id: "farmer-c", amountPesewas: 0 },
   ]);
+});
+
+test("scenario A offer snapshots produce GH₵23,750 net after a five percent farmer charge", () => {
+  assert.deepEqual(
+    calculatePilotOfferAmounts({
+      offeredGrams: 5_000_000,
+      priceRate: { numerator: 500, scale: 1, unit: "per_kg" },
+      chargeTerms: [
+        {
+          code: "coordination",
+          label: "Coordination fee",
+          payer: "farmer",
+          calculation: "percent_of_produce",
+          rate: { numerator: 5, scale: 100, unit: "percent" },
+        },
+      ],
+    }),
+    {
+      expectedGrossPesewas: 2_500_000,
+      expectedChargesPesewas: 125_000,
+      expectedNetPesewas: 2_375_000,
+    },
+  );
+});
+
+test("scenario A final accepted farmer quantities reconcile line by line", () => {
+  const finalQuantities = [2_000_000, 1_500_000, 1_300_000, 200_000];
+  const lines = finalQuantities.map((offeredGrams) =>
+    calculatePilotOfferAmounts({
+      offeredGrams,
+      priceRate: { numerator: 500, scale: 1, unit: "per_kg" },
+      chargeTerms: [
+        {
+          code: "coordination",
+          label: "Coordination fee",
+          payer: "farmer",
+          calculation: "percent_of_produce",
+          rate: { numerator: 5, scale: 100, unit: "percent" },
+        },
+      ],
+    }),
+  );
+  assert.deepEqual(
+    lines.map((line) => line.expectedNetPesewas),
+    [950_000, 712_500, 617_500, 95_000],
+  );
+  assert.equal(
+    lines.reduce((sum, line) => sum + line.expectedGrossPesewas, 0),
+    2_500_000,
+  );
+  assert.equal(
+    lines.reduce((sum, line) => sum + line.expectedNetPesewas, 0),
+    2_375_000,
+  );
+});
+
+test("competing commitments cannot allocate more than declared supply", () => {
+  assert.equal(
+    pilotAllocationFits({
+      declaredGrams: 2_000_000,
+      activeAllocatedGrams: 1_500_000,
+      proposedGrams: 500_000,
+    }),
+    true,
+  );
+  assert.equal(
+    pilotAllocationFits({
+      declaredGrams: 2_000_000,
+      activeAllocatedGrams: 1_500_000,
+      proposedGrams: 500_001,
+    }),
+    false,
+  );
+  assert.equal(
+    pilotAllocationFits({
+      declaredGrams: 2_000_000,
+      activeAllocatedGrams: 2_000_000,
+      replacingActiveGrams: 500_000,
+      proposedGrams: 500_000,
+    }),
+    true,
+  );
 });
 
 test("keeps warehouse and pilot references discriminated", () => {

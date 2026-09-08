@@ -160,16 +160,16 @@ All tables include `createdAt`. Mutable head records also include `updatedAt` an
 `pilotSupplyDeclarations`
 
 - Fields: `programmeId`, `farmerId`, `cropCode: "maize"`, `maizeType`, `availableGrams`, `readinessWindowStartAt`, `readinessWindowEndAt`, `collectionLocation`, `verificationStatus` of `self_reported`, `reviewed`, or `rejected`, `status` of `active`, `exhausted`, `withdrawn`, or `expired`, `version`, `createdAt`, `updatedAt`.
-- Indexes: `by_farmer_status`, `by_programme_status`, `by_programme_maize_type_status`, `by_readiness_status`.
+- Indexes: `by_farmer_status`, `by_farmer_programme_status`, `by_programme_status`, `by_programme_maize_type_status`, `by_readiness_status`.
 
 `pilotFarmerOffers`
 
-- Mutable lifecycle head fields: `programmeId`, `requestId`, `declarationId`, `farmerId`, `commercialMode`, `status`, `currentRevisionId`, optional `acceptedRevisionId`, `decisionAt`, `expiresAt`, `version`, `createdAt`, `updatedAt`.
+- Mutable lifecycle head fields: `programmeId`, `requestId`, `declarationId`, `farmerId`, `commercialMode`, `status`, optional `currentRevisionId` during the atomic first-revision insert, optional `acceptedRevisionId`, `decisionAt`, `expiresAt`, `version`, `createdAt`, `updatedAt`. Public projections reject a missing head revision.
 - Indexes: `by_farmer_status`, `by_request_status`, `by_declaration_status`, `by_expiry_status`.
 
 `pilotFarmerOfferRevisions`
 
-- Insert-only fields: `offerId`, `programmeId`, `requestId`, `declarationId`, `revision`, optional `supersedesRevisionId`, `commercialMode`, `offeredGrams`, `priceBasis`, `priceRate`, `chargeTerms`, `expectedGrossPesewas`, `expectedChargesPesewas`, `expectedNetPesewas`, `inspectionTerms`, `paymentTerms`, `titleTransferTerms`, `custodyTransferTerms`, `cancellationTerms`, `expiresAt`, `createdByUserId`, `createdAt`.
+- Insert-only fields: `offerId`, `programmeId`, `requestId`, `declarationId`, `buyerAgreementRevisionId`, `revision`, optional `supersedesRevisionId`, `commercialMode`, `offeredGrams`, `priceBasis`, `priceRate`, `chargeTerms`, `expectedGrossPesewas`, `expectedChargesPesewas`, `expectedNetPesewas`, `inspectionTerms`, `paymentTerms`, `titleTransferTerms`, `custodyTransferTerms`, `cancellationTerms`, `expiresAt`, `createdByUserId`, `createdAt`.
 - Indexes: `by_offer_revision`, `by_request_created_at`, `by_expiry`.
 
 `pilotAllocations`

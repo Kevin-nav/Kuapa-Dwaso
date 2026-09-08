@@ -330,6 +330,7 @@ export const pilotTables = {
     updatedAt: v.number(),
   })
     .index("by_farmer_status", ["farmerId", "status"])
+    .index("by_farmer_programme_status", ["farmerId", "programmeId", "status"])
     .index("by_programme_status", ["programmeId", "status"])
     .index("by_programme_maize_type_status", [
       "programmeId",
@@ -352,7 +353,7 @@ export const pilotTables = {
       v.literal("expired"),
       v.literal("withdrawn"),
     ),
-    currentRevisionId: v.id("pilotFarmerOfferRevisions"),
+    currentRevisionId: v.optional(v.id("pilotFarmerOfferRevisions")),
     acceptedRevisionId: v.optional(v.id("pilotFarmerOfferRevisions")),
     decisionAt: v.optional(v.number()),
     expiresAt: v.number(),
@@ -370,6 +371,7 @@ export const pilotTables = {
     programmeId: v.id("pilotProgrammes"),
     requestId: v.id("pilotBuyerRequests"),
     declarationId: v.id("pilotSupplyDeclarations"),
+    buyerAgreementRevisionId: v.id("pilotBuyerAgreementRevisions"),
     revision: v.number(),
     supersedesRevisionId: v.optional(v.id("pilotFarmerOfferRevisions")),
     commercialMode,
