@@ -37,6 +37,7 @@ export class FirebaseAuthGuard implements CanActivate {
 
     const principal: AuthPrincipal = {
       authProviderId: verifiedToken.authProviderId,
+      firebaseIdToken: token,
       userId: userProfile.userId,
       roles: [userProfile.role],
       status: userProfile.status

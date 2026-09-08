@@ -231,7 +231,7 @@ function InviteAcceptContent() {
     );
   }
 
-  const isPhoneAuthRequired = inviteDetails?.type === "warehouse_agent_invite" || inviteDetails?.type === "transporter_invite";
+  const isPhoneAuthRequired = inviteDetails?.type === "warehouse_agent_invite" || inviteDetails?.type === "pilot_operations_invite" || inviteDetails?.type === "transporter_invite";
 
   return (
     <main className="page-shell auth-page">

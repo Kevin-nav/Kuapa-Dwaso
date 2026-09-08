@@ -87,6 +87,7 @@ const adminScopeType = v.union(
   v.literal("district"),
   v.literal("warehouse"),
   v.literal("destination_market"),
+  v.literal("pilot_programme"),
 );
 
 const adminRoleAssignmentStatus = v.union(
@@ -392,6 +393,7 @@ const platformInvitationType = v.union(
   v.literal("warehouse_manager_invite"),
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite"),
+  v.literal("pilot_operations_invite"),
 );
 const invitationChannel = v.union(
   v.literal("email"),
@@ -612,6 +614,7 @@ export default defineSchema({
     intendedRole: marketplaceRole,
     intendedProfileType: profileType,
     linkedProfileId: v.optional(v.string()),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     pendingAdminRoleAssignment: v.optional(pendingAdminRoleAssignment),
     mfaRequirement,
     invitedByUserId: v.id("users"),

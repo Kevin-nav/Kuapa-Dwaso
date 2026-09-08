@@ -39,11 +39,21 @@ Role and delivery/authentication combinations are fixed:
 | Platform admin    | Email only                  | Verified Google or email/password | Privileged MFA required                                                       |
 | Warehouse manager | Email only                  | Verified Google or email/password | Privileged MFA and a warehouse-scoped `warehouse_manager` assignment required |
 | Warehouse agent   | Email or manual secure link | Verified phone OTP                | Invitation establishes warehouse/profile; reuse an existing matching identity |
+| Pilot operator    | Email or manual secure link | Verified phone OTP                | Invitation links an approved operations profile to one named pilot; a separate active assignment grants capabilities |
 | Transporter       | Email or manual secure link | Verified phone OTP                | Reuse an existing matching identity/profile                                   |
 
 Acceptance is single-use, expiration- and revocation-aware, audited, and
 idempotent at the identity/profile boundary. Error messages may explain how to
 recover, but must not reveal a raw token or weaken target matching.
+
+Pilot operators authenticate with the same approved warehouse-agent identity,
+but they do not need a warehouse assignment. A `pilot_operations_invite` links
+the verified phone identity to an approved operations profile and records the
+intended programme; it never grants programme access by itself. An authorized
+admin must create a separate `pilotAssignments` grant with explicit
+capabilities. Revoked or expired assignments stop authorizing reads and writes
+immediately. Convex compares pilot actor IDs with the authenticated Firebase
+subject, including on API-mediated invitation and evidence operations.
 
 ## Uploads
 
@@ -75,6 +85,14 @@ photos attach to transporter profiles.
 Provider failures should be recoverable and must not corrupt Convex product
 state.
 
+Maize-pilot evidence is always private and must include both a pilot programme
+ID and a related pilot entity. Convex loads that entity, verifies it belongs to
+the supplied programme, and then checks the current buyer, farmer, driver,
+administrator, or pilot-operator scope. Owning an upload does not preserve
+access after an operator assignment is revoked. The API forwards the verified
+Firebase ID token to Convex for pilot upload creation, completion, status, and
+read authorization; it never treats a request body actor ID as authentication.
+
 ## Provider and Deployment Setup
 
 Firebase browser/client config belongs only in frontend app env files. Enable
@@ -87,6 +105,12 @@ ID tokens with Firebase Admin credentials and then resolves the Convex user
 profile before RBAC checks. Follow the Firebase Admin ID-token verification
 setup for service-account requirements:
 https://firebase.google.com/docs/auth/admin/verify-id-tokens
+
+Convex also validates Firebase ID tokens for pilot functions. Configure
+`FIREBASE_PROJECT_ID` in the Convex deployment environment (or the existing
+`NEXT_PUBLIC_FIREBASE_PROJECT_ID` during local development) so
+`convex/auth.config.ts` accepts the same Firebase issuer used by the apps and
+API.
 
 Resend is the API email provider boundary for admin and warehouse-manager
 invitations. Required staging/prod env vars are:

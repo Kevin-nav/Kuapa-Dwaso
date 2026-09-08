@@ -77,6 +77,7 @@ describe("FirebaseAuthGuard", () => {
     await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
     expect(request.user).toEqual({
       authProviderId: "firebase-user-1",
+      firebaseIdToken: "valid-token",
       userId: "convex-user-1",
       roles: ["warehouse_agent"],
       status: "active",

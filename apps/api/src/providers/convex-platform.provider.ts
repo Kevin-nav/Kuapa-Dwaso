@@ -27,6 +27,7 @@ type CreateInvitationArgs = {
   targetEmail?: string;
   targetPhoneNumber?: string;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: {
     roleKey: AdminRoleKey;
     scopeType: AdminScopeType;
@@ -77,6 +78,7 @@ type CreatePendingUploadArgs = {
   fileName?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
+  pilotProgrammeId?: string;
 };
 
 type CompleteUploadArgs = {
@@ -329,35 +331,35 @@ const recordProviderEvent = makeFunctionReference<
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
 
-  async createInvitation(args: CreateInvitationArgs): Promise<string> {
-    return await this.getClient().mutation(createInvitation, args);
+  async createInvitation(args: CreateInvitationArgs, authToken?: string): Promise<string> {
+    return await this.getClient(authToken).mutation(createInvitation, args);
   }
 
-  async acceptInvitation(args: AcceptInvitationArgs): Promise<AcceptInvitationResult> {
-    return await this.getClient().mutation(acceptInvitation, args);
+  async acceptInvitation(args: AcceptInvitationArgs, authToken?: string): Promise<AcceptInvitationResult> {
+    return await this.getClient(authToken).mutation(acceptInvitation, args);
   }
 
   async getPendingInvitationByTokenHash(tokenHash: string) {
     return await this.getClient().query(getPendingInvitationByTokenHash, { tokenHash });
   }
 
-  async createPendingUpload(args: CreatePendingUploadArgs): Promise<{
+  async createPendingUpload(args: CreatePendingUploadArgs, authToken?: string): Promise<{
     uploadAssetId: string;
     objectKey: string;
   }> {
-    return await this.getClient().mutation(createPendingUpload, args);
+    return await this.getClient(authToken).mutation(createPendingUpload, args);
   }
 
-  async completeUpload(args: CompleteUploadArgs): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
-    return await this.getClient().mutation(completeUpload, args);
+  async completeUpload(args: CompleteUploadArgs, authToken?: string): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
+    return await this.getClient(authToken).mutation(completeUpload, args);
   }
 
-  async discardUpload(args: { actorUserId: string; uploadAssetId: string; reason: string }): Promise<string> {
-    return await this.getClient().mutation(updateUploadStatus, { ...args, status: "deleted" });
+  async discardUpload(args: { actorUserId: string; uploadAssetId: string; reason: string }, authToken?: string): Promise<string> {
+    return await this.getClient(authToken).mutation(updateUploadStatus, { ...args, status: "deleted" });
   }
 
-  async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }): Promise<ReadableUploadObject | null> {
-    return await this.getClient().query(getReadableUploadObject, args);
+  async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }, authToken?: string): Promise<ReadableUploadObject | null> {
+    return await this.getClient(authToken).query(getReadableUploadObject, args);
   }
 
   async recordSmsSend(args: RecordSmsSendArgs): Promise<string> {
@@ -403,7 +405,16 @@ export class ConvexPlatformProvider {
     return await this.getClient().mutation(recordProviderEvent, args);
   }
 
-  private getClient(): ConvexHttpClient {
+  private getClient(authToken?: string): ConvexHttpClient {
+    if (authToken !== undefined) {
+      const env = getApiEnvironment();
+      if (env.auth.convexUrl === undefined) {
+        throw new ServiceUnavailableException("Convex URL is not configured.");
+      }
+      const authenticatedClient = new ConvexHttpClient(env.auth.convexUrl);
+      authenticatedClient.setAuth(authToken);
+      return authenticatedClient;
+    }
     if (this.client !== undefined) {
       return this.client;
     }

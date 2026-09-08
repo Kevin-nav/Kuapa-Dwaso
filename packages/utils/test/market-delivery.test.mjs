@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   aggregateMarketRunOrders,
   assertInviteIdentityVerification,
+  assertInviteTargetMatchesIdentity,
   assertNotificationActionAllowed,
   assertInvitationDeliveryAllowed,
   assertDispatchRunGroupingCompatible,
@@ -23,6 +24,8 @@ test("invitation delivery combinations are role safe", () => {
   assert.equal(isInvitationDeliveryAllowed("warehouse_manager_invite", "manual_link"), false);
   assert.equal(isInvitationDeliveryAllowed("warehouse_agent_invite", "email"), true);
   assert.equal(isInvitationDeliveryAllowed("warehouse_agent_invite", "manual_link"), true);
+  assert.equal(isInvitationDeliveryAllowed("pilot_operations_invite", "email"), true);
+  assert.equal(isInvitationDeliveryAllowed("pilot_operations_invite", "manual_link"), true);
   assert.equal(isInvitationDeliveryAllowed("transporter_invite", "email"), true);
   assert.equal(isInvitationDeliveryAllowed("transporter_invite", "manual_link"), true);
   assert.equal(isInvitationDeliveryAllowed("warehouse_agent_invite", "sms"), false);
@@ -56,6 +59,24 @@ test("privileged invitation acceptance always requires a verified email", () => 
     identityPhoneNumber: "+233201234567",
     phoneVerified: true,
   }));
+});
+
+test("pilot operator invitation acceptance requires a verified matching phone", () => {
+  assert.doesNotThrow(() =>
+    assertInviteIdentityVerification({
+      invitationType: "pilot_operations_invite",
+      targetPhoneNumber: "+233201234567",
+      identityPhoneNumber: "+233201234567",
+      phoneVerified: true,
+    }),
+  );
+  assert.throws(
+    () => assertInviteTargetMatchesIdentity({
+      targetPhoneNumber: "+233201234567",
+      identityPhoneNumber: "+233209999999",
+    }),
+    /does not match/,
+  );
 });
 
 test("notification actions belong to the recipient and required actions need acknowledgement", () => {

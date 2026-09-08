@@ -99,6 +99,7 @@ export const adminScopeTypes = [
   "district",
   "warehouse",
   "destination_market",
+  "pilot_programme",
 ] as const;
 export type AdminScopeType = (typeof adminScopeTypes)[number];
 
@@ -1179,6 +1180,7 @@ export const platformInvitationTypes = [
   "admin_invite",
   "warehouse_manager_invite",
   "warehouse_agent_invite",
+  "pilot_operations_invite",
   "transporter_invite",
 ] as const;
 export type PlatformInvitationType = (typeof platformInvitationTypes)[number];
@@ -1211,6 +1213,7 @@ export type PlatformInvitation = TimestampFields & {
   intendedRole: MarketplaceRole;
   intendedProfileType: ProfileType;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
   mfaRequirement: MfaRequirement;
   invitedByUserId: string;
@@ -1230,6 +1233,7 @@ export type CreatePlatformInvitationInput = {
   targetEmail?: string;
   targetPhoneNumber?: string;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
   expiresAt: number;
   mfaRequirement?: MfaRequirement;

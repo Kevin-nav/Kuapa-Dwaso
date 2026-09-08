@@ -34,6 +34,7 @@ const adminScopeType = v.union(
   v.literal("district"),
   v.literal("warehouse"),
   v.literal("destination_market"),
+  v.literal("pilot_programme"),
 );
 
 const adminAccessGroupStatus = v.union(
@@ -90,6 +91,22 @@ const adminPermissionKey = v.union(
   v.literal("blog:read"),
   v.literal("blog:write"),
   v.literal("blog:publish"),
+  v.literal("pilotProgrammes:read"),
+  v.literal("pilotProgrammes:manage"),
+  v.literal("pilotAssignments:read"),
+  v.literal("pilotAssignments:manage"),
+  v.literal("pilotRequests:read"),
+  v.literal("pilotRequests:manage"),
+  v.literal("pilotSupply:read"),
+  v.literal("pilotSupply:manage"),
+  v.literal("pilotQuality:read"),
+  v.literal("pilotQuality:manage"),
+  v.literal("pilotFulfilment:read"),
+  v.literal("pilotFulfilment:manage"),
+  v.literal("pilotFinance:read"),
+  v.literal("pilotFinance:manage"),
+  v.literal("pilotIssues:read"),
+  v.literal("pilotIssues:manage"),
 );
 
 function normalizeScope(args: {
@@ -98,7 +115,8 @@ function normalizeScope(args: {
     | "region"
     | "district"
     | "warehouse"
-    | "destination_market";
+    | "destination_market"
+    | "pilot_programme";
   scopeId?: string;
   scopeValue?: string;
 }): { scopeId?: string; scopeValue?: string } {
@@ -659,7 +677,9 @@ export const previewPermission = query({
             ? adminScopeTarget({ district: scope.scopeValue ?? scope.scopeId })
             : args.scopeType === "destination_market"
               ? adminScopeTarget({ destinationMarket: scope.scopeValue ?? scope.scopeId })
-              : {};
+              : args.scopeType === "pilot_programme"
+                ? adminScopeTarget({ pilotProgrammeId: scope.scopeId ?? scope.scopeValue })
+                : {};
     const access = await getEffectiveAdminAccess(ctx, args.adminUserId);
     const allowed = adminAccessHasPermissionForScope(access, args.permission as AdminPermissionKey, target);
     return {

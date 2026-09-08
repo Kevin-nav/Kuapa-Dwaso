@@ -166,6 +166,22 @@ test("warehouse scope grants never match another warehouse", () => {
   );
 });
 
+test("pilot programme grants match only their named programme", () => {
+  const grant = {
+    scopeType: "pilot_programme" as const,
+    scopeId: "programme-a",
+  };
+  assert.equal(
+    adminScopeMatchesTarget(grant, { pilotProgrammeId: "programme-a" }),
+    true,
+  );
+  assert.equal(
+    adminScopeMatchesTarget(grant, { pilotProgrammeId: "programme-b" }),
+    false,
+  );
+  assert.equal(adminScopeMatchesTarget(grant, {}), false);
+});
+
 test("incomplete scoped grants and targets never authorize a match", () => {
   for (const scopeType of [
     "region",
