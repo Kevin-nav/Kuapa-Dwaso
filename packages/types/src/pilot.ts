@@ -444,6 +444,8 @@ export type PilotInspection = {
   moisturePermille?: number;
   contaminationResult: "passed" | "failed" | "not_recorded";
   additionalReadings: PilotAdditionalReading[];
+  grossWeightGrams?: number;
+  tareWeightGrams?: number;
   measuredGrams: number;
   acceptedGrams: number;
   rejectedGrams: number;

@@ -500,6 +500,8 @@ export const pilotTables = {
         passed: v.optional(v.boolean()),
       }),
     ),
+    grossWeightGrams: v.optional(v.number()),
+    tareWeightGrams: v.optional(v.number()),
     measuredGrams: v.number(),
     acceptedGrams: v.number(),
     rejectedGrams: v.number(),

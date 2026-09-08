@@ -35,6 +35,8 @@ import type * as payments from "../payments.js";
 import type * as pilotAssignments from "../pilotAssignments.js";
 import type * as pilotAllocations from "../pilotAllocations.js";
 import type * as pilotAuth from "../pilotAuth.js";
+import type * as pilotInspections from "../pilotInspections.js";
+import type * as pilotLots from "../pilotLots.js";
 import type * as pilotOffers from "../pilotOffers.js";
 import type * as pilotOrders from "../pilotOrders.js";
 import type * as pilotProgrammes from "../pilotProgrammes.js";
@@ -90,6 +92,8 @@ declare const fullApi: ApiFromModules<{
   pilotAssignments: typeof pilotAssignments;
   pilotAllocations: typeof pilotAllocations;
   pilotAuth: typeof pilotAuth;
+  pilotInspections: typeof pilotInspections;
+  pilotLots: typeof pilotLots;
   pilotOffers: typeof pilotOffers;
   pilotOrders: typeof pilotOrders;
   pilotProgrammes: typeof pilotProgrammes;
