@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Search, ClipboardList, User } from "lucide-react";
+import { Search, ClipboardList, Sprout, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
 
@@ -100,6 +100,10 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
           <Link href="/buyer/orders" className={`nav-link ${isActive("/buyer/orders") ? "nav-link-active" : ""}`}>
             <ClipboardList size={22} />
             <span>Orders</span>
+          </Link>
+          <Link href="/buyer/requests" className={`nav-link ${isActive("/buyer/requests") ? "nav-link-active" : ""}`}>
+            <Sprout size={22} />
+            <span>Requests</span>
           </Link>
           <Link href="/buyer/profile" className={`nav-link ${isActive("/buyer/profile") ? "nav-link-active" : ""}`}>
             <User size={22} />

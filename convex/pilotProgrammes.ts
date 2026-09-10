@@ -77,7 +77,8 @@ async function canReadProgramme(
       .query("buyers")
       .withIndex("by_user", (q) => q.eq("userId", principal._id))
       .unique();
-    if (buyer === null) return false;
+    if (buyer === null || buyer.status !== "active") return false;
+    if (programme.status === "active") return true;
     return (
       await ctx.db
         .query("pilotBuyerRequests")
@@ -90,7 +91,8 @@ async function canReadProgramme(
       .query("farmers")
       .withIndex("by_user", (q) => q.eq("userId", principal._id))
       .unique();
-    if (farmer === null) return false;
+    if (farmer === null || farmer.status !== "active") return false;
+    if (programme.status === "active") return true;
     return (
       await ctx.db
         .query("pilotSupplyDeclarations")

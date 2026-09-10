@@ -1491,3 +1491,280 @@ textarea.form-input {
   color: var(--color-primary);
   border-color: var(--color-primary);
 }
+
+/* Buyer pilot — a compact field-ledger treatment that stays readable on low-end phones. */
+.pilot-buyer-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.pilot-buyer-hero {
+  background: #173c28;
+  border-radius: 20px;
+  color: #fffdf2;
+  overflow: hidden;
+  padding: 28px 24px;
+  position: relative;
+}
+
+.pilot-buyer-hero::after {
+  color: rgba(255, 221, 87, 0.14);
+  content: "MAIZE";
+  font-family: var(--font-mono);
+  font-size: clamp(3rem, 16vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  position: absolute;
+  right: -8px;
+  top: -8px;
+}
+
+.pilot-buyer-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.pilot-buyer-hero h1 {
+  color: #fffdf2;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2.25rem;
+  max-width: 390px;
+}
+
+.pilot-buyer-hero p {
+  color: #dcebdc;
+  max-width: 430px;
+}
+
+.pilot-buyer-kicker {
+  color: #b46e05;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.pilot-buyer-hero .pilot-buyer-kicker {
+  color: #ffda6a;
+}
+
+.pilot-buyer-section,
+.pilot-request-form,
+.pilot-acceptance-panel {
+  background: #fffef9;
+  border: 1px solid #ddd8c7;
+  border-radius: 16px;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.pilot-buyer-empty {
+  align-items: center;
+  background: #fffef9;
+  border: 1px dashed #c9c2aa;
+  border-radius: 16px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 30px 22px;
+  text-align: center;
+}
+
+.pilot-buyer-empty h2,
+.pilot-buyer-empty h3,
+.pilot-buyer-empty p,
+.pilot-stock-path p,
+.pilot-acceptance-panel p {
+  margin: 0;
+}
+
+.pilot-buyer-count {
+  background: #173c28;
+  border-radius: 999px;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 5px 9px;
+}
+
+.pilot-request-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pilot-request-row {
+  border-top: 1px solid #ddd8c7;
+  display: grid;
+  gap: 12px;
+  padding: 16px 2px 4px;
+}
+
+.pilot-request-row-top,
+.pilot-request-destination,
+.pilot-request-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.pilot-request-row-top strong {
+  color: var(--color-ink);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
+}
+
+.pilot-request-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pilot-request-metrics span {
+  background: #f3f0e6;
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  display: grid;
+  font-size: 0.75rem;
+  padding: 9px;
+}
+
+.pilot-request-metrics b {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.pilot-request-destination {
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.pilot-stock-path {
+  align-items: center;
+  background: #efe9d7;
+  border-left: 4px solid #c28416;
+  border-radius: 10px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 16px;
+}
+
+.pilot-stock-path a {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.pilot-back {
+  align-items: center;
+  align-self: start;
+  background: transparent;
+  color: var(--color-primary);
+  display: inline-flex;
+  min-height: 40px;
+  padding: 4px 0;
+  width: fit-content;
+}
+
+.pilot-form-grid,
+.pilot-decision-grid,
+.pilot-rejection-fields {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pilot-request-form small,
+.pilot-mode-choice small {
+  color: var(--color-text-muted);
+  display: block;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.pilot-mode-choice {
+  border: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.pilot-mode-choice legend {
+  color: var(--color-ink);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.pilot-mode-choice label {
+  align-items: start;
+  background: #f5f2e9;
+  border: 1px solid #ddd8c7;
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  padding: 13px;
+}
+
+.pilot-mode-choice input {
+  margin-top: 4px;
+}
+
+.pilot-form-note {
+  align-items: start;
+  background: #edf4ee;
+  border-radius: 9px;
+  color: #28513a;
+  display: flex;
+  font-size: 0.86rem;
+  gap: 9px;
+  padding: 12px;
+}
+
+.pilot-finance-strip {
+  background: #173c28;
+  border-radius: 12px;
+  color: white;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.pilot-finance-strip span {
+  background: rgba(255,255,255,0.05);
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.pilot-finance-strip small {
+  color: #bad0bf;
+  font-size: 0.7rem;
+}
+
+.pilot-finance-strip b {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}
+
+.pilot-legal-note {
+  font-size: 0.8rem;
+  margin: -10px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 430px) {
+  .pilot-buyer-hero h1 { font-size: 1.9rem; }
+  .pilot-form-grid,
+  .pilot-decision-grid,
+  .pilot-rejection-fields { grid-template-columns: 1fr; }
+  .pilot-request-heading { align-items: start; flex-direction: column; }
+  .pilot-stock-path { grid-template-columns: auto minmax(0, 1fr); }
+  .pilot-stock-path a { grid-column: 2; }
+  .pilot-finance-strip { grid-template-columns: 1fr; }
+}

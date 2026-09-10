@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAuth } from "@/app/auth/AuthProvider";
 import Link from "next/link";
-import { Search, MapPin, Calendar, CircleDollarSign, ArrowRight, ShieldCheck, Package, Bell, Clock3 } from "lucide-react";
+import { Search, MapPin, Calendar, CircleDollarSign, ArrowRight, ShieldCheck, Package, Bell, Clock3, Sprout } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { ProduceGrade } from "@kuapa-dwaso/types";
 import { getSignedReadUrl } from "@/app/uploads/client";
@@ -55,10 +55,11 @@ export default function BuyerDashboard() {
   ) as BuyerProfile | null | undefined;
 
   // We query summaries. Filter destination market based on buyer's preferred market
-  const defaultMarket = buyer?.destinationMarket || "Makola Market";
+  const defaultMarket = buyer?.destinationMarket;
+  const marketLabel = defaultMarket ?? "your saved destination";
 
   const summaryArgs =
-    principal !== null && principal !== undefined
+    principal !== null && principal !== undefined && defaultMarket !== undefined
       ? {
           destinationMarket: defaultMarket,
           ...(selectedCrop === "All" ? {} : { cropType: selectedCrop }),
@@ -71,9 +72,9 @@ export default function BuyerDashboard() {
   ) as InventorySummary[] | undefined;
   const allSummaries = useQuery(
     api.buyerOrders.summarizeAvailableInventory,
-    principal !== null && principal !== undefined ? { destinationMarket: defaultMarket } : "skip",
+    principal !== null && principal !== undefined && defaultMarket !== undefined ? { destinationMarket: defaultMarket } : "skip",
   ) as InventorySummary[] | undefined;
-  const upcomingRuns = useQuery(api.marketDeliveryRuns.listUpcomingForBuyer, principal?.userId ? { actorUserId: principal.userId as Id<"users">, destinationName: defaultMarket, limit: 3 } : "skip") as MarketRun[] | undefined;
+  const upcomingRuns = useQuery(api.marketDeliveryRuns.listUpcomingForBuyer, principal?.userId && defaultMarket !== undefined ? { actorUserId: principal.userId as Id<"users">, destinationName: defaultMarket, limit: 3 } : "skip") as MarketRun[] | undefined;
   const notifications = useQuery(api.notifications.listForActor, principal?.userId ? { actorUserId: principal.userId as Id<"users">, limit: 6 } : "skip") as BuyerNotification[] | undefined;
   const acknowledgeNotification = useMutation(api.notifications.acknowledge);
   const markNotificationRead = useMutation(api.notifications.markRead);
@@ -98,7 +99,7 @@ export default function BuyerDashboard() {
     return `GHS ${minVal.toLocaleString()} - GHS ${maxVal.toLocaleString()} per ${unit}`;
   };
 
-  const isInventoryLoading = summaries === undefined;
+  const isInventoryLoading = defaultMarket !== undefined && summaries === undefined;
   const listToRender: InventorySummary[] = summaries ?? [];
   const cropOptions = ["All", ...new Set((allSummaries ?? []).map((item) => item.cropType))];
   const gradeOptions = ["All", ...new Set((allSummaries ?? []).map((item) => item.grade))];
@@ -122,9 +123,16 @@ export default function BuyerDashboard() {
         <h1 style={{ fontSize: "1.75rem", marginBottom: "4px" }}>{displayName}</h1>
         <div className="home-warehouse">
           <MapPin size={16} />
-          <span>Sourcing for {defaultMarket}</span>
+          <span>Sourcing for {marketLabel}</span>
         </div>
       </div>
+
+      <section className="pilot-buyer-hero">
+        <span className="pilot-buyer-kicker">Maize pilot</span>
+        <h1>Request supply before stock moves</h1>
+        <p>Start with demand. We will show sourced, quality-cleared, and delivered quantities separately.</p>
+        <Link className="btn btn-primary" href="/buyer/requests/new"><Sprout size={19} /> Request maize supply</Link>
+      </section>
 
       {/* Verification / Welcome Card */}
       {buyer && buyer.verificationStatus === "pending" && (
@@ -140,8 +148,8 @@ export default function BuyerDashboard() {
       )}
 
       <section style={{ display: "grid", gap: 10 }}>
-        <div className="section-title-row"><h2 className="section-title">Next delivery to {defaultMarket}</h2><Link href="/buyer/orders/create" className="section-link">See runs</Link></div>
-        {upcomingRuns === undefined ? <div className="skeleton" style={{ height: 110, borderRadius: 14 }} /> : upcomingRuns.length === 0 ? <div className="attention-card"><div className="attention-body"><span className="attention-title">No published run is open yet</span><span className="attention-text">Operations will publish the next destination, cutoff, and collection window here.</span></div></div> : upcomingRuns.map((run) => <Link key={run._id} href={`/buyer/orders/create?run=${run._id}`} className="farmer-card"><div className="card-header"><span className="card-title"><MapPin size={17} /> {run.destinationName}</span><span className="status-chip status-success">Orders open</span></div><div className="card-meta" style={{ display: "grid", gap: 5 }}><span><Calendar size={16} /> Delivery {formatRunDate(run.deliveryDateAt, run.timezone)}, {formatRunTime(run.expectedArrivalStartAt, run.timezone)}–{formatRunTime(run.expectedArrivalEndAt, run.timezone)}</span><span><Clock3 size={16} /> Order and pay by {formatRunDateTime(run.orderCutoffAt, run.timezone)}</span><span><strong>Collection:</strong> {run.destinationInstructions}</span></div><div className="card-details"><strong>Browse stock for this run</strong><ArrowRight size={17} /></div></Link>)}
+        <div className="section-title-row"><h2 className="section-title">Next delivery to {marketLabel}</h2><Link href="/buyer/orders/create" className="section-link">See runs</Link></div>
+        {defaultMarket === undefined ? <div className="attention-card"><div className="attention-body"><span className="attention-title">Warehouse destination not set</span><span className="attention-text">Save a preferred market in your profile if you want to use the separate warehouse-stock route.</span></div></div> : upcomingRuns === undefined ? <div className="skeleton" style={{ height: 110, borderRadius: 14 }} /> : upcomingRuns.length === 0 ? <div className="attention-card"><div className="attention-body"><span className="attention-title">No published run is open yet</span><span className="attention-text">Operations will publish the next destination, cutoff, and collection window here.</span></div></div> : upcomingRuns.map((run) => <Link key={run._id} href={`/buyer/orders/create?run=${run._id}`} className="farmer-card"><div className="card-header"><span className="card-title"><MapPin size={17} /> {run.destinationName}</span><span className="status-chip status-success">Orders open</span></div><div className="card-meta" style={{ display: "grid", gap: 5 }}><span><Calendar size={16} /> Delivery {formatRunDate(run.deliveryDateAt, run.timezone)}, {formatRunTime(run.expectedArrivalStartAt, run.timezone)}–{formatRunTime(run.expectedArrivalEndAt, run.timezone)}</span><span><Clock3 size={16} /> Order and pay by {formatRunDateTime(run.orderCutoffAt, run.timezone)}</span><span><strong>Collection:</strong> {run.destinationInstructions}</span></div><div className="card-details"><strong>Browse stock for this run</strong><ArrowRight size={17} /></div></Link>)}
       </section>
 
       {(() => {
@@ -296,7 +304,7 @@ export default function BuyerDashboard() {
               <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🌾</div>
               <h3 style={{ color: "var(--color-ink)", marginBottom: "8px" }}>No Produce Available</h3>
               <p style={{ maxWidth: "320px", margin: "0 auto", color: "var(--color-text-muted)" }}>
-                There are no buyer-visible warehouse listings matching your filters for {defaultMarket}.
+                {defaultMarket === undefined ? "Save a preferred market in your profile to browse warehouse stock." : `There are no buyer-visible warehouse listings matching your filters for ${defaultMarket}.`}
               </p>
             </div>
           )}
