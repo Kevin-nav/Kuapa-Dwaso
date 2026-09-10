@@ -35,6 +35,7 @@ export type ApiEnvironment = {
     paystackSecretKey?: string;
     paystackPublicKey?: string;
     webhookSecret?: string;
+    serviceSecret?: string;
   };
   uploads: {
     r2AccountId?: string;
@@ -155,6 +156,9 @@ export function getApiEnvironment(): ApiEnvironment {
   }
   if (process.env.PAYSTACK_WEBHOOK_SECRET !== undefined) {
     payments.webhookSecret = process.env.PAYSTACK_WEBHOOK_SECRET;
+  }
+  if (process.env.PAYMENT_PROVIDER_SERVICE_SECRET !== undefined) {
+    payments.serviceSecret = process.env.PAYMENT_PROVIDER_SERVICE_SECRET;
   }
 
   const uploads: ApiEnvironment["uploads"] = {

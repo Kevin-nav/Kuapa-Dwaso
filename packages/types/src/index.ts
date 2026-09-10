@@ -1295,6 +1295,8 @@ export const uploadRelatedEntityTypes = [
   "dispatch",
   "dispute",
   "blog_post",
+  "pilotProgrammes",
+  "pilotBuyerRequests",
   "pilotFacilities",
   "pilotInspections",
   "pilotProcurementLots",

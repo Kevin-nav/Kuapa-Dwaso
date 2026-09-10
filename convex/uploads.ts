@@ -79,6 +79,8 @@ const relatedEntityType = v.union(
   v.literal("dispatch"),
   v.literal("dispute"),
   v.literal("blog_post"),
+  v.literal("pilotProgrammes"),
+  v.literal("pilotBuyerRequests"),
   v.literal("pilotFacilities"),
   v.literal("pilotInspections"),
   v.literal("pilotProcurementLots"),
@@ -123,6 +125,8 @@ type RelatedEntityType =
   | "dispatch"
   | "dispute"
   | "blog_post"
+  | "pilotProgrammes"
+  | "pilotBuyerRequests"
   | "pilotFacilities"
   | "pilotInspections"
   | "pilotProcurementLots"
@@ -132,6 +136,8 @@ type RelatedEntityType =
   | "pilotIssues";
 
 const pilotRelatedEntityTypes: readonly RelatedEntityType[] = [
+  "pilotProgrammes",
+  "pilotBuyerRequests",
   "pilotFacilities",
   "pilotInspections",
   "pilotProcurementLots",
@@ -424,6 +430,36 @@ async function requireActorCanUsePilotRelatedEntity(
   relatedEntityId: string,
   programmeId: Id<"pilotProgrammes">,
 ): Promise<void> {
+  if (relatedEntityType === "pilotProgrammes") {
+    const entity = await ctx.db.get(relatedEntityId as Id<"pilotProgrammes">);
+    assertAllowed(
+      entity !== null && entity._id === programmeId,
+      "Pilot programme was not found.",
+    );
+    await requirePilotAdminPermission(
+      ctx,
+      actor,
+      programmeId,
+      permission === "read" ? "pilotFinance:read" : "pilotFinance:manage",
+    );
+    return;
+  }
+  if (relatedEntityType === "pilotBuyerRequests") {
+    const entity = await ctx.db.get(
+      relatedEntityId as Id<"pilotBuyerRequests">,
+    );
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot request was not found in this programme.",
+    );
+    await requirePilotAdminPermission(
+      ctx,
+      actor,
+      programmeId,
+      permission === "read" ? "pilotFinance:read" : "pilotFinance:manage",
+    );
+    return;
+  }
   if (relatedEntityType === "pilotFacilities") {
     const entity = await ctx.db.get(relatedEntityId as Id<"pilotFacilities">);
     assertAllowed(

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./pwa": "./src/pwa/index.ts",
-    "./pilot": "./src/pilot.ts"
+    "./pilot": "./src/pilot.ts",
+    "./pilot-finance": "./src/pilotFinance.ts"
   },
   "files": [
     "dist",

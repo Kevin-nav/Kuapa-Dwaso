@@ -167,6 +167,55 @@ type PreparedBuyerPayment = {
   } | null;
 };
 
+type PreparePilotBuyerPaymentArgs = {
+  requestId: string;
+  purpose: "buyer_produce" | "buyer_transport";
+  amountPesewas: number;
+  provider: PaymentProvider;
+  idempotencyKey: string;
+  correlationId?: string;
+};
+
+type PreparedPilotBuyerPayment = {
+  _id: string;
+  requestId: string;
+  buyerId: string;
+  purpose: "buyer_produce" | "buyer_transport";
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  amountPesewas: number;
+  currency: "GHS";
+  status: "pending" | "initialized" | "succeeded" | "failed" | "reversed";
+};
+
+type PilotProviderResultArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  status: PaymentTransactionStatus;
+  amountPesewas?: number;
+  currency?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+};
+
+type PilotProviderInitializationArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+};
+
+type PilotProviderEventArgs = Omit<PilotProviderResultArgs, "status"> & {
+  providerEventId: string;
+  eventType: string;
+  normalizedStatus: PaymentTransactionStatus;
+  rawPayload: Record<string, unknown>;
+};
+
 type RecordProviderInitializationArgs = {
   provider: PaymentProvider;
   providerReference: string;
@@ -327,6 +376,44 @@ const recordProviderEvent = makeFunctionReference<
   unknown
 >("payments:recordProviderEvent");
 
+const preparePilotBuyerPayment = makeFunctionReference<
+  "mutation",
+  PreparePilotBuyerPaymentArgs,
+  PreparedPilotBuyerPayment
+>("pilotFinance:prepareBuyerPayment");
+
+const recordPilotProviderInitialization = makeFunctionReference<
+  "mutation",
+  {
+    serviceSecret: string;
+    provider: PaymentProvider;
+    providerReference: string;
+    providerAccessCode?: string;
+    authorizationUrl?: string;
+    providerStatus?: string;
+    providerMessage?: string;
+  },
+  string
+>("pilotFinance:recordProviderInitialization");
+
+const reconcilePilotProviderPayment = makeFunctionReference<
+  "mutation",
+  PilotProviderResultArgs & { serviceSecret: string },
+  unknown
+>("pilotFinance:reconcileProviderPayment");
+
+const recordPilotProviderEvent = makeFunctionReference<
+  "mutation",
+  Omit<PilotProviderResultArgs, "status"> & {
+    serviceSecret: string;
+    providerEventId: string;
+    eventType: string;
+    normalizedStatus: PaymentTransactionStatus;
+    rawPayload: Record<string, unknown>;
+  },
+  unknown
+>("pilotFinance:recordProviderEvent");
+
 @Injectable()
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
@@ -405,6 +492,39 @@ export class ConvexPlatformProvider {
     return await this.getClient().mutation(recordProviderEvent, args);
   }
 
+  async preparePilotBuyerPayment(
+    args: PreparePilotBuyerPaymentArgs,
+    authToken: string,
+  ): Promise<PreparedPilotBuyerPayment> {
+    this.getPaymentServiceSecret();
+    return await this.getClient(authToken).mutation(preparePilotBuyerPayment, args);
+  }
+
+  async recordPilotProviderInitialization(
+    args: PilotProviderInitializationArgs,
+  ): Promise<string> {
+    return await this.getClient().mutation(recordPilotProviderInitialization, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
+  async reconcilePilotProviderPayment(args: PilotProviderResultArgs): Promise<unknown> {
+    return await this.getClient().mutation(reconcilePilotProviderPayment, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
+  async recordPilotProviderEvent(
+    args: PilotProviderEventArgs,
+  ): Promise<unknown> {
+    return await this.getClient().mutation(recordPilotProviderEvent, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
   private getClient(authToken?: string): ConvexHttpClient {
     if (authToken !== undefined) {
       const env = getApiEnvironment();
@@ -429,6 +549,15 @@ export class ConvexPlatformProvider {
   private getNotificationServiceSecret(): string {
     const secret = getApiEnvironment().notifications.deliverySecret;
     if (secret === undefined || secret.length < 16) throw new ServiceUnavailableException("Notification service authorization is not configured.");
+    return secret;
+  }
+
+  private getPaymentServiceSecret(): string {
+    const secret = getApiEnvironment().payments.serviceSecret;
+    if (secret === undefined || secret.length < 24)
+      throw new ServiceUnavailableException(
+        "Payment provider service authorization is not configured.",
+      );
     return secret;
   }
 }
