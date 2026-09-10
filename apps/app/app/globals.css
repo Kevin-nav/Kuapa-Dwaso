@@ -1768,3 +1768,155 @@ textarea.form-input {
   .pilot-stock-path a { grid-column: 2; }
   .pilot-finance-strip { grid-template-columns: 1fr; }
 }
+
+.pilot-farmer-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.pilot-farmer-heading {
+  border-bottom: 2px solid #d4a62a;
+  padding: 8px 2px 20px;
+}
+
+.pilot-farmer-heading h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 2.15rem;
+}
+
+.pilot-farmer-heading p {
+  margin: 0 0 16px;
+}
+
+.pilot-farmer-callout {
+  background: #fff8d9;
+  border: 1px solid #e4cf76;
+  border-radius: 18px 18px 18px 5px;
+  display: grid;
+  gap: 13px;
+  padding: 20px;
+}
+
+.pilot-farmer-callout h2,
+.pilot-farmer-callout p {
+  margin: 0;
+}
+
+.pilot-farmer-callout h2 {
+  color: #173c28;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.5rem;
+}
+
+.pilot-inline-link {
+  align-items: center;
+  color: var(--color-primary);
+  display: inline-flex;
+  font-weight: 800;
+  gap: 3px;
+  width: fit-content;
+}
+
+.pilot-input-icon {
+  align-items: center;
+  display: flex;
+  position: relative;
+}
+
+.pilot-input-icon svg {
+  color: var(--color-text-muted);
+  left: 13px;
+  position: absolute;
+  z-index: 1;
+}
+
+.pilot-input-icon .form-input {
+  padding-left: 40px;
+}
+
+.pilot-proceeds-card {
+  background: #173c28;
+  border-radius: 16px;
+  color: white;
+  display: grid;
+  gap: 5px;
+  padding: 20px;
+}
+
+.pilot-proceeds-card span,
+.pilot-proceeds-card small {
+  color: #c8ddcc;
+}
+
+.pilot-proceeds-card strong {
+  color: #ffda6a;
+  font-family: var(--font-mono);
+  font-size: 2rem;
+}
+
+.pilot-collection-stop {
+  align-items: start;
+  border-top: 1px solid #ddd8c7;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding-top: 13px;
+}
+
+.pilot-collection-stop div {
+  display: grid;
+  gap: 3px;
+}
+
+.pilot-collection-stop span,
+.pilot-collection-stop small {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.pilot-inspection-receipt {
+  background: #fffef9;
+  border: 1px dashed #9d9273;
+  border-radius: 5px;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.pilot-inspection-receipt h2 {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+}
+
+.pilot-inspection-receipt dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.pilot-inspection-receipt dl div {
+  border-top: 1px solid #ddd8c7;
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.pilot-inspection-receipt dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.pilot-inspection-receipt dd {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  margin: 0;
+}
+
+@media print {
+  .bottom-nav,
+  .farmer-top-navbar,
+  .pilot-back,
+  .pilot-inspection-receipt button {
+    display: none !important;
+  }
+}

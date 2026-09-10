@@ -120,6 +120,12 @@ export default function FarmerDashboard() {
         </div>
       </div>
 
+      <section className="pilot-farmer-callout">
+        <div><span className="pilot-buyer-kicker">Maize pilot</span><h2>Have maize ready to sell?</h2><p>Declare the quantity and location. No warehouse selection is required, and you approve the full offer before collection.</p></div>
+        <Link className="btn btn-primary" href="/farmer/supply"><Sprout size={18} /> Declare maize supply</Link>
+        <Link className="pilot-inline-link" href="/farmer/offers">Open my offer inbox <ChevronRight size={16} /></Link>
+      </section>
+
       {totalAccruedFees > 0 && (
         <div className="attention-card">
           <AlertTriangle className="attention-icon" size={24} />
@@ -252,7 +258,7 @@ export default function FarmerDashboard() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
         <Link href="/farmer/contact" style={{ width: "100%" }}>
-          <button type="button" className="btn btn-secondary btn-full"><Phone size={18} /><span>Contact Warehouse</span></button>
+              <button type="button" className="btn btn-secondary btn-full"><Phone size={18} /><span>Contact support</span></button>
         </Link>
         <Link href="/farmer/issue" style={{ width: "100%" }}>
           <button type="button" className="btn btn-secondary btn-full"><HelpCircle size={18} /><span>Report an Issue</span></button>

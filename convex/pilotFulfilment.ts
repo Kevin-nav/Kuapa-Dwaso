@@ -1511,7 +1511,8 @@ export const getPlan = query({
     assertAllowed(request !== null, "Plan request was not found.");
     const isDriver =
       principal.role === "transporter" && plan.driverUserId === principal._id;
-    if (!isDriver) await requirePilotRequestRead(ctx, principal, request);
+    if (!isDriver && principal.role !== "farmer")
+      await requirePilotRequestRead(ctx, principal, request);
     const stops = await planStops(ctx, plan._id);
     let ownFarmerId: Id<"farmers"> | undefined;
     if (principal.role === "farmer") {
@@ -1576,17 +1577,34 @@ export const getForRequest = query({
     const principal = await requirePilotPrincipal(ctx);
     const request = await ctx.db.get(args.requestId);
     assertAllowed(request !== null, "Plan request was not found.");
-    await requirePilotRequestRead(ctx, principal, request);
+    let ownFarmerId: Id<"farmers"> | undefined;
+    if (principal.role === "farmer") {
+      const farmer = await ctx.db
+        .query("farmers")
+        .withIndex("by_user", (q) => q.eq("userId", principal._id))
+        .unique();
+      assertAllowed(farmer !== null, "Farmer profile was not found.");
+      ownFarmerId = farmer._id;
+    } else await requirePilotRequestRead(ctx, principal, request);
     const stops = await planStops(ctx, current._id);
     const visibleStops = [];
     for (const stop of stops) {
       const lots = [];
       for (const lotId of stop.lotIds) {
         const lot = await ctx.db.get(lotId);
-        if (lot !== null)
-          lots.push(projectPilotLotForPrincipal(principal, lot, false));
+        if (
+          lot !== null &&
+          (ownFarmerId === undefined || lot.farmerId === ownFarmerId)
+        )
+          lots.push(
+            projectPilotLotForPrincipal(
+              principal,
+              lot,
+              lot.farmerId === ownFarmerId,
+            ),
+          );
       }
-      visibleStops.push({
+      if (ownFarmerId === undefined || lots.length > 0) visibleStops.push({
         stopId: stop._id,
         sequence: stop.sequence,
         stopType: stop.stopType,
@@ -1599,6 +1617,10 @@ export const getForRequest = query({
         lots,
       });
     }
+    assertAllowed(
+      ownFarmerId === undefined || visibleStops.length > 0,
+      "Farmer has no lot in this plan.",
+    );
     return { plan: planSummary(current), stops: visibleStops };
   },
 });

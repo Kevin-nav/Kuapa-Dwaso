@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Home, Sprout, Receipt, Wallet, User } from "lucide-react";
+import { Home, Sprout, Receipt, Wallet, User, Inbox } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
 
@@ -96,6 +96,10 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
         <Link href="/farmer/produce" className={`nav-link ${isActive("/farmer/produce") ? "nav-link-active" : ""}`}>
           <Sprout size={22} />
           <span>Produce</span>
+        </Link>
+        <Link href="/farmer/offers" className={`nav-link ${isActive("/farmer/offers") || isActive("/farmer/supply") ? "nav-link-active" : ""}`}>
+          <Inbox size={22} />
+          <span>Offers</span>
         </Link>
         <Link href="/farmer/receipts" className={`nav-link ${isActive("/farmer/receipts") ? "nav-link-active" : ""}`}>
           <Receipt size={22} />
