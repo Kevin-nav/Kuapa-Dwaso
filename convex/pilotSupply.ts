@@ -230,6 +230,7 @@ async function farmerOfferProjection(
       allocation === undefined
         ? null
         : {
+            allocationId: allocation._id,
             status: allocation.status,
             committedGrams:
               allocation.status === "committed" ||
@@ -238,6 +239,7 @@ async function farmerOfferProjection(
                 : 0,
             clearedGrams: allocation.clearedGrams,
             releasedGrams: allocation.releasedGrams,
+            version: allocation.version,
           },
     finalAmounts,
   };
@@ -593,9 +595,18 @@ export const listForRequest = query({
     for (const offer of result.page) {
       const declaration = await ctx.db.get(offer.declarationId);
       assertAllowed(declaration !== null, "Offer declaration was not found.");
+      const farmer = await ctx.db.get(offer.farmerId);
+      assertAllowed(farmer !== null, "Offer farmer was not found.");
       page.push({
         offer: await farmerOfferProjection(ctx, offer),
         declaration: await pilotDeclarationSummary(ctx, declaration),
+        farmer: {
+          farmerId: farmer._id,
+          farmerCode: farmer.farmerCode,
+          fullName: farmer.fullName,
+          phoneNumber: farmer.phoneNumber,
+          community: farmer.community,
+        },
       });
     }
     return {
@@ -603,6 +614,102 @@ export const listForRequest = query({
       ...(result.isDone ? {} : { nextCursor: result.continueCursor }),
       isDone: result.isDone,
     };
+  },
+});
+
+/**
+ * Programme-scoped sourcing queue for assigned operations users. Farmer contact
+ * details are deliberately exposed only behind the supply-management grant.
+ */
+export const listAvailable = query({
+  args: {
+    programmeId: v.id("pilotProgrammes"),
+    maizeType: v.optional(v.string()),
+    status: v.optional(declarationStatus),
+    cursor: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    await requirePilotCapability(
+      ctx,
+      principal,
+      args.programmeId,
+      "supply:manage",
+    );
+    assertAllowed(
+      Number.isSafeInteger(args.limit) && args.limit > 0 && args.limit <= 50,
+      "Page limit must be from 1 to 50.",
+    );
+    const result = await ctx.db
+      .query("pilotSupplyDeclarations")
+      .withIndex("by_programme_status", (q) =>
+        args.status === undefined
+          ? q.eq("programmeId", args.programmeId)
+          : q.eq("programmeId", args.programmeId).eq("status", args.status),
+      )
+      .order("desc")
+      .paginate({ cursor: args.cursor ?? null, numItems: args.limit });
+    const page = [];
+    for (const declaration of result.page) {
+      if (
+        args.maizeType !== undefined &&
+        declaration.maizeType !== args.maizeType.trim()
+      )
+        continue;
+      const farmer = await ctx.db.get(declaration.farmerId);
+      if (farmer === null || farmer.status !== "active") continue;
+      page.push({
+        declaration: await pilotDeclarationSummary(ctx, declaration),
+        farmer: {
+          farmerId: farmer._id,
+          farmerCode: farmer.farmerCode,
+          fullName: farmer.fullName,
+          phoneNumber: farmer.phoneNumber,
+          community: farmer.community,
+          region: farmer.region,
+          verificationStatus: farmer.verificationStatus,
+        },
+      });
+    }
+    return {
+      page,
+      ...(result.isDone ? {} : { nextCursor: result.continueCursor }),
+      isDone: result.isDone,
+    };
+  },
+});
+
+export const listEligibleFarmers = query({
+  args: { programmeId: v.id("pilotProgrammes"), limit: v.number() },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    await requirePilotCapability(
+      ctx,
+      principal,
+      args.programmeId,
+      "supply:manage",
+    );
+    assertAllowed(
+      Number.isSafeInteger(args.limit) && args.limit > 0 && args.limit <= 100,
+      "Farmer limit must be from 1 to 100.",
+    );
+    const farmers = await ctx.db.query("farmers").collect();
+    return farmers
+      .filter(
+        (farmer) =>
+          farmer.status === "active" &&
+          farmer.verificationStatus === "verified" &&
+          farmer.userId !== undefined,
+      )
+      .slice(0, args.limit)
+      .map((farmer) => ({
+        farmerId: farmer._id,
+        farmerCode: farmer.farmerCode,
+        fullName: farmer.fullName,
+        phoneNumber: farmer.phoneNumber,
+        community: farmer.community,
+      }));
   },
 });
 

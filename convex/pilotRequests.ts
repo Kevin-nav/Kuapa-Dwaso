@@ -1406,3 +1406,113 @@ export const listAssigned = query({
   args: requestListArgs,
   handler: async (ctx, args) => listRequests(ctx, args, "operations"),
 });
+
+/** A redacted operational roll-up. Funding may be observed here, never approved. */
+export const getOperationsReadiness = query({
+  args: { requestId: v.id("pilotBuyerRequests") },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const request = await ctx.db.get(args.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    await requirePilotCapability(
+      ctx,
+      principal,
+      request.programmeId,
+      "pilot:read",
+    );
+    const [programme, buyer, allocations, plans, issues, reservations] =
+      await Promise.all([
+        ctx.db.get(request.programmeId),
+        ctx.db.get(request.buyerId),
+        ctx.db
+          .query("pilotAllocations")
+          .withIndex("by_request_status", (q) => q.eq("requestId", request._id))
+          .collect(),
+        ctx.db
+          .query("pilotFulfilmentPlans")
+          .withIndex("by_request", (q) => q.eq("requestId", request._id))
+          .collect(),
+        ctx.db
+          .query("pilotIssues")
+          .withIndex("by_request_status", (q) => q.eq("requestId", request._id))
+          .collect(),
+        ctx.db
+          .query("pilotFundingReservations")
+          .withIndex("by_request_status", (q) => q.eq("requestId", request._id))
+          .collect(),
+      ]);
+    assertAllowed(programme !== null, "Pilot programme was not found.");
+    const committedGrams = allocations
+      .filter((allocation) =>
+        ["committed", "quality_cleared"].includes(allocation.status),
+      )
+      .reduce(
+        (total, allocation) =>
+          total + allocation.allocatedGrams - allocation.releasedGrams,
+        0,
+      );
+    const clearedGrams = allocations
+      .filter((allocation) => allocation.status === "quality_cleared")
+      .reduce((total, allocation) => total + allocation.clearedGrams, 0);
+    const currentPlan = plans
+      .filter((plan) => plan.status !== "cancelled")
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    const activeReservations = reservations.filter((reservation) =>
+      ["active", "partly_consumed"].includes(reservation.status),
+    );
+    const targetGrams = request.confirmedGrams ?? request.requestedGrams;
+    return {
+      requestId: request._id,
+      programmeId: request.programmeId,
+      buyerName:
+        buyer?.organizationName ?? buyer?.displayName ?? buyer?.fullName ?? "Buyer",
+      commercialMode: request.commercialMode,
+      configurationStatus: programme.commercialConfigurationStatus,
+      targetGrams,
+      committedGrams,
+      clearedGrams,
+      shortfallGrams: Math.max(0, targetGrams - clearedGrams),
+      openIssues: issues
+        .filter((issue) => !["resolved", "closed"].includes(issue.status))
+        .map((issue) => ({
+          issueId: issue._id,
+          issueType: issue.issueType,
+          status: issue.status,
+          summary: issue.summary,
+          nextStep: issue.nextStep,
+          deadlineAt: issue.deadlineAt,
+          version: issue.version,
+        })),
+      purchaseApproval: {
+        required: request.commercialMode === "kuapa_purchase",
+        status:
+          request.commercialMode !== "kuapa_purchase"
+            ? ("not_required" as const)
+            : activeReservations.length > 0
+              ? ("approved" as const)
+              : ("missing" as const),
+        reservedPesewas: activeReservations.reduce(
+          (total, reservation) =>
+            total +
+            reservation.produceAmountPesewas +
+            reservation.knownCostAmountPesewas -
+            reservation.consumedPesewas -
+            reservation.releasedPesewas,
+          0,
+        ),
+      },
+      plan:
+        currentPlan === undefined
+          ? null
+          : {
+              planId: currentPlan._id,
+              status: currentPlan.status,
+              plannedGrams: currentPlan.plannedGrams,
+              readinessBlockers: currentPlan.readinessBlockers,
+              vehicleRegistration: currentPlan.vehicleRegistration,
+              vehicleCapacityGrams: currentPlan.vehicleCapacityGrams,
+              version: currentPlan.version,
+            },
+    };
+  },
+});
