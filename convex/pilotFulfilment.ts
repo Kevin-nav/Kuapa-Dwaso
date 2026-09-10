@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import {
   calculatePilotAmountPesewas,
+  calculatePilotOfferAmounts,
   getPilotReadinessBlockers,
 } from "@kuapa-dwaso/utils/pilot";
 import {
@@ -29,6 +30,8 @@ import {
   replayEntityId,
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
+import { acceptCollectionPurchaseHandler } from "./pilotProcurement";
+import { postBuyerAcceptanceFinancialEntries } from "./pilotFinance";
 
 const location = v.object({
   label: v.string(),
@@ -212,35 +215,83 @@ async function financialReleaseSatisfied(
   lots: Doc<"pilotProcurementLots">[],
 ) {
   if (request.commercialMode === "kuapa_purchase") {
+    const requiredByRevision = new Map<
+      Id<"pilotFarmerOfferRevisions">,
+      number
+    >();
     for (const lot of lots) {
+      if (lot.titleOwnerKind === "kuapa_dwaso") continue;
+      requiredByRevision.set(
+        lot.offerRevisionId,
+        (requiredByRevision.get(lot.offerRevisionId) ?? 0) + lot.sourceGrams,
+      );
+    }
+    for (const [revisionId, grams] of requiredByRevision) {
+      const revision = await ctx.db.get(revisionId);
+      if (
+        revision === null ||
+        revision.buyerAgreementRevisionId !== agreement._id
+      )
+        return false;
+      const requiredPesewas = calculatePilotOfferAmounts({
+        offeredGrams: grams,
+        priceRate: revision.priceRate,
+        chargeTerms: revision.chargeTerms,
+      }).expectedNetPesewas;
       const reservations = await ctx.db
         .query("pilotFundingReservations")
         .withIndex("by_offer_revision", (q) =>
-          q.eq("farmerOfferRevisionId", lot.offerRevisionId),
+          q.eq("farmerOfferRevisionId", revisionId),
         )
         .collect();
-      if (
-        !reservations.some(
-          (reservation) =>
-            reservation.requestId === request._id &&
-            reservation.buyerAgreementRevisionId === agreement._id &&
-            (reservation.status === "active" ||
-              reservation.status === "partly_consumed") &&
-            reservation.expiresAt > Date.now(),
+      let funded = false;
+      for (const reservation of reservations) {
+        const budget = await ctx.db.get(reservation.budgetId);
+        if (
+          reservation.programmeId === request.programmeId &&
+          reservation.requestId === request._id &&
+          reservation.buyerAgreementRevisionId === agreement._id &&
+          (reservation.status === "active" ||
+            reservation.status === "partly_consumed") &&
+          reservation.expiresAt > Date.now() &&
+          budget !== null &&
+          budget.status === "active" &&
+          budget.programmeId === request.programmeId &&
+          budget.reservedPesewas >= requiredPesewas &&
+          reservation.produceAmountPesewas >= requiredPesewas &&
+          reservation.produceAmountPesewas +
+            reservation.knownCostAmountPesewas -
+            reservation.consumedPesewas -
+            reservation.releasedPesewas >=
+            requiredPesewas
         )
-      )
-        return false;
+          funded = true;
+      }
+      if (!funded) return false;
     }
-    return true;
   }
   const requiresClearedFunds = agreement.paymentTerms.some(
     (term) => term.trigger === "cleared_buyer_funds",
   );
   if (!requiresClearedFunds) return true;
-  const required = calculatePilotAmountPesewas({
+  const produceAmount = calculatePilotAmountPesewas({
     quantityGrams: agreement.quantityGrams,
     rate: agreement.producePriceRate,
   });
+  const required =
+    produceAmount +
+    agreement.chargeTerms
+      .filter((term) => term.payer === "buyer")
+      .reduce(
+        (sum, term) =>
+          sum +
+          calculatePilotAmountPesewas({
+            quantityGrams: agreement.quantityGrams,
+            basisPesewas: produceAmount,
+            rate: term.rate,
+          }),
+        0,
+      );
   const transactions = await ctx.db
     .query("pilotPaymentTransactions")
     .withIndex("by_request_status", (q) =>
@@ -849,6 +900,16 @@ export const recordCustody = mutation({
     expectedPlanVersion: v.number(),
     expectedLotVersion: v.number(),
     occurredAt: v.number(),
+    purchase: v.optional(
+      v.object({
+        farmerOfferRevisionId: v.id("pilotFarmerOfferRevisions"),
+        inspectionId: v.id("pilotInspections"),
+        buyerAgreementRevisionId: v.id("pilotBuyerAgreementRevisions"),
+        fundingReservationId: v.id("pilotFundingReservations"),
+        expectedFundingReservationVersion: v.number(),
+        expectedBudgetVersion: v.number(),
+      }),
+    ),
     idempotencyKey: v.string(),
   },
   handler: async (ctx, args) => {
@@ -861,6 +922,32 @@ export const recordCustody = mutation({
     assertAllowed(
       plan !== null && stop !== null && lot !== null,
       "Custody record links were not found.",
+    );
+    if (
+      args.eventType === "collected" &&
+      lot.commercialMode === "kuapa_purchase"
+    ) {
+      assertAllowed(
+        args.purchase !== undefined,
+        "Review purchase funding and inspection before collection.",
+      );
+      const result = await acceptCollectionPurchaseHandler(ctx, {
+        ...args.purchase,
+        requestId: lot.requestId,
+        lotId: lot._id,
+        planId: plan._id,
+        stopId: stop._id,
+        acceptedGrams: args.grams,
+        evidenceUploadAssetIds: args.evidenceUploadAssetIds,
+        expectedLotVersion: args.expectedLotVersion,
+        expectedPlanVersion: args.expectedPlanVersion,
+        idempotencyKey: args.idempotencyKey,
+      });
+      return await ctx.db.get(result.custodyEventId);
+    }
+    assertAllowed(
+      args.purchase === undefined,
+      "Purchase approval applies only to purchase collection.",
     );
     const isDriver =
       principal.role === "transporter" && plan.driverUserId === principal._id;
@@ -911,17 +998,19 @@ export const recordCustody = mutation({
     );
     if (args.eventType === "collected")
       assertAllowed(
-        plan.status === "ready" && stop.stopType === "collection",
+        ["ready", "collecting"].includes(plan.status) &&
+          stop.stopType === "collection",
         "Collection requires a ready plan and collection stop.",
       );
-    if (
-      args.eventType === "collected" &&
-      lot.commercialMode === "kuapa_purchase"
-    )
+    if (args.eventType === "collected" || args.eventType === "loaded") {
       assertAllowed(
-        false,
-        "Purchase collection must use pilotProcurement.acceptCollectionPurchase after KD-09 funding checks.",
+        lot.qualityStatus === "passed" &&
+          lot.clearedGrams === lot.sourceGrams &&
+          lot.rejectedGrams === 0 &&
+          plan.cancellationState === "none",
+        "Collection and loading require current cleared quality without cancellation.",
       );
+    }
     const history = await ctx.db
       .query("pilotCustodyEvents")
       .withIndex("by_lot_occurred_at", (q) => q.eq("lotId", lot._id))
@@ -1272,7 +1361,7 @@ export const acceptDelivery = mutation({
         issueIds.push(issueId);
       }
       await ctx.db.patch(lot._id, {
-        ...(line.acceptedGrams > 0 && lot.commercialMode === "coordination"
+        ...(line.acceptedGrams > 0
           ? { titleOwnerKind: "buyer" as const, titleOwnerFarmerId: undefined }
           : {}),
         dispositionStatus: line.rejectedGrams > 0 ? "held" : "delivered",
@@ -1304,6 +1393,18 @@ export const acceptDelivery = mutation({
       acknowledgedByBuyerUserId: principal._id,
       acknowledgedAt: args.acknowledgedAt,
       createdAt: now,
+    });
+    const financialEntries = await postBuyerAcceptanceFinancialEntries(ctx, {
+      requestId: request._id,
+      acceptanceId,
+      buyerAgreementRevisionId: agreement._id,
+      lines: persistedLines.map((line) => ({
+        lotId: line.lotId,
+        ...(line.sublotId === undefined ? {} : { sublotId: line.sublotId }),
+        acceptedGrams: line.acceptedGrams,
+      })),
+      actorUserId: principal._id,
+      triggerAt: now,
     });
     const rejected = persistedLines.reduce(
       (sum, line) => sum + line.rejectedGrams,
@@ -1356,9 +1457,10 @@ export const acceptDelivery = mutation({
     return {
       acceptance: await ctx.db.get(acceptanceId),
       issueIds,
+      financialEntries,
       arrivalRecordedSeparately: true,
       paymentStatusChanged: false,
-      financialPostingPending: true,
+      financialPostingPending: false,
     };
   },
 });

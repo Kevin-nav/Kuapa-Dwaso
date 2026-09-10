@@ -341,7 +341,12 @@ export function pilotPurchasingBudgetAvailablePesewas(input: {
   committedPesewas: number;
   spentPesewas: number;
 }): number {
-  for (const [fieldName, value] of Object.entries(input))
+  for (const [fieldName, value] of [
+    ["approvedCapacityPesewas", input.approvedCapacityPesewas],
+    ["reservedPesewas", input.reservedPesewas],
+    ["committedPesewas", input.committedPesewas],
+    ["spentPesewas", input.spentPesewas],
+  ] as const)
     assertSafeInteger(value, fieldName, true);
   const available =
     input.approvedCapacityPesewas -

@@ -784,6 +784,7 @@ export const pilotTables = {
     programmeId: v.id("pilotProgrammes"),
     requestId: v.id("pilotBuyerRequests"),
     buyerId: v.id("buyers"),
+    purpose: v.union(v.literal("buyer_produce"), v.literal("buyer_transport")),
     provider: v.string(),
     providerReference: v.string(),
     providerAccessCode: v.optional(v.string()),

@@ -232,6 +232,7 @@ tests should use:
 
 ```text
 PAYMENT_PROVIDER=mock
+PAYMENT_PROVIDER_SERVICE_SECRET=
 ```
 
 Paystack is the first real adapter:
@@ -241,6 +242,7 @@ PAYMENT_PROVIDER=paystack
 PAYSTACK_PUBLIC_KEY=
 PAYSTACK_SECRET_KEY=
 PAYSTACK_WEBHOOK_SECRET=
+PAYMENT_PROVIDER_SERVICE_SECRET=
 ```
 
 Paystack secret keys and webhook secrets are API-only and must never be exposed
@@ -248,6 +250,11 @@ through `NEXT_PUBLIC_*` variables. Product workflows store provider-neutral
 payment transactions, webhook events, and farmer payout ledger rows; actual
 farmer bank or mobile-money transfer automation remains manual/ledger-only until
 a separate payout automation boundary is designed.
+
+`PAYMENT_PROVIDER_SERVICE_SECRET` must contain the same private value in the API
+and Convex environments. The API uses it only after authenticating a buyer or
+verifying a provider callback. Pilot payment mutations reject direct browser
+calls that try to report provider results.
 
 Paystack webhooks should post to:
 
