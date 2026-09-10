@@ -1562,4 +1562,45 @@ export const getPlan = query({
   },
 });
 
+export const getForRequest = query({
+  args: { requestId: v.id("pilotBuyerRequests") },
+  handler: async (ctx, args) => {
+    const plans = await ctx.db
+      .query("pilotFulfilmentPlans")
+      .withIndex("by_request", (q) => q.eq("requestId", args.requestId))
+      .collect();
+    const current = plans
+      .filter((plan) => plan.status !== "cancelled")
+      .sort((a, b) => b.version - a.version)[0];
+    if (current === undefined) return null;
+    const principal = await requirePilotPrincipal(ctx);
+    const request = await ctx.db.get(args.requestId);
+    assertAllowed(request !== null, "Plan request was not found.");
+    await requirePilotRequestRead(ctx, principal, request);
+    const stops = await planStops(ctx, current._id);
+    const visibleStops = [];
+    for (const stop of stops) {
+      const lots = [];
+      for (const lotId of stop.lotIds) {
+        const lot = await ctx.db.get(lotId);
+        if (lot !== null)
+          lots.push(projectPilotLotForPrincipal(principal, lot, false));
+      }
+      visibleStops.push({
+        stopId: stop._id,
+        sequence: stop.sequence,
+        stopType: stop.stopType,
+        location: stop.location,
+        plannedGrams: stop.plannedGrams,
+        collectedGrams: stop.collectedGrams,
+        windowStartAt: stop.windowStartAt,
+        windowEndAt: stop.windowEndAt,
+        status: stop.status,
+        lots,
+      });
+    }
+    return { plan: planSummary(current), stops: visibleStops };
+  },
+});
+
 export { evaluatePlan };
