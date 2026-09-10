@@ -199,7 +199,7 @@ All tables include `createdAt`. Mutable head records also include `updatedAt` an
 
 `pilotFulfilmentStops`
 
-- Fields: `programmeId`, `planId`, `sequence`, `stopType` of `collection`, `facility`, or `destination`, `location`, optional `facilityId`, `lotIds`, `plannedGrams`, `collectedGrams`, `windowStartAt`, `windowEndAt`, `status` of `planned`, `arrived`, `completed`, `skipped`, or `cancelled`, `version`, `createdAt`, `updatedAt`.
+- Fields: `programmeId`, `planId`, `sequence`, `stopType` of `collection`, `facility`, or `destination`, `location`, optional `packagingNotes`, optional `facilityId`, `lotIds`, `plannedGrams`, `collectedGrams`, `windowStartAt`, `windowEndAt`, `status` of `planned`, `arrived`, `completed`, `skipped`, or `cancelled`, `version`, `createdAt`, `updatedAt`.
 - Indexes: `by_plan_sequence`, `by_plan_status`, `by_facility`, `by_window_status`.
 
 `pilotCustodyEvents`
@@ -367,6 +367,8 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 | `pilotFulfilment.assignDriver` | plan ID, transporter/driver, capacity, expected version, idempotency key | plan summary | assigned ops; KD-08 |
 | `pilotFulfilment.markReady` | plan ID, expected version, idempotency key | plan summary | assigned ops; KD-08 |
 | `pilotFulfilment.recordCustody` | plan/stop/lot IDs, event, grams, evidence, expected versions, idempotency key | custody event and projections | assigned driver or ops; KD-08 |
+| `pilotFulfilment.listDriverJobs` / `getDriverJob` | bounded list or assigned plan ID | minimal route, collection contact, cleared lot, packaging and opaque purchase-release inputs | assigned driver; KD-14 |
+| `pilotFulfilment.reportDriverDiscrepancy` | assigned plan/stop/lot, observed grams, reason, evidence, idempotency key | owned issue | assigned driver; KD-14 |
 | `pilotFulfilment.acceptDelivery` | request/plan/agreement IDs, lot-keyed lines, buyer acknowledgement, idempotency key | acceptance revision, issues, obligations | buyer; KD-08/KD-09 |
 | `pilotFulfilment.getPlan` | plan ID | actor-safe plan/stops/lots/blockers | buyer, farmer, driver, ops, admin; KD-08/KD-11 through KD-15 |
 | `pilotFulfilment.listAssignedToDriver` | page args/status | driver-safe plans | transporter; KD-14 |

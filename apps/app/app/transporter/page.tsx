@@ -17,6 +17,18 @@ type DispatchListItem = {
   expectedArrivalAt?: number;
 };
 
+type PilotJob = {
+  planId: string;
+  programmeName: string;
+  dataMode: "live" | "sample_only";
+  status: string;
+  plannedGrams: number;
+  completedStops: number;
+  totalStops: number;
+  collectionWindowStartAt: number;
+  destination: { label: string };
+};
+
 function statusClass(status: string) {
   if (["verified", "active", "delivered", "closed"].includes(status)) return "success";
   if (["pending", "planned", "loading", "departed", "in_transit", "arrived"].includes(status)) return "warning";
@@ -45,6 +57,9 @@ export default function TransporterDashboard() {
     api.dispatches.listAssignedToTransporter,
     principal !== null && principal !== undefined ? { actorUserId: principal.userId as Id<"users">, limit: 5 } : "skip",
   ) as DispatchListItem[] | undefined;
+  const pilotJobs = useQuery(api.pilotFulfilment.listDriverJobs, { limit: 5 }) as
+    | { page: PilotJob[] }
+    | undefined;
   const notifications = useQuery(
     api.notifications.listForActor,
     principal !== null && principal !== undefined ? { actorUserId: principal.userId as Id<"users">, limit: 3 } : "skip",
@@ -62,7 +77,7 @@ export default function TransporterDashboard() {
       : "skip",
   );
 
-  if (profile === undefined || dispatches === undefined) {
+  if (profile === undefined || dispatches === undefined || pilotJobs === undefined) {
     return <div className="skeleton" style={{ minHeight: "420px", borderRadius: "20px" }} />;
   }
 
@@ -84,6 +99,7 @@ export default function TransporterDashboard() {
   const activeDispatches = dispatches.filter((dispatch) =>
     ["planned", "loading", "departed", "in_transit", "arrived", "issue_reported"].includes(dispatch.status),
   );
+  const activePilotJobs = pilotJobs.page.filter((job) => job.status !== "cancelled");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -126,6 +142,10 @@ export default function TransporterDashboard() {
       </div>
 
       <div className="summary-strip">
+        <div className="summary-card" style={{ borderLeftColor: "var(--color-primary)" }}>
+          <span className="summary-label">Pilot Collections</span>
+          <span className="summary-value">{activePilotJobs.length}</span>
+        </div>
         <div className="summary-card">
           <span className="summary-label">Active Dispatches</span>
           <span className="summary-value">{activeDispatches.length}</span>
@@ -138,7 +158,24 @@ export default function TransporterDashboard() {
 
       <div>
         <div className="section-title-row">
-          <h2 className="section-title">Assigned Dispatches</h2>
+          <h2 className="section-title">Maize pilot collections</h2>
+          <Link href="/transporter/collections" className="section-link">See all</Link>
+        </div>
+        <div className="compact-list" style={{ marginTop: "8px" }}>
+          {activePilotJobs.length === 0 ? (
+            <div className="compact-row"><div className="row-info"><span className="row-title">No pilot route assigned</span><span className="row-subtitle">Verified driver assignments will appear here.</span></div></div>
+          ) : activePilotJobs.slice(0, 3).map((job) => (
+            <Link href={`/transporter/collections/${job.planId}`} key={job.planId} className="compact-row">
+              <div className="row-left"><div className="row-icon-wrapper"><Truck size={18} /></div><div className="row-info"><span className="row-title">{(job.plannedGrams / 1_000).toLocaleString()} kg to {job.destination.label}</span><span className="row-subtitle">{job.programmeName} · {job.completedStops}/{job.totalStops} stops · {formatDate(job.collectionWindowStartAt)}{job.dataMode === "sample_only" ? " · SAMPLE" : ""}</span></div></div>
+              <span className={`status-chip status-${statusClass(job.status)}`}>{job.status.replaceAll("_", " ")}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="section-title-row">
+            <h2 className="section-title">Warehouse dispatches</h2>
           <Link href="/transporter/dispatches" className="section-link">See all</Link>
         </div>
         <div className="compact-list" style={{ marginTop: "8px" }}>

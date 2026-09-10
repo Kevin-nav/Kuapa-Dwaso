@@ -321,7 +321,10 @@ export default function PilotRequestWorkspacePage() {
         deliveryWindowStartAt: requestDetail.request.deliveryWindowStartAt,
         deliveryWindowEndAt: requestDetail.request.deliveryWindowEndAt,
         destination: requestDetail.request.destination,
-        stops: availableLots.map((lot, index) => ({ sequence: index + 1, stopType: "collection" as const, location: lot.currentLocation, lotIds: [lot.lotId], windowStartAt: requestDetail.request.deliveryWindowStartAt - 24 * 60 * 60 * 1_000, windowEndAt: requestDetail.request.deliveryWindowStartAt })),
+        stops: [
+          ...availableLots.map((lot, index) => ({ sequence: index + 1, stopType: "collection" as const, location: lot.currentLocation, packagingNotes: "Bagged maize; confirm bag count and condition before loading.", lotIds: [lot.lotId], windowStartAt: requestDetail.request.deliveryWindowStartAt - 24 * 60 * 60 * 1_000, windowEndAt: requestDetail.request.deliveryWindowStartAt })),
+          { sequence: availableLots.length + 1, stopType: "destination" as const, location: requestDetail.request.destination, packagingNotes: "Keep each inspected lot identifiable through buyer handover.", lotIds: [], windowStartAt: requestDetail.request.deliveryWindowStartAt, windowEndAt: requestDetail.request.deliveryWindowEndAt },
+        ],
         idempotencyKey: crypto.randomUUID(),
       });
       setNotice({ tone: "success", message: `Collection plan created for exactly ${kg(availableLotGrams)}.` });

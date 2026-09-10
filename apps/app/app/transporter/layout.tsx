@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, IdCard, Truck, User } from "lucide-react";
+import { Home, IdCard, Route, Truck, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
 
@@ -86,9 +86,13 @@ export default function TransporterLayout({ children }: { children: ReactNode })
           <Home size={22} />
           <span>Home</span>
         </Link>
+        <Link href="/transporter/collections" className={`nav-link ${isActive("/transporter/collections") ? "nav-link-active" : ""}`}>
+          <Route size={22} />
+          <span>Collections</span>
+        </Link>
         <Link href="/transporter/dispatches" className={`nav-link ${isActive("/transporter/dispatches") ? "nav-link-active" : ""}`}>
           <Truck size={22} />
-          <span>Dispatches</span>
+          <span>Warehouse</span>
         </Link>
         <Link href="/transporter/profile" className={`nav-link ${isActive("/transporter/profile") ? "nav-link-active" : ""}`}>
           <IdCard size={22} />
