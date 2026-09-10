@@ -562,6 +562,7 @@ export const pilotTables = {
       v.literal("destination"),
     ),
     location,
+    packagingNotes: v.optional(v.string()),
     facilityId: v.optional(v.id("pilotFacilities")),
     lotIds: v.array(v.id("pilotProcurementLots")),
     plannedGrams: v.number(),

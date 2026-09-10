@@ -51,6 +51,7 @@ const stopInput = v.object({
     v.literal("destination"),
   ),
   location,
+  packagingNotes: v.optional(v.string()),
   facilityId: v.optional(v.id("pilotFacilities")),
   lotIds: v.array(v.id("pilotProcurementLots")),
   windowStartAt: v.number(),
@@ -76,6 +77,7 @@ type StopDraft = {
   sequence: number;
   stopType: "collection" | "facility" | "destination";
   location: Doc<"pilotFulfilmentPlans">["destination"];
+  packagingNotes?: string;
   facilityId?: Id<"pilotFacilities">;
   lotIds: Id<"pilotProcurementLots">[];
   windowStartAt: number;
@@ -407,6 +409,9 @@ async function insertStops(
         sequence: stop.sequence,
         stopType: stop.stopType,
         location: stop.location,
+        ...(stop.packagingNotes === undefined
+          ? {}
+          : { packagingNotes: stop.packagingNotes.trim() }),
         ...(stop.facilityId === undefined
           ? {}
           : { facilityId: stop.facilityId }),
@@ -1547,6 +1552,7 @@ export const getPlan = query({
           sequence: stop.sequence,
           stopType: stop.stopType,
           location: stop.location,
+          packagingNotes: stop.packagingNotes,
           plannedGrams: stop.plannedGrams,
           collectedGrams: stop.collectedGrams,
           windowStartAt: stop.windowStartAt,
@@ -1609,6 +1615,7 @@ export const getForRequest = query({
         sequence: stop.sequence,
         stopType: stop.stopType,
         location: stop.location,
+        packagingNotes: stop.packagingNotes,
         plannedGrams: stop.plannedGrams,
         collectedGrams: stop.collectedGrams,
         windowStartAt: stop.windowStartAt,
@@ -1622,6 +1629,283 @@ export const getForRequest = query({
       "Farmer has no lot in this plan.",
     );
     return { plan: planSummary(current), stops: visibleStops };
+  },
+});
+
+export const listDriverJobs = query({
+  args: { limit: v.number() },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    assertAllowed(
+      principal.role === "transporter",
+      "A transporter identity is required.",
+    );
+    assertAllowed(
+      Number.isSafeInteger(args.limit) && args.limit > 0 && args.limit <= 50,
+      "Job limit must be from 1 to 50.",
+    );
+    const plans = await ctx.db
+      .query("pilotFulfilmentPlans")
+      .withIndex("by_driver_status", (q) => q.eq("driverUserId", principal._id))
+      .order("desc")
+      .take(args.limit);
+    const page = [];
+    for (const plan of plans) {
+      const [programme, request, stops] = await Promise.all([
+        ctx.db.get(plan.programmeId),
+        ctx.db.get(plan.requestId),
+        planStops(ctx, plan._id),
+      ]);
+      if (programme === null || request === null) continue;
+      page.push({
+        planId: plan._id,
+        programmeName: programme.name,
+        dataMode: programme.datasetProvenance,
+        status: plan.status,
+        plannedGrams: plan.plannedGrams,
+        completedStops: stops.filter((stop) => stop.status === "completed").length,
+        totalStops: stops.length,
+        collectionWindowStartAt: plan.collectionWindowStartAt,
+        collectionWindowEndAt: plan.collectionWindowEndAt,
+        deliveryWindowStartAt: plan.deliveryWindowStartAt,
+        deliveryWindowEndAt: plan.deliveryWindowEndAt,
+        destination: request.destination,
+        vehicleRegistration: plan.vehicleRegistration,
+      });
+    }
+    return { page, isDone: plans.length < args.limit };
+  },
+});
+
+export const getDriverJob = query({
+  args: { planId: v.id("pilotFulfilmentPlans") },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const plan = await ctx.db.get(args.planId);
+    assertAllowed(
+      principal.role === "transporter" &&
+        plan !== null &&
+        plan.driverUserId === principal._id,
+      "Collection job is not assigned to this driver.",
+    );
+    const [programme, request, stops, acceptances] = await Promise.all([
+      ctx.db.get(plan.programmeId),
+      ctx.db.get(plan.requestId),
+      planStops(ctx, plan._id),
+      ctx.db
+        .query("pilotBuyerAcceptances")
+        .withIndex("by_plan_revision", (q) => q.eq("planId", plan._id))
+        .collect(),
+    ]);
+    assertAllowed(
+      programme !== null && request !== null,
+      "Collection programme or destination was not found.",
+    );
+    const projectedStops = [];
+    for (const stop of stops) {
+      const projectedLots = [];
+      for (const lotId of stop.lotIds) {
+        const lot = await ctx.db.get(lotId);
+        if (lot === null) continue;
+        const [farmer, events, inspections, reservations] = await Promise.all([
+          ctx.db.get(lot.farmerId),
+          ctx.db
+            .query("pilotCustodyEvents")
+            .withIndex("by_lot_occurred_at", (q) => q.eq("lotId", lot._id))
+            .collect(),
+          ctx.db
+            .query("pilotInspections")
+            .withIndex("by_lot_created_at", (q) => q.eq("lotId", lot._id))
+            .order("desc")
+            .collect(),
+          ctx.db
+            .query("pilotFundingReservations")
+            .withIndex("by_offer_revision", (q) =>
+              q.eq("farmerOfferRevisionId", lot.offerRevisionId),
+            )
+            .collect(),
+        ]);
+        assertAllowed(farmer !== null, "Collection farmer was not found.");
+        const inspection = inspections.find(
+          (candidate) => candidate.qualityStatus !== "superseded",
+        );
+        const reservation = reservations.find(
+          (candidate) =>
+            candidate.requestId === plan.requestId &&
+            candidate.buyerAgreementRevisionId === plan.buyerAgreementRevisionId &&
+            ["active", "partly_consumed"].includes(candidate.status) &&
+            candidate.expiresAt > Date.now(),
+        );
+        const budget =
+          reservation === undefined ? null : await ctx.db.get(reservation.budgetId);
+        projectedLots.push({
+          lotId: lot._id,
+          lotCode: lot.lotCode,
+          commercialMode: lot.commercialMode,
+          clearedGrams: lot.clearedGrams,
+          qualityStatus: lot.qualityStatus,
+          dispositionStatus: lot.dispositionStatus,
+          version: lot.version,
+          farmer: {
+            fullName: farmer.fullName,
+            phoneNumber: farmer.phoneNumber,
+            community: farmer.community,
+          },
+          milestones: events
+            .filter((event) => event.planId === plan._id)
+            .map((event) => event.eventType),
+          purchaseCollection:
+            lot.commercialMode !== "kuapa_purchase" ||
+            inspection === undefined ||
+            reservation === undefined ||
+            budget === null ||
+            budget.status !== "active"
+              ? null
+              : {
+                  farmerOfferRevisionId: lot.offerRevisionId,
+                  inspectionId: inspection._id,
+                  buyerAgreementRevisionId: plan.buyerAgreementRevisionId,
+                  fundingReservationId: reservation._id,
+                  expectedFundingReservationVersion: reservation.version,
+                  expectedBudgetVersion: budget.version,
+                },
+        });
+      }
+      projectedStops.push({
+        stopId: stop._id,
+        sequence: stop.sequence,
+        stopType: stop.stopType,
+        location: stop.location,
+        packagingNotes: stop.packagingNotes,
+        plannedGrams: stop.plannedGrams,
+        collectedGrams: stop.collectedGrams,
+        windowStartAt: stop.windowStartAt,
+        windowEndAt: stop.windowEndAt,
+        status: stop.status,
+        lots: projectedLots,
+      });
+    }
+    return {
+      plan: planSummary(plan),
+      programme: {
+        name: programme.name,
+        dataMode: programme.datasetProvenance,
+      },
+      destination: request.destination,
+      stops: projectedStops,
+      buyerAcceptanceStatus:
+        acceptances.length === 0 ? ("pending" as const) : ("recorded" as const),
+    };
+  },
+});
+
+export const reportDriverDiscrepancy = mutation({
+  args: {
+    planId: v.id("pilotFulfilmentPlans"),
+    stopId: v.id("pilotFulfilmentStops"),
+    lotId: v.id("pilotProcurementLots"),
+    observedGrams: v.number(),
+    reason: v.string(),
+    evidenceUploadAssetIds: v.array(v.id("uploadAssets")),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const [plan, stop, lot] = await Promise.all([
+      ctx.db.get(args.planId),
+      ctx.db.get(args.stopId),
+      ctx.db.get(args.lotId),
+    ]);
+    assertAllowed(
+      principal.role === "transporter" &&
+        plan !== null &&
+        stop !== null &&
+        lot !== null &&
+        plan.driverUserId === principal._id &&
+        stop.planId === plan._id &&
+        stop.lotIds.includes(lot._id),
+      "Discrepancy must belong to the assigned collection stop and lot.",
+    );
+    assertAllowed(
+      Number.isSafeInteger(args.observedGrams) && args.observedGrams >= 0,
+      "Observed quantity must be a non-negative whole number of grams.",
+    );
+    assertAllowed(
+      args.observedGrams !== lot.clearedGrams,
+      "Observed quantity matches the cleared lot; no discrepancy is required.",
+    );
+    const reason = args.reason.trim();
+    assertAllowed(reason.length > 0, "Discrepancy reason is required.");
+    await validateLotEvidence(
+      ctx,
+      principal,
+      lot,
+      args.evidenceUploadAssetIds,
+      ["pilot_collection_evidence", "pilot_custody_evidence"],
+    );
+    const receipt = await beginPilotIdempotency(ctx, {
+      programmeId: plan.programmeId,
+      actorUserId: principal._id,
+      operationName: "pilotFulfilment.reportDriverDiscrepancy",
+      idempotencyKey: args.idempotencyKey,
+      requestHash: JSON.stringify(args),
+    });
+    if (receipt.kind === "replay") {
+      const issue = await ctx.db.get(
+        replayEntityId<"pilotIssues">(receipt.receipt, "pilotIssues"),
+      );
+      assertAllowed(issue !== null, "Discrepancy replay was not found.");
+      return issue;
+    }
+    const assignedToUserId = await findPilotIssueOwner(ctx, plan.programmeId);
+    const now = Date.now();
+    const issueId = await ctx.db.insert("pilotIssues", {
+      programmeId: plan.programmeId,
+      requestId: plan.requestId,
+      lotId: lot._id,
+      planId: plan._id,
+      issueType: "custody_discrepancy",
+      status: "open",
+      assignedToUserId,
+      reasonCode: "driver_quantity_mismatch",
+      summary: `${lot.lotCode}: driver observed ${args.observedGrams}g against ${lot.clearedGrams}g cleared.`,
+      nextStep:
+        "Operations must review the collection evidence and correct or replace the lot before movement continues.",
+      responsibleCustodian: {
+        kind: "transporter",
+        id: String(plan.transporterId),
+        displayNameSnapshot: "Assigned transporter",
+      },
+      deadlineAt: now + 4 * 60 * 60 * 1_000,
+      evidenceUploadAssetIds: args.evidenceUploadAssetIds,
+      version: 0,
+      createdByUserId: principal._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await insertPilotActivityEvent(ctx, {
+      programmeId: plan.programmeId,
+      requestId: plan.requestId,
+      entityType: "pilotIssues",
+      entityId: issueId,
+      entityRevision: 0,
+      eventName: "pilot.custody.discrepancy_reported",
+      actorUserId: principal._id,
+      reasonCode: "driver_quantity_mismatch",
+      recipientViews: [
+        {
+          audience: "pilot_ops",
+          targetId: assignedToUserId,
+          title: "Collection quantity mismatch",
+          detail: `${lot.lotCode} cannot move until the reported mismatch is reviewed.`,
+        },
+      ],
+      createdAt: now,
+    });
+    await completePilotIdempotency(ctx, receipt.receiptId, [
+      { entityType: "pilotIssues", entityId: issueId },
+    ]);
+    return await ctx.db.get(issueId);
   },
 });
 
