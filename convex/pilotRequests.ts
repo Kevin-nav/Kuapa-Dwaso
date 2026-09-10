@@ -22,6 +22,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 import {
   requirePilotCapability,
   requirePilotPrincipal,
@@ -186,7 +187,7 @@ async function emit(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: request.programmeId,
     requestId: request._id,
     entityType: "pilotBuyerRequests",

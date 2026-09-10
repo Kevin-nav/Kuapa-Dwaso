@@ -30,6 +30,7 @@ import {
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
 import { assertPaymentServiceSecret } from "./paymentServiceAuth";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 const datasetProvenance = v.union(v.literal("live"), v.literal("sample_only"));
 const budgetStatus = v.union(
@@ -1433,7 +1434,7 @@ async function applyProviderResult(
           sourcePaymentEntryId: receiptEntryIds[0]!,
         })
       : [];
-    const activityEventId = await ctx.db.insert("pilotActivityEvents", {
+    const activityEventId = await insertPilotActivityEvent(ctx, {
       programmeId: transaction.programmeId,
       requestId: transaction.requestId,
       entityType: "pilotPaymentTransactions",
@@ -2083,7 +2084,7 @@ export const recordCoordinationActualCost = mutation({
       ...(args.dueAt === undefined ? {} : { dueAt: args.dueAt }),
       postingKey: `${postingKey}:obligation`,
     });
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: request.programmeId,
       requestId: request._id,
       entityType: "pilotFinancialEntries",
@@ -2222,7 +2223,7 @@ export const reverseFinancialEntry = mutation({
         createdAt: now,
       });
     }
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: entry.programmeId,
       ...(entry.requestId === undefined ? {} : { requestId: entry.requestId }),
       entityType: "pilotFinancialEntries",

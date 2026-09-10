@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./pwa": "./src/pwa/index.ts",
     "./pilot": "./src/pilot.ts",
-    "./pilot-finance": "./src/pilotFinance.ts"
+    "./pilot-finance": "./src/pilotFinance.ts",
+    "./pilot-notifications": "./src/pilotNotifications.ts"
   },
   "files": [
     "dist",

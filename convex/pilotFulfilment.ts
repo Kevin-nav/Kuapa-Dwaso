@@ -32,6 +32,8 @@ import {
 import { assertAllowed } from "./workflowHelpers";
 import { acceptCollectionPurchaseHandler } from "./pilotProcurement";
 import { postBuyerAcceptanceFinancialEntries } from "./pilotFinance";
+import { insertPilotActivityEvent } from "./pilotActivity";
+import { findPilotIssueOwner } from "./pilotIssues";
 
 const location = v.object({
   label: v.string(),
@@ -430,7 +432,7 @@ async function emitPlanEvent(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: plan.programmeId,
     requestId: plan.requestId,
     entityType: "pilotFulfilmentPlans",
@@ -1141,7 +1143,7 @@ export const recordCustody = mutation({
             version: request.version + 1,
             updatedAt: now,
           });
-        await ctx.db.insert("pilotActivityEvents", {
+        await insertPilotActivityEvent(ctx, {
           programmeId: plan.programmeId,
           requestId: plan.requestId,
           entityType: "pilotFulfilmentPlans",
@@ -1176,7 +1178,7 @@ export const recordCustody = mutation({
     }
     const updatedPlan = (await ctx.db.get(plan._id))!;
     const updatedLot = (await ctx.db.get(lot._id))!;
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: plan.programmeId,
       requestId: plan.requestId,
       entityType: "pilotCustodyEvents",
@@ -1337,6 +1339,10 @@ export const acceptDelivery = mutation({
         );
       let issueId: Id<"pilotIssues"> | undefined;
       if (line.rejectedGrams > 0) {
+        const assignedToUserId = await findPilotIssueOwner(
+          ctx,
+          request.programmeId,
+        );
         issueId = await ctx.db.insert("pilotIssues", {
           programmeId: request.programmeId,
           requestId: request._id,
@@ -1344,7 +1350,11 @@ export const acceptDelivery = mutation({
           planId: plan._id,
           issueType: "buyer_rejection",
           status: "open",
+          assignedToUserId,
+          reasonCode: line.reasonCode!.trim(),
           summary: line.reasonCode!.trim(),
+          nextStep:
+            "Review the rejection evidence and agree the lot disposition with the buyer and current custodian.",
           responsibleCustodian: {
             kind: lot.currentCustodianKind,
             ...(lot.currentCustodianId === undefined
@@ -1359,6 +1369,32 @@ export const acceptDelivery = mutation({
           updatedAt: Date.now(),
         });
         issueIds.push(issueId);
+        await insertPilotActivityEvent(ctx, {
+          programmeId: request.programmeId,
+          requestId: request._id,
+          entityType: "pilotIssues",
+          entityId: issueId,
+          entityRevision: 0,
+          eventName: "pilot.issue.opened",
+          actorUserId: principal._id,
+          reasonCode: line.reasonCode!.trim(),
+          recipientViews: [
+            {
+              audience: "farmer",
+              targetId: lot.farmerId,
+              title: "Delivery issue opened",
+              detail:
+                "The buyer rejected this identified lot. Your payment and quality records remain unchanged while the issue is reviewed.",
+            },
+            {
+              audience: "pilot_ops",
+              targetId: assignedToUserId,
+              title: "Buyer rejection assigned",
+              detail: `Review rejection evidence for ${lot.lotCode} and record a disposition.`,
+            },
+          ],
+          createdAt: Date.now(),
+        });
       }
       await ctx.db.patch(lot._id, {
         ...(line.acceptedGrams > 0
@@ -1425,7 +1461,7 @@ export const acceptDelivery = mutation({
         version: request.version + 1,
         updatedAt: now,
       });
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: request.programmeId,
       requestId: request._id,
       entityType: "pilotBuyerAcceptances",

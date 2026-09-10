@@ -868,7 +868,10 @@ export const pilotTables = {
       v.literal("resolved"),
       v.literal("closed"),
     ),
+    assignedToUserId: v.id("users"),
+    reasonCode: v.string(),
     summary: v.string(),
+    nextStep: v.string(),
     responsibleCustodian: partyRef,
     deadlineAt: v.optional(v.number()),
     evidenceUploadAssetIds: v.array(v.id("uploadAssets")),
@@ -881,6 +884,7 @@ export const pilotTables = {
     updatedAt: v.number(),
   })
     .index("by_request_status", ["requestId", "status"])
+    .index("by_assignee_status", ["assignedToUserId", "status"])
     .index("by_lot_status", ["lotId", "status"])
     .index("by_programme_status", ["programmeId", "status"])
     .index("by_deadline_status", ["deadlineAt", "status"]),
