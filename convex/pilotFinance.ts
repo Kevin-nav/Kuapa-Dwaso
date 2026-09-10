@@ -2385,14 +2385,18 @@ export const getRequestStatement = query({
         .withIndex("by_user", (q) => q.eq("userId", principal._id))
         .unique();
       assertAllowed(farmer !== null, "Farmer profile was not found.");
+      const offers = await ctx.db
+        .query("pilotFarmerOffers")
+        .withIndex("by_request_status", (q) => q.eq("requestId", request._id))
+        .collect();
+      assertAllowed(
+        offers.some((offer) => offer.farmerId === farmer._id),
+        "This request has no offer for the farmer.",
+      );
       visible = entries.filter(
         (entry) =>
           (entry.payer.kind === "farmer" && entry.payer.id === farmer._id) ||
           (entry.payee.kind === "farmer" && entry.payee.id === farmer._id),
-      );
-      assertAllowed(
-        visible.length > 0,
-        "This request has no financial entries for the farmer.",
       );
     } else {
       assertAllowed(false, "This role cannot read pilot financial statements.");

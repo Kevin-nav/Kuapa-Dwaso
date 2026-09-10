@@ -12,7 +12,7 @@ import {
   assertPilotRate,
 } from "@kuapa-dwaso/validators/pilot";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
   requirePilotCapability,
   requirePilotPrincipal,
@@ -141,6 +141,14 @@ async function offerSummary(
 ) {
   const revision = await getOfferRevision(ctx, offer);
   const allocation = await getOfferAllocation(ctx, offer._id);
+  const finalAmounts =
+    allocation?.status === "quality_cleared"
+      ? calculatePilotOfferAmounts({
+          offeredGrams: allocation.clearedGrams,
+          priceRate: revision.priceRate,
+          chargeTerms: revision.chargeTerms,
+        })
+      : null;
   return {
     offerId: offer._id,
     programmeId: offer.programmeId,
@@ -181,6 +189,7 @@ async function offerSummary(
             clearedGrams: allocation.clearedGrams,
             version: allocation.version,
           },
+    finalAmounts,
   };
 }
 
@@ -744,6 +753,20 @@ export const decide = mutation({
           ]),
     ]);
     return offerSummary(ctx, updated);
+  },
+});
+
+export const get = query({
+  args: { offerId: v.id("pilotFarmerOffers") },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const farmer = await requireOwnFarmer(ctx, principal);
+    const offer = await ctx.db.get(args.offerId);
+    assertAllowed(
+      offer !== null && offer.farmerId === farmer._id,
+      "Offer belongs to another farmer.",
+    );
+    return await offerSummary(ctx, offer);
   },
 });
 

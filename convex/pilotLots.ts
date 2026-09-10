@@ -331,13 +331,21 @@ export const listForActor = query({
     const page = [];
     for (const lot of result.page) {
       await requirePilotLotRead(ctx, principal, lot);
-      page.push(
-        projectPilotLotForPrincipal(
+      const latestInspection = await ctx.db
+        .query("pilotInspections")
+        .withIndex("by_lot_created_at", (q) => q.eq("lotId", lot._id))
+        .order("desc")
+        .first();
+      page.push({
+        ...projectPilotLotForPrincipal(
           principal,
           lot,
           farmerId !== undefined && lot.farmerId === farmerId,
         ),
-      );
+        ...(latestInspection === null
+          ? {}
+          : { latestInspectionId: latestInspection._id }),
+      });
     }
     return {
       page,
