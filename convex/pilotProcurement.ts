@@ -17,6 +17,7 @@ import {
   replayEntityId,
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 export const purchaseCollectionArgs = v.object({
   requestId: v.id("pilotBuyerRequests"),
@@ -516,7 +517,7 @@ export async function acceptCollectionPurchaseHandler(
     version: plan.version + 1,
     updatedAt: now,
   });
-  const activityEventId = await ctx.db.insert("pilotActivityEvents", {
+  const activityEventId = await insertPilotActivityEvent(ctx, {
     programmeId: programme._id,
     requestId: request._id,
     entityType: "pilotProcurementLots",

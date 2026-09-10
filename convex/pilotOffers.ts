@@ -30,6 +30,7 @@ import {
   requireOwnFarmer,
 } from "./pilotSupply";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 const commercialMode = v.union(
   v.literal("coordination"),
@@ -190,7 +191,7 @@ async function emitOfferEvent(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: offer.programmeId,
     requestId: offer.requestId,
     entityType: "pilotFarmerOffers",

@@ -11,6 +11,7 @@ import {
   completePilotIdempotency,
   replayEntityId,
 } from "./pilotIdempotency";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 const capability = v.union(
   v.literal("pilot:read"),
@@ -159,7 +160,7 @@ export const grant = mutation({
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: args.programmeId,
       entityType: "pilotAssignments",
       entityId: assignmentId,
@@ -237,7 +238,7 @@ export const revoke = mutation({
       version: assignment.version + 1,
       updatedAt: now,
     });
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: assignment.programmeId,
       entityType: "pilotAssignments",
       entityId: assignment._id,

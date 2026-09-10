@@ -14,6 +14,7 @@ import {
   replayEntityId,
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 const location = v.object({
   label: v.string(),
@@ -230,7 +231,7 @@ export const recordDisposition = mutation({
       updatedAt: now,
     });
     const updated = (await ctx.db.get(lot._id))!;
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: lot.programmeId,
       requestId: lot.requestId,
       entityType: "pilotProcurementLots",

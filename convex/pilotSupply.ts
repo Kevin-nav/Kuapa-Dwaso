@@ -24,6 +24,7 @@ import {
   replayEntityId,
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 const location = v.object({
   label: v.string(),
@@ -249,7 +250,7 @@ async function emitSupplyEvent(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: declaration.programmeId,
     entityType: "pilotSupplyDeclarations",
     entityId: declaration._id,

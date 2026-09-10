@@ -18,6 +18,7 @@ import {
   activeRequestAllocatedGrams,
 } from "./pilotSupply";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
 
 function allocationSummary(allocation: Doc<"pilotAllocations">) {
   return {
@@ -58,7 +59,7 @@ async function emitAllocationEvent(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: allocation.programmeId,
     requestId: allocation.requestId,
     entityType: "pilotAllocations",

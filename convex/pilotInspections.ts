@@ -25,6 +25,8 @@ import {
   replayEntityId,
 } from "./pilotIdempotency";
 import { assertAllowed } from "./workflowHelpers";
+import { insertPilotActivityEvent } from "./pilotActivity";
+import { findPilotIssueOwner } from "./pilotIssues";
 
 const location = v.object({
   label: v.string(),
@@ -284,7 +286,7 @@ async function emitInspectionEvent(
   actorUserId: Id<"users">,
   detail: string,
 ) {
-  await ctx.db.insert("pilotActivityEvents", {
+  await insertPilotActivityEvent(ctx, {
     programmeId: inspection.programmeId,
     requestId: inspection.requestId,
     entityType: "pilotInspections",
@@ -600,7 +602,7 @@ export const record = mutation({
       principal._id,
       `${lotCode} recorded as ${quality.qualityStatus}; ${args.acceptedGrams}g cleared and ${args.rejectedGrams}g rejected.`,
     );
-    await ctx.db.insert("pilotActivityEvents", {
+    await insertPilotActivityEvent(ctx, {
       programmeId: allocation.programmeId,
       requestId: allocation.requestId,
       entityType: "pilotProcurementLots",
@@ -623,8 +625,36 @@ export const record = mutation({
       ],
       createdAt: now,
     });
-    if (args.rejectedGrams > 0)
-      await ctx.db.insert("pilotActivityEvents", {
+    let qualityIssueId: Id<"pilotIssues"> | undefined;
+    if (args.rejectedGrams > 0) {
+      const assignedToUserId = await findPilotIssueOwner(
+        ctx,
+        allocation.programmeId,
+      );
+      qualityIssueId = await ctx.db.insert("pilotIssues", {
+        programmeId: allocation.programmeId,
+        requestId: allocation.requestId,
+        lotId,
+        issueType: "quality_shortfall",
+        status: "open",
+        assignedToUserId,
+        reasonCode: args.reasonCode?.trim() || "inspection_quality_shortfall",
+        summary: `${args.rejectedGrams}g failed the recorded inspection criteria.`,
+        nextStep:
+          "Review the inspection evidence and record a disposition for the rejected quantity.",
+        responsibleCustodian: {
+          kind: "farmer",
+          id: allocation.farmerId,
+          displayNameSnapshot: "Farmer owner",
+        },
+        deadlineAt: now + 24 * 60 * 60 * 1000,
+        evidenceUploadAssetIds: args.evidenceUploadAssetIds,
+        version: 0,
+        createdByUserId: principal._id,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await insertPilotActivityEvent(ctx, {
         programmeId: allocation.programmeId,
         requestId: allocation.requestId,
         entityType: "pilotProcurementLots",
@@ -641,8 +671,9 @@ export const record = mutation({
           },
           {
             audience: "pilot_ops",
+            targetId: assignedToUserId,
             title: "Quality shortfall recorded",
-            detail: `${args.rejectedGrams}g is excluded from cleared supply.`,
+            detail: `${args.rejectedGrams}g is excluded from cleared supply. Review its disposition within 24 hours.`,
           },
           {
             audience: "buyer",
@@ -652,6 +683,7 @@ export const record = mutation({
         ],
         createdAt: now,
       });
+    }
     await completePilotIdempotency(ctx, receipt.receiptId, [
       { entityType: "pilotInspections", entityId: inspectionId },
       { entityType: "pilotProcurementLots", entityId: lotId },
@@ -661,6 +693,9 @@ export const record = mutation({
         entityId,
       })),
       { entityType: "pilotAllocations", entityId: allocation._id },
+      ...(qualityIssueId === undefined
+        ? []
+        : [{ entityType: "pilotIssues" as const, entityId: qualityIssueId }]),
     ]);
     return {
       inspection: inspectionSummary(inspection),
