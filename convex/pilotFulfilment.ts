@@ -1625,4 +1625,35 @@ export const getForRequest = query({
   },
 });
 
+export const listEligibleDrivers = query({
+  args: { programmeId: v.id("pilotProgrammes"), limit: v.number() },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    await requirePlanManager(ctx, principal, args.programmeId);
+    assertAllowed(
+      Number.isSafeInteger(args.limit) && args.limit > 0 && args.limit <= 100,
+      "Driver limit must be from 1 to 100.",
+    );
+    const profiles = await ctx.db.query("transporterProfiles").collect();
+    return profiles
+      .filter(
+        (profile) =>
+          profile.userId !== undefined &&
+          profile.status === "active" &&
+          profile.verificationStatus === "verified",
+      )
+      .slice(0, args.limit)
+      .map((profile) => ({
+        transporterId: profile._id,
+        driverUserId: profile.userId!,
+        fullName: profile.fullName,
+        phoneNumber: profile.phoneNumber,
+        vehicleType: profile.vehicleType,
+        vehicleCapacity: profile.vehicleCapacity,
+        vehicleCapacityUnit: profile.vehicleCapacityUnit,
+        baseLocation: profile.baseLocation,
+      }));
+  },
+});
+
 export { evaluatePlan };
