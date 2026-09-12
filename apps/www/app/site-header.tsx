@@ -1,6 +1,6 @@
 const navLinks = [
   ["How it works", "/#how"],
-  ["For farmers", "/#market"],
+  ["For farmers", "/#people"],
   ["For buyers", "/#people"],
   ["Stories", "/blog"],
 ] as const;

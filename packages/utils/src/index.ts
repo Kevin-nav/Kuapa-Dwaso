@@ -1788,3 +1788,26 @@ export function calculateActualFinancialSummary(input: {
     ]),
   };
 }
+
+export const onboardingIntents = ["request_maize_supply", "sell_maize"] as const;
+export type OnboardingIntent = (typeof onboardingIntents)[number];
+
+export function parseOnboardingIntent(value: unknown): OnboardingIntent | undefined {
+  return typeof value === "string" && onboardingIntents.includes(value as OnboardingIntent)
+    ? value as OnboardingIntent
+    : undefined;
+}
+
+export function onboardingIntentRole(intent: OnboardingIntent | undefined): "buyer" | "farmer" | undefined {
+  return intent === "request_maize_supply" ? "buyer" : intent === "sell_maize" ? "farmer" : undefined;
+}
+
+export function onboardingIntentDestination(intent: OnboardingIntent | undefined): string | undefined {
+  return intent === "request_maize_supply" ? "/buyer/requests/new" : intent === "sell_maize" ? "/farmer/supply" : undefined;
+}
+
+export function onboardingIntentHref(appOrigin: string, intent: OnboardingIntent): string {
+  const url = new URL("/signup", appOrigin);
+  url.searchParams.set("intent", intent);
+  return url.toString();
+}

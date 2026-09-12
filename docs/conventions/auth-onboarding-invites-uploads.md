@@ -10,6 +10,14 @@ Phone-auth users may self-onboard as farmers, buyers, or transporters. Farmer
 profiles can also be created first by warehouse agents and later claimed only by
 a Firebase identity that verifies the same phone number.
 
+Public maize CTAs may carry only the allowlisted `sell_maize` or
+`request_maize_supply` intent through signup. Intent selects explanatory copy
+and the next in-app action; it never grants a role or programme access. Existing
+users are routed from their actual linked profiles. Arbitrary return URLs are
+not accepted. A farmer may create a profile in their real region without an
+active or preferred warehouse; a warehouse is attached only when the user or a
+legitimate warehouse workflow names one.
+
 Warehouse agents do not receive operational access from phone verification
 alone. Their warehouse-agent profile must exist and be approved, and invite
 acceptance only links the Firebase identity to that profile.

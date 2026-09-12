@@ -50,7 +50,7 @@ export default function ProductHomePage() {
     <main className="page-shell">
       <section className="intro">
         <p className="eyebrow">Your marketplace workspace</p>
-        <h1 style={{ fontSize: "2.25rem", color: "var(--color-ink)" }}>KuapaDwaso Warehouse Network</h1>
+        <h1 style={{ fontSize: "2.25rem", color: "var(--color-ink)" }}>Kuapa Dwaso marketplace</h1>
         <p style={{ maxWidth: "480px", margin: "0 auto 32px" }}>
           Create the account that matches your work, or return directly to your own workspace.
         </p>
@@ -79,7 +79,7 @@ export default function ProductHomePage() {
           <div className="button-row" style={{ width: "100%", display: "flex", flexDirection: "column", gap: "12px" }}>
             <Link href="/signup" style={{ width: "100%" }}>
               <button type="button" className="btn btn-primary btn-full">
-                Create an account
+                Create a farmer or buyer account
               </button>
             </Link>
             <div className="auth-route-grid">

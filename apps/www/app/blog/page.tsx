@@ -7,7 +7,7 @@ import { StoryCard } from "./story-card";
 export const metadata: Metadata = {
   title: "Stories & Insights | Kuapa Dwaso",
   description:
-    "Official visits, partnerships, events, and updates from Kuapa Dwaso.",
+    "Field visits, prospective collaboration discussions, events, and pilot updates from Kuapa Dwaso.",
   alternates: { canonical: "/blog" },
   openGraph: {
     title: "Kuapa Dwaso Stories & Insights",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 const categories = [
   ["all", "All stories"],
   ["visits", "Visits"],
-  ["partnerships", "Partnerships"],
+  ["partnerships", "Partnership discussions"],
   ["events", "Events"],
   ["updates", "Updates"],
 ] as const;
@@ -50,7 +50,7 @@ export default async function BlogPage({
             </h1>
           </div>
           <p>
-            Official notes from our warehouse visits, partnerships, community
+            Field notes from market and warehouse visits, prospective partnerships, community
             events, and the work moving Ghanaian produce closer to market.
           </p>
         </header>
@@ -75,7 +75,7 @@ export default async function BlogPage({
               <p className="eyebrow">Stories &amp; Insights</p>
               <h2>Our first field story is being prepared.</h2>
               <p>
-                Come back for official visits, partnerships, events, and Kuapa
+                Come back for field visits, collaboration discussions, events, and Kuapa
                 Dwaso updates.
               </p>
             </div>

@@ -309,16 +309,6 @@ export const createSelfAppFarmerProfile = mutation({
       const region = args.region?.trim();
       assertAllowed(region !== undefined && region.length > 0, "Farmer region is required.");
 
-      const activeWarehousesInRegion = await ctx.db
-        .query("warehouses")
-        .withIndex("by_region_status", (q: any) => q.eq("region", region).eq("status", "active"))
-        .collect();
-
-      assertAllowed(
-        activeWarehousesInRegion.length > 0,
-        "Restricted Region: Onboarding is only available in regions with active warehouses."
-      );
-
       let resolvedWarehouseId = args.preferredWarehouseId;
       if (resolvedWarehouseId !== undefined) {
         const warehouse = await ctx.db.get(resolvedWarehouseId);
@@ -330,8 +320,6 @@ export const createSelfAppFarmerProfile = mutation({
           warehouse.region === region,
           "A warehouse can only accept farmers from the same region."
         );
-      } else {
-        resolvedWarehouseId = activeWarehousesInRegion[0]!._id;
       }
 
       farmerCode = await makeUniqueFarmerCode(ctx, args.community, phoneNumber, now);
@@ -369,7 +357,7 @@ export const createSelfAppFarmerProfile = mutation({
         recipientRole: "farmer",
         channel: "sms",
         title: "Welcome to Kuapa Dwaso",
-        message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Show this code when you bring produce to the warehouse.`,
+        message: `Welcome to Kuapa Dwaso. Your farmer code is ${farmerCode}. Keep this code for assisted support and any future produce record.`,
         messageKind: "transactional",
         templateKey: "generic_notification",
         relatedEntityType: "farmer",

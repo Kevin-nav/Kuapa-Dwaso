@@ -45,13 +45,19 @@ const steps = [
   },
 ] as const;
 
-function getAppAuthHref() {
+function getAppOrigin() {
   const appUrl =
     process.env.PUBLIC_APP_URL ??
     process.env.NEXT_PUBLIC_APP_URL ??
     "https://app.kuapadwaso.com";
 
-  return new URL("/signup", appUrl).toString();
+  return appUrl;
+}
+
+function onboardingIntentHref(appOrigin: string, intent: "request_maize_supply" | "sell_maize") {
+  const url = new URL("/signup", appOrigin);
+  url.searchParams.set("intent", intent);
+  return url.toString();
 }
 
 function getAppLoginHref() {
@@ -68,7 +74,10 @@ export default async function LandingPage({
 }: {
   searchParams: Promise<{ token?: string | string[] }>;
 }) {
-  const appAuthHref = getAppAuthHref();
+  const appOrigin = getAppOrigin();
+  const appAuthHref = new URL("/signup", appOrigin).toString();
+  const farmerHref = onboardingIntentHref(appOrigin, "sell_maize");
+  const buyerHref = onboardingIntentHref(appOrigin, "request_maize_supply");
   const appLoginHref = getAppLoginHref();
   const params = await searchParams;
   const inviteToken =
@@ -78,12 +87,13 @@ export default async function LandingPage({
     <div className="min-h-screen bg-brand-surface text-brand-ink">
       <SiteHeader joinHref={appAuthHref} loginHref={appLoginHref} />
       <main>
-        <HeroSection appAuthHref={appAuthHref} />
+        <HeroSection farmerHref={farmerHref} buyerHref={buyerHref} />
         <PilotNote />
         <PromiseBar />
-        <MarketSection appAuthHref={appAuthHref} />
+        <MarketSection buyerHref={buyerHref} />
         <HowItWorks />
-        <AudienceSection appAuthHref={appAuthHref} />
+        <AudienceSection farmerHref={farmerHref} buyerHref={buyerHref} />
+        <WarehouseProgression />
         <BrandSection />
         <Suspense fallback={<FieldStoriesFallback />}>
           <LatestStories />
@@ -91,14 +101,14 @@ export default async function LandingPage({
         {inviteToken === undefined ? null : (
           <InvitedAccess loginHref={appLoginHref} inviteToken={inviteToken} />
         )}
-        <FinalCta appAuthHref={appAuthHref} />
+        <FinalCta farmerHref={farmerHref} buyerHref={buyerHref} />
       </main>
       <SiteFooter appAuthHref={appAuthHref} />
     </div>
   );
 }
 
-function HeroSection({ appAuthHref }: { appAuthHref: string }) {
+function HeroSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
@@ -121,16 +131,16 @@ function HeroSection({ appAuthHref }: { appAuthHref: string }) {
             <span className="text-[#8ae0a8]">before the produce moves.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
-            Kuapa Dwaso connects buyer demand with farmers who can supply it,
-            then helps make the journey from agreement to delivery clear and
-            dependable.
+            Our first software pilot is for commercial maize buyers and farmers
+            with maize to sell. We record the terms, quality checks, collection,
+            delivery and settlement without requiring a Kuapa Dwaso warehouse.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
-            <a href={appAuthHref} className="btn-primary">
-              I grow produce
+            <a href={buyerHref} className="btn-primary">
+              Request maize supply
             </a>
-            <a href={appAuthHref} className="btn-ghost">
-              I want to buy
+            <a href={farmerHref} className="btn-ghost">
+              I have maize to sell
             </a>
             <a href="#how" className="hero-text-link">
               See how it works
@@ -147,8 +157,9 @@ function PilotNote() {
   return (
     <aside className="border-b border-brand-line bg-brand-gold/15">
       <p className="mx-auto max-w-6xl px-5 py-3 text-center text-sm font-semibold leading-relaxed text-brand-ink sm:px-6">
-        Kuapa Dwaso is in its pilot stage. We are building with a focused group
-        of farmers, buyers, and agricultural partners.
+        Pilot software is ready for controlled demonstrations. Live commercial
+        operations, partner commitments and payment outcomes must be confirmed
+        transaction by transaction.
       </p>
     </aside>
   );
@@ -177,7 +188,7 @@ function PromiseBar() {
   );
 }
 
-function MarketSection({ appAuthHref }: { appAuthHref: string }) {
+function MarketSection({ buyerHref }: { buyerHref: string }) {
   return (
     <section id="market" className="bg-brand-ink py-20 text-white sm:py-24">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
@@ -209,10 +220,10 @@ function MarketSection({ appAuthHref }: { appAuthHref: string }) {
             </div>
           </div>
           <a
-            href={appAuthHref}
+            href={buyerHref}
             className="mt-9 inline-flex items-center gap-2 font-bold text-[#8ae0a8]"
           >
-            Take part in the pilot
+            Request maize supply
             <ArrowIcon />
           </a>
         </div>
@@ -270,7 +281,7 @@ function HowItWorks() {
   );
 }
 
-function AudienceSection({ appAuthHref }: { appAuthHref: string }) {
+function AudienceSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
   return (
     <section
       id="people"
@@ -285,16 +296,16 @@ function AudienceSection({ appAuthHref }: { appAuthHref: string }) {
           <AudienceCard
             number="01"
             title="Farmers"
-            body="Share what you grow and hear about buyer opportunities that fit your produce."
-            linkLabel="Join as a farmer"
-            href={appAuthHref}
+            body="Declare maize that is available, then review the exact quantity, price, quality conditions, purchaser and payment responsibility before accepting an offer."
+            linkLabel="I have maize to sell"
+            href={farmerHref}
           />
           <AudienceCard
             number="02"
             title="Buyers"
-            body="Tell us the crop, quantity, quality, place, and date your business needs."
-            linkLabel="Join as a buyer"
-            href={appAuthHref}
+            body="Commercial buyers can request a maize type, quantity, quality specification, destination and delivery window before any produce is collected."
+            linkLabel="Request maize supply"
+            href={buyerHref}
           />
           <AudienceCard
             number="03"
@@ -303,6 +314,21 @@ function AudienceSection({ appAuthHref }: { appAuthHref: string }) {
             linkLabel="Talk with our team"
             href={officialContactHref}
           />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WarehouseProgression() {
+  return (
+    <section className="bg-brand-ink py-20 text-white sm:py-24">
+      <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
+        <div><p className="eyebrow text-[#8ae0a8]">What comes later</p><h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">Warehouses follow evidence. They do not come first.</h2></div>
+        <div className="grid gap-5 text-white/72 sm:grid-cols-3">
+          <div><strong className="text-white">1 · Prove transactions</strong><p className="mt-2 leading-relaxed">Repeat buyer demand, accepted quality, reliable delivery, payment behaviour and actual costs are recorded first.</p></div>
+          <div><strong className="text-white">2 · Use storage when justified</strong><p className="mt-2 leading-relaxed">Existing partner facilities may be assessed for a specific transaction when storage adds real value.</p></div>
+          <div><strong className="text-white">3 · Invest conditionally</strong><p className="mt-2 leading-relaxed">A future Kuapa Dwaso warehouse depends on proven volume, utilisation, location and sustainable economics. None is currently implied.</p></div>
         </div>
       </div>
     </section>
@@ -447,7 +473,7 @@ function InvitedAccess({
   );
 }
 
-function FinalCta({ appAuthHref }: { appAuthHref: string }) {
+function FinalCta({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="final-cta-pattern absolute inset-0" aria-hidden="true" />
@@ -461,11 +487,11 @@ function FinalCta({ appAuthHref }: { appAuthHref: string }) {
           reach the right market.
         </p>
         <div className="mt-8 grid gap-3 sm:flex sm:justify-center sm:gap-4">
-          <a href={appAuthHref} className="btn-light">
-            I grow produce
+          <a href={buyerHref} className="btn-light">
+            Request maize supply
           </a>
-          <a href={appAuthHref} className="btn-ghost">
-            I want to buy
+          <a href={farmerHref} className="btn-ghost">
+            I have maize to sell
           </a>
         </div>
       </div>
