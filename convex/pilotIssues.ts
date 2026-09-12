@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation, mutation, query } from "./_generated/server";
 import {
+  requirePilotAdminPermission,
   requirePilotCapability,
   requirePilotPrincipal,
 } from "./pilotAccess";
@@ -255,6 +256,21 @@ export const listAssigned = query({
     const rows = args.status === undefined
       ? await ctx.db.query("pilotIssues").withIndex("by_assignee_status", (q) => q.eq("assignedToUserId", principal._id)).collect()
       : await ctx.db.query("pilotIssues").withIndex("by_assignee_status", (q) => q.eq("assignedToUserId", principal._id).eq("status", args.status!)).collect();
+    return rows.sort((a, b) => (a.deadlineAt ?? Number.MAX_SAFE_INTEGER) - (b.deadlineAt ?? Number.MAX_SAFE_INTEGER));
+  },
+});
+
+export const listForProgramme = query({
+  args: {
+    programmeId: v.id("pilotProgrammes"),
+    status: v.optional(v.union(v.literal("open"), v.literal("investigating"), v.literal("awaiting_party"), v.literal("resolved"), v.literal("closed"))),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    await requirePilotAdminPermission(ctx, principal, args.programmeId, "pilotIssues:read");
+    const rows = await ctx.db.query("pilotIssues").withIndex("by_programme_status", (q) =>
+      args.status === undefined ? q.eq("programmeId", args.programmeId) : q.eq("programmeId", args.programmeId).eq("status", args.status),
+    ).collect();
     return rows.sort((a, b) => (a.deadlineAt ?? Number.MAX_SAFE_INTEGER) - (b.deadlineAt ?? Number.MAX_SAFE_INTEGER));
   },
 });

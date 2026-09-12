@@ -310,10 +310,12 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 | `pilotProgrammes.listAvailable` | page args | programmes visible to principal | app, ops, admin; KD-03 |
 | `pilotProgrammes.get` | `programmeId` | safe programme and current configuration state | all portals; KD-02/KD-03 |
 | `pilotProgrammes.create` | programme fields, `idempotencyKey` | `programmeId`, `version` | admin; KD-02/KD-15 |
-| `pilotProgrammes.updateConfiguration` | `programmeId`, typed configuration, `expectedVersion`, `idempotencyKey` | `programmeId`, `version` | admin; KD-15 |
+| `pilotProgrammes.configure` | `programmeId`, typed quality/charge/payment/tax configuration, approval state, `expectedVersion`, `idempotencyKey` | safe programme and new version | admin; KD-15 |
+| `pilotProgrammes.setStatus` | `programmeId`, status, reason, `expectedVersion`, `idempotencyKey` | safe programme and new version | admin; KD-15 |
 | `pilotAssignments.grant` | `programmeId`, `targetUserId`, `capabilities`, optional expiry/invitation, `idempotencyKey` | `assignmentId`, `version` | admin; KD-03/KD-15 |
 | `pilotAssignments.revoke` | `assignmentId`, `expectedVersion`, `reason`, `idempotencyKey` | `assignmentId`, `version` | admin; KD-03/KD-15 |
 | `pilotAssignments.list` | page args, status | safe assignments | admin; KD-03/KD-15 |
+| `pilotAssignments.listCandidates` | `programmeId` | active admins and approved operators, including zero-warehouse operators | admin; KD-15 |
 | `uploads:createPending` | existing args plus pilot purpose and related entity | upload ID and provider input | all authorized actors through API; KD-03 |
 | `uploads:complete` | existing completion args | upload ID and status | all authorized actors through API; KD-03 |
 | `uploads:getReadableObject` | upload ID, authenticated principal from API | authorized object descriptor or null | all portals through API; KD-03 |
@@ -390,6 +392,7 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 | `pilotFinance.reverseEntry` | entry ID, reason, evidence, idempotency key | compensating entry | finance admin; KD-09 |
 | `pilotFinance.getRequestStatement` | request ID | actor-safe statement and completeness | buyer/farmer/finance; KD-09/KD-11/KD-12/KD-15 |
 | `pilotFinance.getProgrammeSummary` | page/date/basis filters | separated actual/estimate totals | finance/admin; KD-15 |
+| `pilotFinance.listPurchaseApprovalQueue` | `programmeId` | current accepted purchase offers and reservation state | finance/admin; KD-15 |
 
 `pilotProcurement.acceptCollectionPurchase` is one Convex transaction. It authenticates the principal; checks assignment, request mode, current accepted offer and inspection revisions, quality, quantities, title, custody, approval, reservation expiry, budget versions, and capacity; consumes the reservation into committed capacity; records collection and Kuapa title; creates the farmer payable once; inserts the activity event; and completes the idempotency record. Any failure rolls back every write. It calls no provider.
 
@@ -401,6 +404,7 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 | `pilotIssues.open` | request/lot/plan refs, type, summary, evidence, idempotency key | issue ID/version | authorized actor; KD-10 |
 | `pilotIssues.resolve` | issue ID, resolution/evidence, expected version, idempotency key | issue and affected projections | scoped ops/admin; KD-10 |
 | `pilotIssues.listAssigned` | page args/status/deadline | safe issue list | ops/admin; KD-10/KD-13/KD-15 |
+| `pilotIssues.listForProgramme` | programme and optional status | programme-scoped operational exceptions | admin; KD-15 |
 | `pilotNotifications.enqueueForEvent` | internal event ID | notification IDs | domain mutations; KD-10 |
 | `pilotDemo.seedDataset` | guarded deployment, programme/scenario/checkpoint, supplied clock, idempotency key | dataset ID/checkpoint | test-utils only; KD-17 |
 | `pilotDemo.resetDataset` | guarded deployment, exact dataset ID, idempotency key | deleted counts and reset checkpoint | test-utils only; KD-17 |

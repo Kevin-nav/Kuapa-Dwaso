@@ -33,6 +33,7 @@ import {
   Bell,
   Newspaper,
   CalendarDays,
+  Wheat,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -152,6 +153,7 @@ export function AdminShell({
       title: "Operations",
       items: [
         { label: "Overview", href: "/", icon: LayoutDashboard },
+        { label: "Maize Pilot", href: "/pilot", icon: Wheat },
         { label: "Inventory", href: "/inventory", icon: Boxes },
         { label: "Orders", href: "/orders", icon: ShoppingBag },
         { label: "Sales", href: "/sales", icon: DollarSign },

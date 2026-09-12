@@ -297,3 +297,24 @@ export const list = query({
     };
   },
 });
+
+export const listCandidates = query({
+  args: { programmeId: v.id("pilotProgrammes") },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    await requirePilotAdminPermission(ctx, principal, args.programmeId, "pilotAssignments:read");
+    const users = await ctx.db.query("users").collect();
+    const candidates = [];
+    for (const user of users) {
+      if (user.status !== "active" || (user.role !== "admin" && user.role !== "warehouse_agent")) continue;
+      if (user.role === "warehouse_agent") {
+        const profile = await ctx.db.query("warehouseAgents").withIndex("by_user", (q) => q.eq("userId", user._id)).unique();
+        if (profile === null || profile.status !== "approved") continue;
+        candidates.push({ userId: user._id, name: profile.fullName, identityKind: "warehouse_agent" as const, warehouseCount: profile.assignedWarehouseIds.length });
+      } else {
+        candidates.push({ userId: user._id, name: user.email ?? user.phoneNumber ?? `Admin ${String(user._id).slice(-8)}`, identityKind: "admin" as const, warehouseCount: 0 });
+      }
+    }
+    return candidates.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
