@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { getIdToken } from "firebase/auth";
@@ -421,6 +421,19 @@ function InvitesPanel({
   const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("totp_required");
   const [isWorking, setIsWorking] = useState(false);
   const [manualInviteUrl, setManualInviteUrl] = useState<string>();
+  const pilotProgrammes = useQuery(api.pilotProgrammes.listAvailable, { limit: 50 }) as { page: Array<{ id: Id<"pilotProgrammes">; name: string; datasetProvenance: "live" | "sample_only" }> } | undefined;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("type") !== "pilot_operations_invite") return;
+    const timeout = window.setTimeout(() => {
+      setType("pilot_operations_invite");
+      setChannel("manual_link");
+      setMfaRequirement("not_required");
+      setPilotProgrammeId(params.get("pilotProgrammeId") ?? "");
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   const allowedChannels = useMemo<InvitationChannel[]>(() => {
     if (type === "admin_invite" || type === "warehouse_manager_invite") {
@@ -521,7 +534,7 @@ function InvitesPanel({
         )}
         {type === "pilot_operations_invite" && (
           <>
-            <Field label="Pilot programme ID"><input value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle} /></Field>
+            <Field label="Pilot programme"><select value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle}><option value="">Select programme</option>{(pilotProgrammes?.page ?? []).map((programme) => <option key={programme.id} value={programme.id}>{programme.name} · {programme.datasetProvenance === "sample_only" ? "SAMPLE" : "LIVE"}</option>)}</select></Field>
             <Field label="Approved operations profile ID"><input value={linkedProfileId} onChange={(event) => setLinkedProfileId(event.target.value)} required style={inputStyle} /></Field>
           </>
         )}

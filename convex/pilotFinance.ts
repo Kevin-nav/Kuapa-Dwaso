@@ -491,12 +491,14 @@ export const reserveFunding = mutation({
       Number.isSafeInteger(args.expiresAt) && args.expiresAt > now,
       "Funding reservation expiry must be in the future.",
     );
-    const [request, agreement, revision] = await Promise.all([
+    const [programme, request, agreement, revision] = await Promise.all([
+      ctx.db.get(budget.programmeId),
       ctx.db.get(args.requestId),
       ctx.db.get(args.buyerAgreementRevisionId),
       ctx.db.get(args.farmerOfferRevisionId),
     ]);
     assertAllowed(
+      programme !== null &&
       request !== null &&
         agreement !== null &&
         revision !== null &&
@@ -510,6 +512,18 @@ export const reserveFunding = mutation({
         revision.buyerAgreementRevisionId === agreement._id &&
         revision.commercialMode === "kuapa_purchase",
       "Funding reservation requires matching current purchase terms.",
+    );
+    assertAllowed(
+      programme.datasetProvenance === "sample_only" ||
+        programme.commercialConfigurationStatus === "approved",
+      "Live procurement requires approved commercial configuration.",
+    );
+    const requestedExposurePesewas =
+      args.produceAmountPesewas + args.knownCostAmountPesewas;
+    assertAllowed(
+      programme.currentCommercialConfiguration?.purchaseLimitPesewas === undefined ||
+        requestedExposurePesewas <= programme.currentCommercialConfiguration.purchaseLimitPesewas,
+      "Purchase exposure exceeds the approved per-reservation limit.",
     );
     const offer = await ctx.db.get(revision.offerId);
     assertAllowed(
@@ -2625,6 +2639,48 @@ async function getProgrammeSummaryHandler(
 export const getFinanceOverview = query({
   args: { programmeId: v.id("pilotProgrammes") },
   handler: getProgrammeSummaryHandler,
+});
+
+export const listPurchaseApprovalQueue = query({
+  args: { programmeId: v.id("pilotProgrammes") },
+  handler: async (ctx, args) => {
+    await requireFinance(ctx, args.programmeId, "pilotFinance:read");
+    const [requests, offers, revisions, reservations] = await Promise.all([
+      ctx.db.query("pilotBuyerRequests").withIndex("by_programme_status", (q) => q.eq("programmeId", args.programmeId)).collect(),
+      ctx.db.query("pilotFarmerOffers").collect(),
+      ctx.db.query("pilotFarmerOfferRevisions").withIndex("by_request_created_at").collect(),
+      ctx.db.query("pilotFundingReservations").withIndex("by_request_status").collect(),
+    ]);
+    const requestById = new Map(requests.map((request) => [request._id, request]));
+    const revisionById = new Map(revisions.map((revision) => [revision._id, revision]));
+    const activeReservationRevisionIds = new Set(
+      reservations
+        .filter((reservation) => reservation.programmeId === args.programmeId && ["active", "partly_consumed"].includes(reservation.status))
+        .map((reservation) => reservation.farmerOfferRevisionId),
+    );
+    const page = [];
+    for (const offer of offers) {
+      if (offer.programmeId !== args.programmeId || offer.commercialMode !== "kuapa_purchase" || offer.status !== "accepted" || offer.acceptedRevisionId === undefined) continue;
+      const request = requestById.get(offer.requestId);
+      const revision = revisionById.get(offer.acceptedRevisionId);
+      if (request === undefined || revision === undefined || request.currentAgreementRevisionId !== revision.buyerAgreementRevisionId) continue;
+      const agreement = await ctx.db.get(revision.buyerAgreementRevisionId);
+      if (agreement === null || agreement.state !== "acknowledged") continue;
+      const farmer = await ctx.db.get(offer.farmerId);
+      page.push({
+        requestId: request._id,
+        requestStatus: request.status,
+        buyerAgreementRevisionId: agreement._id,
+        farmerOfferRevisionId: revision._id,
+        farmerName: farmer?.fullName ?? "Farmer",
+        offeredGrams: revision.offeredGrams,
+        expectedNetPesewas: revision.expectedNetPesewas,
+        expiresAt: revision.expiresAt,
+        approvalStatus: activeReservationRevisionIds.has(revision._id) ? ("approved" as const) : ("awaiting_approval" as const),
+      });
+    }
+    return page.sort((a, b) => a.expiresAt - b.expiresAt);
+  },
 });
 
 export const getProgrammeSummary = query({

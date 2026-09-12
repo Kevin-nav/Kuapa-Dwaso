@@ -2,6 +2,13 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import {
+  assertExpectedVersion,
+  assertPilotChargeTerm,
+  assertPilotMaizeSpecification,
+  assertPilotMoneyPesewas,
+  assertPilotPaymentTerm,
+} from "@kuapa-dwaso/validators/pilot";
+import {
   adminAccessHasPermissionForScope,
   cleanOptionalText,
   getEffectiveAdminAccess,
@@ -12,6 +19,39 @@ import {
   requirePilotPrincipal,
   requirePilotAssignment,
 } from "./pilotAccess";
+import {
+  beginPilotIdempotency,
+  completePilotIdempotency,
+  replayEntityId,
+} from "./pilotIdempotency";
+import { insertPilotActivityEvent } from "./pilotActivity";
+
+const rate = v.object({
+  numerator: v.number(),
+  scale: v.number(),
+  unit: v.union(v.literal("per_kg"), v.literal("percent"), v.literal("fixed")),
+});
+const chargeTerm = v.object({
+  code: v.string(),
+  label: v.string(),
+  payer: v.union(v.literal("buyer"), v.literal("farmer"), v.literal("kuapa_dwaso")),
+  calculation: v.union(v.literal("fixed"), v.literal("per_kg"), v.literal("percent_of_produce")),
+  rate,
+});
+const paymentTerm = v.object({
+  trigger: v.union(v.literal("buyer_acceptance"), v.literal("cleared_buyer_funds"), v.literal("purchase_collection_acceptance"), v.literal("fixed_date")),
+  offsetCalendarDays: v.number(),
+  fixedDueAt: v.optional(v.number()),
+  timezone: v.literal("Africa/Accra"),
+});
+const maizeSpecification = v.object({
+  maizeType: v.string(),
+  moistureMaximumPermille: v.optional(v.number()),
+  contaminationCheckRequired: v.boolean(),
+  additionalCriteria: v.array(v.object({ code: v.string(), label: v.string(), required: v.boolean() })),
+  policyProvenance: v.union(v.literal("live"), v.literal("sample_only")),
+});
+const termClause = v.object({ code: v.string(), label: v.string(), detail: v.string() });
 
 function pageLimit(limit: number): number {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
@@ -41,6 +81,7 @@ function safeProgramme(programme: Doc<"pilotProgrammes">) {
     status: programme.status,
     datasetProvenance: programme.datasetProvenance,
     commercialConfigurationStatus: programme.commercialConfigurationStatus,
+    currentCommercialConfiguration: programme.currentCommercialConfiguration,
     demoContext: {
       programmeId: programme._id,
       programmeName: programme.name,
@@ -181,6 +222,130 @@ export const create = mutation({
       updatedAt: now,
     });
     return { programmeId, version: 0 };
+  },
+});
+
+export const configure = mutation({
+  args: {
+    programmeId: v.id("pilotProgrammes"),
+    configurationStatus: v.union(v.literal("draft"), v.literal("approved")),
+    qualityPolicy: maizeSpecification,
+    chargeTerms: v.array(chargeTerm),
+    paymentTerms: v.array(paymentTerm),
+    purchaseLimitPesewas: v.optional(v.number()),
+    taxTerms: v.array(termClause),
+    approvalReferences: v.array(v.string()),
+    expectedVersion: v.number(),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const programme = await ctx.db.get(args.programmeId);
+    if (programme === null) throw new Error("Pilot programme was not found.");
+    await requireAdminPermission(ctx, principal._id, "pilotProgrammes:manage", pilotProgrammeScopeTarget(programme._id));
+    const receipt = await beginPilotIdempotency(ctx, {
+      programmeId: programme._id,
+      actorUserId: principal._id,
+      operationName: "pilotProgrammes.configure",
+      idempotencyKey: args.idempotencyKey,
+      requestHash: JSON.stringify(args),
+    });
+    if (receipt.kind === "replay") {
+      const replayed = await ctx.db.get(replayEntityId<"pilotProgrammes">(receipt.receipt, "pilotProgrammes"));
+      if (replayed === null) throw new Error("Programme configuration replay was not found.");
+      return safeProgramme(replayed);
+    }
+    assertExpectedVersion(args.expectedVersion);
+    if (programme.version !== args.expectedVersion) throw new Error("Pilot programme changed. Refresh and retry.");
+    assertPilotMaizeSpecification(args.qualityPolicy);
+    if (args.qualityPolicy.policyProvenance !== programme.datasetProvenance)
+      throw new Error("Quality policy provenance must match the programme.");
+    if (args.chargeTerms.length === 0 || args.paymentTerms.length === 0)
+      throw new Error("At least one charge term and payment term are required.");
+    args.chargeTerms.forEach(assertPilotChargeTerm);
+    args.paymentTerms.forEach(assertPilotPaymentTerm);
+    if (args.purchaseLimitPesewas !== undefined) assertPilotMoneyPesewas(args.purchaseLimitPesewas, "purchaseLimitPesewas");
+    const approvalReferences = [...new Set(args.approvalReferences.map((item) => item.trim()).filter(Boolean))];
+    if (args.configurationStatus === "approved" && approvalReferences.length === 0)
+      throw new Error("Approved commercial configuration requires an approval reference.");
+    for (const clause of args.taxTerms) {
+      if (!clause.code.trim() || !clause.label.trim() || !clause.detail.trim())
+        throw new Error("Tax terms require a code, label, and detail.");
+    }
+    const now = Date.now();
+    await ctx.db.patch(programme._id, {
+      commercialConfigurationStatus: args.configurationStatus,
+      currentCommercialConfiguration: {
+        qualityPolicy: args.qualityPolicy,
+        chargeTerms: args.chargeTerms,
+        paymentTerms: args.paymentTerms,
+        ...(args.purchaseLimitPesewas === undefined ? {} : { purchaseLimitPesewas: args.purchaseLimitPesewas }),
+        taxTerms: args.taxTerms,
+        approvalReferences,
+      },
+      version: programme.version + 1,
+      updatedAt: now,
+    });
+    await insertPilotActivityEvent(ctx, {
+      programmeId: programme._id,
+      entityType: "pilotProgrammes",
+      entityId: programme._id,
+      entityRevision: programme.version + 1,
+      eventName: args.configurationStatus === "approved" ? "pilot.programme.configuration_approved" : "pilot.programme.configuration_saved",
+      actorUserId: principal._id,
+      recipientViews: [{ audience: "admin", title: "Pilot commercial configuration updated", detail: `${programme.name} is ${args.configurationStatus}.` }],
+      createdAt: now,
+    });
+    await completePilotIdempotency(ctx, receipt.receiptId, [{ entityType: "pilotProgrammes", entityId: programme._id }]);
+    return safeProgramme((await ctx.db.get(programme._id))!);
+  },
+});
+
+export const setStatus = mutation({
+  args: {
+    programmeId: v.id("pilotProgrammes"),
+    status: v.union(v.literal("draft"), v.literal("active"), v.literal("suspended"), v.literal("closed")),
+    expectedVersion: v.number(),
+    reason: v.string(),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const programme = await ctx.db.get(args.programmeId);
+    if (programme === null) throw new Error("Pilot programme was not found.");
+    await requireAdminPermission(ctx, principal._id, "pilotProgrammes:manage", pilotProgrammeScopeTarget(programme._id));
+    const receipt = await beginPilotIdempotency(ctx, {
+      programmeId: programme._id,
+      actorUserId: principal._id,
+      operationName: "pilotProgrammes.setStatus",
+      idempotencyKey: args.idempotencyKey,
+      requestHash: JSON.stringify(args),
+    });
+    if (receipt.kind === "replay") {
+      const replayed = await ctx.db.get(replayEntityId<"pilotProgrammes">(receipt.receipt, "pilotProgrammes"));
+      if (replayed === null) throw new Error("Programme status replay was not found.");
+      return safeProgramme(replayed);
+    }
+    assertExpectedVersion(args.expectedVersion);
+    if (programme.version !== args.expectedVersion) throw new Error("Pilot programme changed. Refresh and retry.");
+    if (!args.reason.trim()) throw new Error("A programme status reason is required.");
+    if (args.status === "active" && programme.commercialConfigurationStatus !== "approved")
+      throw new Error("Approve the commercial configuration before enabling procurement.");
+    const now = Date.now();
+    await ctx.db.patch(programme._id, { status: args.status, version: programme.version + 1, updatedAt: now });
+    await insertPilotActivityEvent(ctx, {
+      programmeId: programme._id,
+      entityType: "pilotProgrammes",
+      entityId: programme._id,
+      entityRevision: programme.version + 1,
+      eventName: `pilot.programme.${args.status}`,
+      actorUserId: principal._id,
+      reasonCode: args.reason.trim(),
+      recipientViews: [{ audience: "admin", title: `Pilot programme ${args.status}`, detail: args.reason.trim() }],
+      createdAt: now,
+    });
+    await completePilotIdempotency(ctx, receipt.receiptId, [{ entityType: "pilotProgrammes", entityId: programme._id }]);
+    return safeProgramme((await ctx.db.get(programme._id))!);
   },
 });
 
