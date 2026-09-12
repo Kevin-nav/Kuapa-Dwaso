@@ -29,21 +29,21 @@ type AudienceConfig = {
 const audienceConfig: Record<LoginAudience, AudienceConfig> = {
   farmer: {
     eyebrow: "Farmer login",
-    title: "See your produce, receipts, and payments.",
+    title: "See maize offers, collection, and payment records.",
     description: "Enter the phone number connected to your farmer records. We will send a secure code by SMS.",
     successPath: "/farmer",
     missingProfileText: "We could not find a farmer profile for this phone number yet.",
     icon: Sprout,
-    trustItems: ["Storage receipts", "Daily fee visibility", "Sale and payment updates"],
+    trustItems: ["Maize offer terms", "Collection instructions", "Sale and payment updates"],
   },
   buyer: {
     eyebrow: "Buyer login",
-    title: "Continue buying verified warehouse stock.",
-    description: "Use the phone number on your buyer profile to continue orders and reservations.",
+    title: "Continue your maize request.",
+    description: "Use the phone number on your buyer profile to review sourcing, terms, delivery, and payment records.",
     successPath: "/buyer",
     missingProfileText: "We could not find a buyer profile for this phone number yet.",
     icon: Search,
-    trustItems: ["Verified stock", "Order status", "Dispatch updates"],
+    trustItems: ["Requested versus confirmed supply", "Quality-cleared lots", "Delivery and payment status"],
   },
   transporter: {
     eyebrow: "Transporter login",

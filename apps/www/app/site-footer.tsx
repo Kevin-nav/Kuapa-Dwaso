@@ -22,8 +22,8 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
             title="Product"
             links={[
               ["How it works", "/#how"],
-              ["For farmers", "/#market"],
-              ["For buyers", "/#market"],
+              ["For farmers", "/#people"],
+              ["For buyers", "/#people"],
               ["For partners", "/#people"],
             ]}
           />

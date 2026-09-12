@@ -3,7 +3,7 @@ import type { PublicBlogPost } from "./data";
 
 const categoryNames = {
   visits: "Field visit",
-  partnerships: "Partnership",
+  partnerships: "Partnership discussion",
   events: "Event",
   updates: "Update",
 } as const;

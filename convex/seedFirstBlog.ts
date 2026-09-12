@@ -61,6 +61,11 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       ],
     },
     {
+      id: "editorial-update-2026-09-12",
+      type: "paragraph",
+      content: [{ text: "Editorial update — 12 September 2026: this story preserves what we learned during the visits. Kuapa Dwaso's first software pilot now starts with commercial maize demand and verified farmer supply; it does not depend on a Kuapa Dwaso-operated warehouse. Any future storage or warehouse investment remains conditional on transaction evidence." }],
+    },
+    {
       id: "long-road-heading",
       type: "heading2",
       content: [{ text: "The long road to market" }],
@@ -151,7 +156,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Those lessons now shape how Kuapa Dwaso works. Farmers deposit produce at participating community warehouses instead of carrying it blindly to a city market. At intake, a warehouse agent weighs, grades, photographs, and records each batch, then provides a storage receipt that makes ownership, quantity, status, and applicable fees clear.",
+          text: "Those lessons now shape the maize pilot we are preparing. A commercial buyer records a requirement first. Farmers can then declare matching maize, review the exact offer, and decide before collection. Quality, quantity, custody, delivery, payment obligations, and settlement stay visible without requiring a warehouse row.",
         },
       ],
     },
@@ -160,7 +165,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Traders and bulk buyers order from verified warehouse stock before a published cutoff for a dated market run. Confirmed orders are aggregated and prepared for scheduled delivery to selected destinations. This does not remove every agricultural risk, but it replaces an improvised city-market journey with a visible process and a local point of accountability.",
+          text: "Commercial buyers request a maize type, quantity, quality specification, destination, delivery window, and payment expectation. Confirmed farmer offers are quality checked and combined only for that requirement. This does not remove every agricultural risk, but it replaces an improvised city-market journey with a visible transaction and named responsibility.",
         },
       ],
     },
@@ -183,7 +188,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Buyers need confidence that the quantity exists, the quality matches what was recorded, and delivery will happen on the published day. Farmers need clear records, visible sale status, transparent fees, and confidence that confirmed orders will follow an accountable path through preparation, dispatch, and payment.",
+          text: "Buyers need confidence that committed quantity passes the agreed quality checks and reaches the named destination in the agreed window. Farmers need readable offers, transparent deductions, collection records, and evidence of any payment made. The pilot software records those stages separately; it does not claim that a payment succeeded before reconciliation.",
         },
       ],
     },
@@ -225,7 +230,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "We will keep testing this assumption as the warehouse network reaches new communities. If the evidence shows a real need for USSD or another offline channel, we will build it from observed use rather than from assumptions made in a planning meeting.",
+          text: "We will keep testing this assumption as the pilot reaches participating communities. If the evidence shows a real need for USSD or another offline channel, we will build it from observed use rather than from assumptions made in a planning meeting.",
         },
       ],
     },
@@ -273,7 +278,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
         ],
         [
           {
-            text: "Buyer orders should close against published cutoffs and dated delivery runs.",
+            text: "Commercial buyer requirements should be explicit before farmer offers or collection plans are confirmed.",
           },
         ],
         [
@@ -298,7 +303,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
         ],
         [
           {
-            text: "The product must keep learning from real warehouse activity and market transactions.",
+            text: "Future storage and warehouse decisions must follow evidence from real transactions, not registration counts or projections.",
           },
         ],
       ],
@@ -346,7 +351,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "These visits did not answer every question. What they did was hand us better ones: Which crops have dependable demand? What quantity makes a delivery run worthwhile? Which quality standards decide whether produce is accepted? How can warehouse records and payment updates earn trust over time?",
+          text: "These visits did not answer every question. What they did was hand us better ones: Which buyers have dependable maize demand? What quantity makes a collection and delivery worthwhile? Which quality standards decide whether produce is accepted? How can custody and payment records earn trust over time?",
         },
       ],
     },
@@ -423,6 +428,8 @@ export const seed = internalMutation({
     actorUserId: v.optional(v.id("users")),
     dryRun: v.optional(v.boolean()),
     siteUrl: v.optional(v.string()),
+    expectedExistingId: v.optional(v.id("blogPosts")),
+    expectedExistingUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const origin = publicSiteOrigin(args.siteUrl);
@@ -433,8 +440,11 @@ export const seed = internalMutation({
     const action = existing === null ? "insert" : "update";
 
     if (args.dryRun === true) {
-      return { action: `would-${action}`, slug, siteUrl: origin };
+      return { action: `would-${action}`, slug, siteUrl: origin, blogPostId: existing?._id, currentUpdatedAt: existing?.updatedAt };
     }
+
+    if (existing !== null && (args.expectedExistingId !== existing._id || args.expectedExistingUpdatedAt !== existing.updatedAt))
+      throw new Error("Existing story changed. Run the dry-run again and pass its exact blogPostId and currentUpdatedAt.");
 
     const actor = await resolveActor(ctx, args.actorUserId);
     const now = Date.now();
@@ -443,7 +453,7 @@ export const seed = internalMutation({
         "Listening Before Building: What Farmers and Traders in Tarkwa Taught Us",
       slug,
       excerpt:
-        "Two visits to a Tarkwa market revealed the risks farmers carry and helped shape Kuapa Dwaso's community-warehouse model, verified inventory, and scheduled delivery approach.",
+        "Two Tarkwa market visits revealed the risks farmers carry and helped shape Kuapa Dwaso's demand-led maize pilot, transparent terms, quality checks, and accountable delivery approach.",
       category: "visits" as const,
       status: "published" as const,
       content: storyContent(origin),
