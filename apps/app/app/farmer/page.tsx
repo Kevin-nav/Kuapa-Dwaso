@@ -121,7 +121,7 @@ export default function FarmerDashboard() {
       </div>
 
       <section className="pilot-farmer-callout">
-        <div><span className="pilot-buyer-kicker">Maize pilot</span><h2>Have maize ready to sell?</h2><p>Declare the quantity and location. No warehouse selection is required, and you approve the full offer before collection.</p></div>
+        <div><span className="pilot-buyer-kicker">Maize</span><h2>Have maize ready to sell?</h2><p>Declare the quantity and location. No warehouse selection is required, and you approve the full offer before collection.</p></div>
         <Link className="btn btn-primary" href="/farmer/supply"><Sprout size={18} /> Declare maize supply</Link>
         <Link className="pilot-inline-link" href="/farmer/offers">Open my offer inbox <ChevronRight size={16} /></Link>
       </section>

@@ -66,7 +66,7 @@ export default function BuyerRequestsPage() {
       {programmes !== undefined && programme === undefined ? (
         <section className="pilot-buyer-empty">
           <PackageSearch size={32} />
-          <h2>No active pilot is available</h2>
+          <h2>No active programme is available</h2>
           <p>Your profile is ready. An administrator still needs to enable a maize programme for buyers.</p>
         </section>
       ) : null}

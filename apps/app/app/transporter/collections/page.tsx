@@ -24,8 +24,8 @@ export default function DriverCollectionsPage() {
 
   return (
     <div className="driver-page">
-      <header className="driver-page-head"><p className="eyebrow">Demand-led maize pilot</p><h1>Collection jobs</h1><p>Only routes assigned to your verified driver account appear here.</p></header>
-      {jobs === undefined ? <div className="skeleton" style={{ minHeight: 280, borderRadius: 20 }} /> : jobs.page.length === 0 ? <div className="driver-empty"><Truck size={30} /><h2>No pilot collection assigned</h2><p>Warehouse dispatches remain available in the separate Dispatches tab.</p></div> : (
+      <header className="driver-page-head"><p className="eyebrow">Demand-led maize sourcing</p><h1>Collection jobs</h1><p>Only routes assigned to your verified driver account appear here.</p></header>
+      {jobs === undefined ? <div className="skeleton" style={{ minHeight: 280, borderRadius: 20 }} /> : jobs.page.length === 0 ? <div className="driver-empty"><Truck size={30} /><h2>No collection assigned</h2><p>Warehouse dispatches remain available in the separate Dispatches tab.</p></div> : (
         <div className="driver-job-list">
           {jobs.page.map((job) => (
             <Link key={job.planId} href={`/transporter/collections/${job.planId}`} className="driver-job-card">

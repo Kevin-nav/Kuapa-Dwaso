@@ -143,7 +143,7 @@ export default function TransporterDashboard() {
 
       <div className="summary-strip">
         <div className="summary-card" style={{ borderLeftColor: "var(--color-primary)" }}>
-          <span className="summary-label">Pilot Collections</span>
+          <span className="summary-label">Collections</span>
           <span className="summary-value">{activePilotJobs.length}</span>
         </div>
         <div className="summary-card">
@@ -158,12 +158,12 @@ export default function TransporterDashboard() {
 
       <div>
         <div className="section-title-row">
-          <h2 className="section-title">Maize pilot collections</h2>
+          <h2 className="section-title">Maize collections</h2>
           <Link href="/transporter/collections" className="section-link">See all</Link>
         </div>
         <div className="compact-list" style={{ marginTop: "8px" }}>
           {activePilotJobs.length === 0 ? (
-            <div className="compact-row"><div className="row-info"><span className="row-title">No pilot route assigned</span><span className="row-subtitle">Verified driver assignments will appear here.</span></div></div>
+            <div className="compact-row"><div className="row-info"><span className="row-title">No route assigned</span><span className="row-subtitle">Verified driver assignments will appear here.</span></div></div>
           ) : activePilotJobs.slice(0, 3).map((job) => (
             <Link href={`/transporter/collections/${job.planId}`} key={job.planId} className="compact-row">
               <div className="row-left"><div className="row-icon-wrapper"><Truck size={18} /></div><div className="row-info"><span className="row-title">{(job.plannedGrams / 1_000).toLocaleString()} kg to {job.destination.label}</span><span className="row-subtitle">{job.programmeName} · {job.completedStops}/{job.totalStops} stops · {formatDate(job.collectionWindowStartAt)}{job.dataMode === "sample_only" ? " · SAMPLE" : ""}</span></div></div>

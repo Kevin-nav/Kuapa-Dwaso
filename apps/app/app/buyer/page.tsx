@@ -128,7 +128,7 @@ export default function BuyerDashboard() {
       </div>
 
       <section className="pilot-buyer-hero">
-        <span className="pilot-buyer-kicker">Maize pilot</span>
+        <span className="pilot-buyer-kicker">Maize</span>
         <h1>Request supply before stock moves</h1>
         <p>Start with demand. We will show sourced, quality-cleared, and delivered quantities separately.</p>
         <Link className="btn btn-primary" href="/buyer/requests/new"><Sprout size={19} /> Request maize supply</Link>

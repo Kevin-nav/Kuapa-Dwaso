@@ -10,7 +10,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "KuapaDwaso Ops",
-  description: "Demand-led maize pilot and warehouse operations console.",
+  description: "Demand-led maize programme and warehouse operations console.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "KD Warehouse", statusBarStyle: "default" },
   icons: { apple: "/pwa/apple-touch-icon.png" },
