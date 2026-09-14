@@ -427,7 +427,7 @@ async function invalidateSupplyForAgreement(
           reservation.status !== "active" &&
           reservation.status !== "partly_consumed",
       ),
-      "Funded purchase terms require cancellation and finance resolution.",
+      "Funded farmer terms require cancellation and finance resolution.",
     );
   }
   const offerIds = new Set(
@@ -1465,7 +1465,10 @@ export const getOperationsReadiness = query({
       requestId: request._id,
       programmeId: request.programmeId,
       buyerName:
-        buyer?.organizationName ?? buyer?.displayName ?? buyer?.fullName ?? "Buyer",
+        buyer?.organizationName ??
+        buyer?.displayName ??
+        buyer?.fullName ??
+        "Buyer",
       commercialMode: request.commercialMode,
       configurationStatus: programme.commercialConfigurationStatus,
       targetGrams,
@@ -1491,6 +1494,22 @@ export const getOperationsReadiness = query({
             : activeReservations.length > 0
               ? ("approved" as const)
               : ("missing" as const),
+        reservedPesewas: activeReservations.reduce(
+          (total, reservation) =>
+            total +
+            reservation.produceAmountPesewas +
+            reservation.knownCostAmountPesewas -
+            reservation.consumedPesewas -
+            reservation.releasedPesewas,
+          0,
+        ),
+      },
+      settlementFunding: {
+        required: true,
+        status:
+          activeReservations.length > 0
+            ? ("reserved" as const)
+            : ("missing" as const),
         reservedPesewas: activeReservations.reduce(
           (total, reservation) =>
             total +

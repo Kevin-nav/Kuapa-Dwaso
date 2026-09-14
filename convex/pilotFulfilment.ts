@@ -218,61 +218,56 @@ async function financialReleaseSatisfied(
   agreement: Doc<"pilotBuyerAgreementRevisions">,
   lots: Doc<"pilotProcurementLots">[],
 ) {
-  if (request.commercialMode === "kuapa_purchase") {
-    const requiredByRevision = new Map<
-      Id<"pilotFarmerOfferRevisions">,
-      number
-    >();
-    for (const lot of lots) {
-      if (lot.titleOwnerKind === "kuapa_dwaso") continue;
-      requiredByRevision.set(
-        lot.offerRevisionId,
-        (requiredByRevision.get(lot.offerRevisionId) ?? 0) + lot.sourceGrams,
-      );
-    }
-    for (const [revisionId, grams] of requiredByRevision) {
-      const revision = await ctx.db.get(revisionId);
-      if (
-        revision === null ||
-        revision.buyerAgreementRevisionId !== agreement._id
+  const requiredByRevision = new Map<Id<"pilotFarmerOfferRevisions">, number>();
+  for (const lot of lots) {
+    if (lot.titleOwnerKind === "kuapa_dwaso") continue;
+    requiredByRevision.set(
+      lot.offerRevisionId,
+      (requiredByRevision.get(lot.offerRevisionId) ?? 0) + lot.sourceGrams,
+    );
+  }
+  for (const [revisionId, grams] of requiredByRevision) {
+    const revision = await ctx.db.get(revisionId);
+    if (
+      revision === null ||
+      revision.buyerAgreementRevisionId !== agreement._id ||
+      revision.commercialMode !== request.commercialMode
+    )
+      return false;
+    const requiredPesewas = calculatePilotOfferAmounts({
+      offeredGrams: grams,
+      priceRate: revision.priceRate,
+      chargeTerms: revision.chargeTerms,
+    }).expectedNetPesewas;
+    const reservations = await ctx.db
+      .query("pilotFundingReservations")
+      .withIndex("by_offer_revision", (q) =>
+        q.eq("farmerOfferRevisionId", revisionId),
       )
-        return false;
-      const requiredPesewas = calculatePilotOfferAmounts({
-        offeredGrams: grams,
-        priceRate: revision.priceRate,
-        chargeTerms: revision.chargeTerms,
-      }).expectedNetPesewas;
-      const reservations = await ctx.db
-        .query("pilotFundingReservations")
-        .withIndex("by_offer_revision", (q) =>
-          q.eq("farmerOfferRevisionId", revisionId),
-        )
-        .collect();
-      let funded = false;
-      for (const reservation of reservations) {
-        const budget = await ctx.db.get(reservation.budgetId);
-        if (
-          reservation.programmeId === request.programmeId &&
-          reservation.requestId === request._id &&
-          reservation.buyerAgreementRevisionId === agreement._id &&
-          (reservation.status === "active" ||
-            reservation.status === "partly_consumed") &&
-          reservation.expiresAt > Date.now() &&
-          budget !== null &&
-          budget.status === "active" &&
-          budget.programmeId === request.programmeId &&
-          budget.reservedPesewas >= requiredPesewas &&
-          reservation.produceAmountPesewas >= requiredPesewas &&
-          reservation.produceAmountPesewas +
-            reservation.knownCostAmountPesewas -
-            reservation.consumedPesewas -
-            reservation.releasedPesewas >=
-            requiredPesewas
-        )
-          funded = true;
-      }
-      if (!funded) return false;
+      .collect();
+    let funded = false;
+    for (const reservation of reservations) {
+      const budget = await ctx.db.get(reservation.budgetId);
+      if (
+        reservation.programmeId === request.programmeId &&
+        reservation.requestId === request._id &&
+        reservation.buyerAgreementRevisionId === agreement._id &&
+        (reservation.status === "active" ||
+          reservation.status === "partly_consumed") &&
+        budget !== null &&
+        budget.status === "active" &&
+        budget.programmeId === request.programmeId &&
+        budget.reservedPesewas >= requiredPesewas &&
+        reservation.produceAmountPesewas >= requiredPesewas &&
+        reservation.produceAmountPesewas +
+          reservation.knownCostAmountPesewas -
+          reservation.consumedPesewas -
+          reservation.releasedPesewas >=
+          requiredPesewas
+      )
+        funded = true;
     }
+    if (!funded) return false;
   }
   const requiresClearedFunds = agreement.paymentTerms.some(
     (term) => term.trigger === "cleared_buyer_funds",
@@ -1610,19 +1605,20 @@ export const getForRequest = query({
             ),
           );
       }
-      if (ownFarmerId === undefined || lots.length > 0) visibleStops.push({
-        stopId: stop._id,
-        sequence: stop.sequence,
-        stopType: stop.stopType,
-        location: stop.location,
-        packagingNotes: stop.packagingNotes,
-        plannedGrams: stop.plannedGrams,
-        collectedGrams: stop.collectedGrams,
-        windowStartAt: stop.windowStartAt,
-        windowEndAt: stop.windowEndAt,
-        status: stop.status,
-        lots,
-      });
+      if (ownFarmerId === undefined || lots.length > 0)
+        visibleStops.push({
+          stopId: stop._id,
+          sequence: stop.sequence,
+          stopType: stop.stopType,
+          location: stop.location,
+          packagingNotes: stop.packagingNotes,
+          plannedGrams: stop.plannedGrams,
+          collectedGrams: stop.collectedGrams,
+          windowStartAt: stop.windowStartAt,
+          windowEndAt: stop.windowEndAt,
+          status: stop.status,
+          lots,
+        });
     }
     assertAllowed(
       ownFarmerId === undefined || visibleStops.length > 0,
@@ -1663,7 +1659,8 @@ export const listDriverJobs = query({
         dataMode: programme.datasetProvenance,
         status: plan.status,
         plannedGrams: plan.plannedGrams,
-        completedStops: stops.filter((stop) => stop.status === "completed").length,
+        completedStops: stops.filter((stop) => stop.status === "completed")
+          .length,
         totalStops: stops.length,
         collectionWindowStartAt: plan.collectionWindowStartAt,
         collectionWindowEndAt: plan.collectionWindowEndAt,
@@ -1732,12 +1729,15 @@ export const getDriverJob = query({
         const reservation = reservations.find(
           (candidate) =>
             candidate.requestId === plan.requestId &&
-            candidate.buyerAgreementRevisionId === plan.buyerAgreementRevisionId &&
+            candidate.buyerAgreementRevisionId ===
+              plan.buyerAgreementRevisionId &&
             ["active", "partly_consumed"].includes(candidate.status) &&
             candidate.expiresAt > Date.now(),
         );
         const budget =
-          reservation === undefined ? null : await ctx.db.get(reservation.budgetId);
+          reservation === undefined
+            ? null
+            : await ctx.db.get(reservation.budgetId);
         projectedLots.push({
           lotId: lot._id,
           lotCode: lot.lotCode,

@@ -355,6 +355,30 @@ export function assertPilotPaymentTerm(
   }
 }
 
+export function assertPilotFarmerPaymentCommitment(
+  commercialMode: PilotCommercialMode,
+  paymentTerms: readonly PilotPaymentTerm[],
+): void {
+  if (paymentTerms.length !== 1) {
+    throw new PilotValidationError(
+      "INVALID_PAYMENT_TERM",
+      "A farmer offer requires one payment deadline.",
+    );
+  }
+  const term = paymentTerms[0];
+  assertPilotPaymentTerm(term);
+  const triggerIsIndependentOfBuyerPayment =
+    term.trigger === "fixed_date" ||
+    (commercialMode === "kuapa_purchase" &&
+      term.trigger === "purchase_collection_acceptance");
+  if (!triggerIsIndependentOfBuyerPayment) {
+    throw new PilotValidationError(
+      "INVALID_PAYMENT_TERM",
+      "Farmer payment cannot depend on buyer acceptance or cleared buyer funds.",
+    );
+  }
+}
+
 export function assertPilotMaizeSpecification(
   value: unknown,
 ): asserts value is PilotMaizeSpecification {

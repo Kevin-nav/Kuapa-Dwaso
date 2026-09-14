@@ -5,6 +5,7 @@ import {
   assertBoundedPagination,
   assertExpectedVersion,
   assertPilotChargeTerm,
+  assertPilotFarmerPaymentCommitment,
   assertPilotLocation,
   assertPilotQuantityGrams,
   assertPilotRequestTerms,
@@ -101,6 +102,37 @@ test("rejects missing terms and invalid windows", () => {
     (error) =>
       error instanceof PilotValidationError && error.code === "INVALID_WINDOW",
   );
+});
+
+test("farmer payment deadlines never depend on buyer payment", () => {
+  assert.doesNotThrow(() =>
+    assertPilotFarmerPaymentCommitment("coordination", [
+      {
+        trigger: "fixed_date",
+        offsetCalendarDays: 0,
+        fixedDueAt: 2_000,
+        timezone: "Africa/Accra",
+      },
+    ]),
+  );
+  assert.doesNotThrow(() =>
+    assertPilotFarmerPaymentCommitment("kuapa_purchase", [
+      {
+        trigger: "purchase_collection_acceptance",
+        offsetCalendarDays: 1,
+        timezone: "Africa/Accra",
+      },
+    ]),
+  );
+  for (const trigger of ["buyer_acceptance", "cleared_buyer_funds"] as const) {
+    assert.throws(
+      () =>
+        assertPilotFarmerPaymentCommitment("coordination", [
+          { trigger, offsetCalendarDays: 1, timezone: "Africa/Accra" },
+        ]),
+      /cannot depend on buyer acceptance or cleared buyer funds/,
+    );
+  }
 });
 
 test("requires a named location and bounded integer microdegrees", () => {

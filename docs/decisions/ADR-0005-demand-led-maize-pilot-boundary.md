@@ -6,7 +6,7 @@ Accepted for implementation. The software described here remains planned until i
 
 ## Context
 
-The current product starts with warehouse intake and sells reserved warehouse inventory through dated market delivery runs. The maize pilot starts with a buyer requirement, then coordinates farmer supply, inspection, collection, delivery, acceptance, and settlement. A pilot request must work without a warehouse, inventory batch, storage receipt, or market delivery run.
+The current product starts with warehouse intake and sells reserved warehouse inventory through dated market delivery runs. The maize programme starts with a buyer requirement, then manages farmer supply, inspection, collection, delivery, acceptance, and settlement. A request must work without a warehouse, inventory batch, storage receipt, or market delivery run.
 
 Making warehouse identifiers optional on existing records would weaken rules that protect the current workflow. Giving every warehouse agent access to every pilot would also break the existing scoped-access model.
 
@@ -21,6 +21,8 @@ Add a separate, typed pilot domain in Convex. `pilotBuyerRequests`, `pilotProcur
 Convex remains the product system of record. The NestJS API verifies Firebase tokens when it handles provider work and owns provider SDK calls for uploads, messages, and payments. Direct Convex pilot calls authenticate through `ctx.auth.getUserIdentity()` and resolve the matching active `users` row. A caller-supplied user ID is never authority.
 
 Pilot lots separate title, custody, and location. Optional storage refers to an assessed `pilotFacilities` record, which may link to a real warehouse when that is accurate. No facility or warehouse is required. Procurement lots never accrue the legacy storage fee automatically.
+
+The persisted commercial modes remain `coordination` and `kuapa_purchase`. `coordination` means guaranteed coordination: the farmer remains the seller, Kuapa Dwaso manages the buyer relationship, and Kuapa Dwaso owes the farmer on the offer's fixed payment date even if buyer funds clear later. In `kuapa_purchase`, Kuapa Dwaso takes title and inventory risk at purchase collection acceptance. Both modes reserve the farmer's expected net settlement before farmer acceptance. A lot cannot change mode after farmer acceptance.
 
 ## Compatibility rules
 

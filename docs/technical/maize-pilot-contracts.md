@@ -69,16 +69,48 @@ type PilotRequestStatus =
   | "cancelled"
   | "disputed";
 type CancellationState = "none" | "requested" | "resolving" | "resolved";
-type OfferStatus = "draft" | "sent" | "accepted" | "declined" | "expired" | "withdrawn";
-type AllocationStatus = "provisional" | "committed" | "quality_cleared" | "released" | "expired" | "cancelled";
+type OfferStatus =
+  | "draft"
+  | "sent"
+  | "accepted"
+  | "declined"
+  | "expired"
+  | "withdrawn";
+type AllocationStatus =
+  | "provisional"
+  | "committed"
+  | "quality_cleared"
+  | "released"
+  | "expired"
+  | "cancelled";
 type QualityStatus = "pending" | "passed" | "partial" | "failed" | "superseded";
-type FulfilmentStatus = "planning" | "ready" | "assigned" | "collecting" | "in_transit" | "delivered" | "cancelled";
+type FulfilmentStatus =
+  | "planning"
+  | "ready"
+  | "assigned"
+  | "collecting"
+  | "in_transit"
+  | "delivered"
+  | "cancelled";
 type ObligationStatus = "due" | "partly_paid" | "paid" | "overdue" | "disputed";
 type FinancialBasis = "estimate" | "actual";
-type PartyKind = "buyer" | "farmer" | "kuapa_dwaso" | "transporter" | "facility" | "external_provider";
+type PartyKind =
+  | "buyer"
+  | "farmer"
+  | "kuapa_dwaso"
+  | "transporter"
+  | "facility"
+  | "external_provider";
 type TitleOwnerKind = "farmer" | "buyer" | "kuapa_dwaso";
-type CustodianKind = "farmer" | "kuapa_dwaso" | "transporter" | "buyer" | "facility";
+type CustodianKind =
+  | "farmer"
+  | "kuapa_dwaso"
+  | "transporter"
+  | "buyer"
+  | "facility";
 ```
+
+`coordination` is the backward-compatible stored value for guaranteed coordination. In both modes, Kuapa Dwaso is the buyer-facing counterparty and the farmer-payment obligor. `kuapa_purchase` additionally transfers title and inventory risk to Kuapa Dwaso at purchase collection acceptance.
 
 The code uses these reusable typed objects. It does not use `any` or free-form JSON for commercial or financial facts.
 
@@ -91,7 +123,11 @@ type PilotLocation = {
   latitudeE6?: number;
   longitudeE6?: number;
 };
-type Rate = { numerator: number; scale: number; unit: "per_kg" | "percent" | "fixed" };
+type Rate = {
+  numerator: number;
+  scale: number;
+  unit: "per_kg" | "percent" | "fixed";
+};
 type ChargeTerm = {
   code: string;
   label: string;
@@ -100,7 +136,11 @@ type ChargeTerm = {
   rate: Rate;
 };
 type PaymentTerm = {
-  trigger: "buyer_acceptance" | "cleared_buyer_funds" | "purchase_collection_acceptance" | "fixed_date";
+  trigger:
+    | "buyer_acceptance"
+    | "cleared_buyer_funds"
+    | "purchase_collection_acceptance"
+    | "fixed_date";
   offsetCalendarDays: number;
   fixedDueAt?: number;
   timezone: "Africa/Accra";
@@ -147,6 +187,7 @@ All tables include `createdAt`. Mutable head records also include `updatedAt` an
 
 - Fields: `programmeId`, `buyerId`, `cropCode: "maize"`, `maizeType`, `requestedGrams`, optional `confirmedGrams`, `destination`, `deliveryWindowStartAt`, `deliveryWindowEndAt`, `requestedSpecification`, `paymentExpectation`, `commercialMode`, `status`, `cancellationState`, optional `currentAgreementRevisionId`, `version`, `createdByUserId`, `submittedAt`, `confirmedAt`, `deliveredAt`, `closedAt`, `cancelledAt`, `createdAt`, `updatedAt`.
 - `commercialMode` is fixed after the first farmer offer is sent. Every linked offer and lot must match it.
+- A farmer offer cannot be accepted until finance has reserved its full expected net farmer proceeds. The reserve applies to both commercial modes and remains locked while the accepted offer has no posted farmer obligation.
 - Indexes: `by_buyer_status`, `by_programme_status`, `by_programme_delivery_window`, `by_status_updated_at`.
 
 `pilotBuyerAgreementRevisions`
@@ -288,15 +329,15 @@ An admin mutation requires both its permission and a matching global or `pilot_p
 
 Pilot operations invitations extend the invitation type union with `pilot_operations_invite`. They use email or manual secure link delivery and verified phone OTP for a warehouse-agent identity, following the current warehouse-agent invitation controls. Acceptance links the existing approved profile and user, then creates no assignment by itself. An authorized admin grants the programme assignment in a separate audited mutation. Raw tokens stay out of Convex.
 
-| Actor | Read scope | Allowed changes | Fields withheld |
-| --- | --- | --- | --- |
-| Buyer | Own buyer's requests and fulfilment | Draft/submit request, acknowledge buyer revision, request cancellation, accept/reject delivered lot lines, provide own payment evidence | Other buyers, farmer contacts, farmer-specific prices, Kuapa purchase cost and margin |
-| Farmer | Own declarations, offers, lots, and obligations | Draft declaration, accept/decline current offer online, request issue | Other farmers, buyer-private data beyond accepted terms, platform margin |
-| Transporter/driver | Assigned active plan and necessary stops | Record assigned movement and evidence online | Prices, budgets, ledgers, unrelated contacts and plans |
-| Assigned pilot ops | Assigned programme and capability | Review demand, manage offers, inspect, plan, record custody, resolve operational issues as capability allows | Finance evidence and funding source details without admin finance grant |
-| Finance admin | Granted programme and finance permission | Establish budget, reserve/release funds, post external settlement evidence, financial correction | Other programmes outside scope |
-| Support/admin | Granted programme and named permission | Read or manage only the records covered by that permission | Other programmes and unnecessary private evidence |
-| Auditor | Granted programme read permissions | Read immutable history and redacted evidence metadata | Mutations, provider secrets, raw private object keys |
+| Actor              | Read scope                                      | Allowed changes                                                                                                                         | Fields withheld                                                                       |
+| ------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Buyer              | Own buyer's requests and fulfilment             | Draft/submit request, acknowledge buyer revision, request cancellation, accept/reject delivered lot lines, provide own payment evidence | Other buyers, farmer contacts, farmer-specific prices, Kuapa purchase cost and margin |
+| Farmer             | Own declarations, offers, lots, and obligations | Draft declaration, accept/decline current offer online, request issue                                                                   | Other farmers, buyer-private data beyond accepted terms, platform margin              |
+| Transporter/driver | Assigned active plan and necessary stops        | Record assigned movement and evidence online                                                                                            | Prices, budgets, ledgers, unrelated contacts and plans                                |
+| Assigned pilot ops | Assigned programme and capability               | Review demand, manage offers, inspect, plan, record custody, resolve operational issues as capability allows                            | Finance evidence and funding source details without admin finance grant               |
+| Finance admin      | Granted programme and finance permission        | Establish budget, reserve/release funds, post external settlement evidence, financial correction                                        | Other programmes outside scope                                                        |
+| Support/admin      | Granted programme and named permission          | Read or manage only the records covered by that permission                                                                              | Other programmes and unnecessary private evidence                                     |
+| Auditor            | Granted programme read permissions              | Read immutable history and redacted evidence metadata                                                                                   | Mutations, provider secrets, raw private object keys                                  |
 
 ## API modules
 
@@ -304,110 +345,110 @@ All list queries accept `{ programmeId, cursor?: string, limit: number }` plus t
 
 ### Programme, principal, assignment, and evidence APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotAuth.currentPrincipal` | none | principal, profiles, active assignment summaries, admin pilot grants | all authenticated apps, KD-03 |
-| `pilotProgrammes.listAvailable` | page args | programmes visible to principal | app, ops, admin; KD-03 |
-| `pilotProgrammes.get` | `programmeId` | safe programme and current configuration state | all portals; KD-02/KD-03 |
-| `pilotProgrammes.create` | programme fields, `idempotencyKey` | `programmeId`, `version` | admin; KD-02/KD-15 |
-| `pilotProgrammes.configure` | `programmeId`, typed quality/charge/payment/tax configuration, approval state, `expectedVersion`, `idempotencyKey` | safe programme and new version | admin; KD-15 |
-| `pilotProgrammes.setStatus` | `programmeId`, status, reason, `expectedVersion`, `idempotencyKey` | safe programme and new version | admin; KD-15 |
-| `pilotAssignments.grant` | `programmeId`, `targetUserId`, `capabilities`, optional expiry/invitation, `idempotencyKey` | `assignmentId`, `version` | admin; KD-03/KD-15 |
-| `pilotAssignments.revoke` | `assignmentId`, `expectedVersion`, `reason`, `idempotencyKey` | `assignmentId`, `version` | admin; KD-03/KD-15 |
-| `pilotAssignments.list` | page args, status | safe assignments | admin; KD-03/KD-15 |
-| `pilotAssignments.listCandidates` | `programmeId` | active admins and approved operators, including zero-warehouse operators | admin; KD-15 |
-| `uploads:createPending` | existing args plus pilot purpose and related entity | upload ID and provider input | all authorized actors through API; KD-03 |
-| `uploads:complete` | existing completion args | upload ID and status | all authorized actors through API; KD-03 |
-| `uploads:getReadableObject` | upload ID, authenticated principal from API | authorized object descriptor or null | all portals through API; KD-03 |
+| API                               | Arguments                                                                                                          | Result                                                                   | Consumer / owner                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | ---------------------------------------- |
+| `pilotAuth.currentPrincipal`      | none                                                                                                               | principal, profiles, active assignment summaries, admin pilot grants     | all authenticated apps, KD-03            |
+| `pilotProgrammes.listAvailable`   | page args                                                                                                          | programmes visible to principal                                          | app, ops, admin; KD-03                   |
+| `pilotProgrammes.get`             | `programmeId`                                                                                                      | safe programme and current configuration state                           | all portals; KD-02/KD-03                 |
+| `pilotProgrammes.create`          | programme fields, `idempotencyKey`                                                                                 | `programmeId`, `version`                                                 | admin; KD-02/KD-15                       |
+| `pilotProgrammes.configure`       | `programmeId`, typed quality/charge/payment/tax configuration, approval state, `expectedVersion`, `idempotencyKey` | safe programme and new version                                           | admin; KD-15                             |
+| `pilotProgrammes.setStatus`       | `programmeId`, status, reason, `expectedVersion`, `idempotencyKey`                                                 | safe programme and new version                                           | admin; KD-15                             |
+| `pilotAssignments.grant`          | `programmeId`, `targetUserId`, `capabilities`, optional expiry/invitation, `idempotencyKey`                        | `assignmentId`, `version`                                                | admin; KD-03/KD-15                       |
+| `pilotAssignments.revoke`         | `assignmentId`, `expectedVersion`, `reason`, `idempotencyKey`                                                      | `assignmentId`, `version`                                                | admin; KD-03/KD-15                       |
+| `pilotAssignments.list`           | page args, status                                                                                                  | safe assignments                                                         | admin; KD-03/KD-15                       |
+| `pilotAssignments.listCandidates` | `programmeId`                                                                                                      | active admins and approved operators, including zero-warehouse operators | admin; KD-15                             |
+| `uploads:createPending`           | existing args plus pilot purpose and related entity                                                                | upload ID and provider input                                             | all authorized actors through API; KD-03 |
+| `uploads:complete`                | existing completion args                                                                                           | upload ID and status                                                     | all authorized actors through API; KD-03 |
+| `uploads:getReadableObject`       | upload ID, authenticated principal from API                                                                        | authorized object descriptor or null                                     | all portals through API; KD-03           |
 
 ### Demand APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotRequests.createDraft` | `programmeId`, buyer profile, typed request fields, `idempotencyKey` | `requestId`, `version` | buyer; KD-05/KD-11 |
-| `pilotRequests.updateDraft` | `requestId`, changed draft fields, `expectedVersion`, `idempotencyKey` | `requestId`, `version` | buyer; KD-05/KD-11 |
-| `pilotRequests.submit` | `requestId`, `expectedVersion`, `idempotencyKey` | request summary | buyer; KD-05/KD-11 |
-| `pilotRequests.beginReview` | `requestId`, `expectedVersion`, `idempotencyKey` | request summary | ops; KD-05/KD-13 |
-| `pilotRequests.createAgreementRevision` | `requestId`, typed agreement, `expectedRequestVersion`, `idempotencyKey` | revision ID and number | ops/admin; KD-05/KD-13 |
-| `pilotRequests.acknowledgeAgreement` | `requestId`, `agreementRevisionId`, `expectedRequestVersion`, `idempotencyKey` | request and revision summaries | buyer; KD-05/KD-11 |
-| `pilotRequests.confirm` | `requestId`, `agreementRevisionId`, `confirmedGrams`, `expectedRequestVersion`, `idempotencyKey` | request summary and readiness blockers | ops; KD-05/KD-13 |
-| `pilotRequests.requestCancellation` | `requestId`, `expectedVersion`, `reason`, `idempotencyKey` | cancellation state and consequences preview | buyer or ops; KD-05 onward |
-| `pilotRequests.resolveCancellation` | `requestId`, `expectedVersion`, typed resolution, `idempotencyKey` | request, released records, issue IDs | scoped ops and finance for finance actions; KD-05/KD-09/KD-10 |
-| `pilotRequests.get` | `requestId` | actor-safe aggregate | buyer, ops, admin; KD-05/KD-11/KD-13/KD-15 |
-| `pilotRequests.listMine` | page args and status | buyer-safe requests | buyer; KD-11 |
-| `pilotRequests.listAssigned` | page args and status/window | ops-safe requests | ops; KD-13 |
-| `pilotOrders.listOrderRefs` | source filter plus page args | discriminated `OrderRef` summaries | buyer/admin shared navigation; KD-05/KD-11/KD-15 |
+| API                                     | Arguments                                                                                        | Result                                      | Consumer / owner                                              |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------- |
+| `pilotRequests.createDraft`             | `programmeId`, buyer profile, typed request fields, `idempotencyKey`                             | `requestId`, `version`                      | buyer; KD-05/KD-11                                            |
+| `pilotRequests.updateDraft`             | `requestId`, changed draft fields, `expectedVersion`, `idempotencyKey`                           | `requestId`, `version`                      | buyer; KD-05/KD-11                                            |
+| `pilotRequests.submit`                  | `requestId`, `expectedVersion`, `idempotencyKey`                                                 | request summary                             | buyer; KD-05/KD-11                                            |
+| `pilotRequests.beginReview`             | `requestId`, `expectedVersion`, `idempotencyKey`                                                 | request summary                             | ops; KD-05/KD-13                                              |
+| `pilotRequests.createAgreementRevision` | `requestId`, typed agreement, `expectedRequestVersion`, `idempotencyKey`                         | revision ID and number                      | ops/admin; KD-05/KD-13                                        |
+| `pilotRequests.acknowledgeAgreement`    | `requestId`, `agreementRevisionId`, `expectedRequestVersion`, `idempotencyKey`                   | request and revision summaries              | buyer; KD-05/KD-11                                            |
+| `pilotRequests.confirm`                 | `requestId`, `agreementRevisionId`, `confirmedGrams`, `expectedRequestVersion`, `idempotencyKey` | request summary and readiness blockers      | ops; KD-05/KD-13                                              |
+| `pilotRequests.requestCancellation`     | `requestId`, `expectedVersion`, `reason`, `idempotencyKey`                                       | cancellation state and consequences preview | buyer or ops; KD-05 onward                                    |
+| `pilotRequests.resolveCancellation`     | `requestId`, `expectedVersion`, typed resolution, `idempotencyKey`                               | request, released records, issue IDs        | scoped ops and finance for finance actions; KD-05/KD-09/KD-10 |
+| `pilotRequests.get`                     | `requestId`                                                                                      | actor-safe aggregate                        | buyer, ops, admin; KD-05/KD-11/KD-13/KD-15                    |
+| `pilotRequests.listMine`                | page args and status                                                                             | buyer-safe requests                         | buyer; KD-11                                                  |
+| `pilotRequests.listAssigned`            | page args and status/window                                                                      | ops-safe requests                           | ops; KD-13                                                    |
+| `pilotOrders.listOrderRefs`             | source filter plus page args                                                                     | discriminated `OrderRef` summaries          | buyer/admin shared navigation; KD-05/KD-11/KD-15              |
 
 ### Supply, offer, and allocation APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotSupply.createDeclaration` | `programmeId`, farmer profile, declaration fields, `idempotencyKey` | declaration ID/version | farmer or assigned ops; KD-06/KD-12/KD-13 |
-| `pilotSupply.updateDeclaration` | declaration ID, fields, expected version, idempotency key | declaration ID/version | farmer or assigned ops; KD-06 |
-| `pilotSupply.reviewDeclaration` | declaration ID, decision/reason, expected version, idempotency key | declaration summary | assigned ops; KD-06 |
-| `pilotOffers.createRevision` | request/declaration IDs, typed terms, expected request/declaration versions, idempotency key | offer/revision IDs | assigned ops; KD-06 |
-| `pilotOffers.send` | offer/revision IDs, expected offer version, idempotency key | offer summary | assigned ops; KD-06 |
-| `pilotOffers.decide` | offer ID, revision ID, `accepted` or `declined`, expected offer version, idempotency key | offer and allocation summary | farmer; KD-06/KD-12 |
-| `pilotAllocations.hold` | offer revision, grams, expiry, expected versions, idempotency key | allocation ID/version | assigned ops; KD-06 |
-| `pilotAllocations.release` | allocation ID, grams, reason, expected version, idempotency key | allocation summary | assigned ops; KD-06 onward |
-| `pilotSupply.listMine` | page args/status | farmer-safe declarations/offers | farmer; KD-12 |
-| `pilotSupply.listForRequest` | request ID/page args | assigned ops supply view | ops; KD-13 |
+| API                             | Arguments                                                                                    | Result                          | Consumer / owner                          |
+| ------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------- |
+| `pilotSupply.createDeclaration` | `programmeId`, farmer profile, declaration fields, `idempotencyKey`                          | declaration ID/version          | farmer or assigned ops; KD-06/KD-12/KD-13 |
+| `pilotSupply.updateDeclaration` | declaration ID, fields, expected version, idempotency key                                    | declaration ID/version          | farmer or assigned ops; KD-06             |
+| `pilotSupply.reviewDeclaration` | declaration ID, decision/reason, expected version, idempotency key                           | declaration summary             | assigned ops; KD-06                       |
+| `pilotOffers.createRevision`    | request/declaration IDs, typed terms, expected request/declaration versions, idempotency key | offer/revision IDs              | assigned ops; KD-06                       |
+| `pilotOffers.send`              | offer/revision IDs, expected offer version, idempotency key                                  | offer summary                   | assigned ops; KD-06                       |
+| `pilotOffers.decide`            | offer ID, revision ID, `accepted` or `declined`, expected offer version, idempotency key     | offer and allocation summary    | farmer; KD-06/KD-12                       |
+| `pilotAllocations.hold`         | offer revision, grams, expiry, expected versions, idempotency key                            | allocation ID/version           | assigned ops; KD-06                       |
+| `pilotAllocations.release`      | allocation ID, grams, reason, expected version, idempotency key                              | allocation summary              | assigned ops; KD-06 onward                |
+| `pilotSupply.listMine`          | page args/status                                                                             | farmer-safe declarations/offers | farmer; KD-12                             |
+| `pilotSupply.listForRequest`    | request ID/page args                                                                         | assigned ops supply view        | ops; KD-13                                |
 
 `pilotOffers.decide` re-reads the current revision, expiry, request mode, declaration availability, and active commitments in one transaction. It rejects an old tab, changed payload, expired offer, or competing over-allocation.
 
 ### Quality, lot, logistics, and acceptance APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotInspections.record` | allocation, agreement revision, gross/tare weights, readings, classified quantities, optional assessed facility, evidence, idempotency key | inspection and lot/sublot summaries | assigned inspector; KD-07 |
-| `pilotInspections.correct` | inspection ID, corrected typed record, reason, idempotency key | new inspection and superseded ID | assigned inspector; KD-07 |
-| `pilotInspections.getReceipt` | inspection ID | actor-safe private printable receipt model | farmer, buyer, assigned ops, admin; KD-07 |
-| `pilotLots.recordDisposition` | lot ID, disposition, owner consent when required, evidence, expected version, idempotency key | lot and issue summaries | scoped ops; KD-07/KD-10 |
-| `pilotLots.listForActor` | page args/filter | actor-safe lots | farmer, ops, admin; KD-07/KD-12/KD-13 |
-| `pilotFulfilment.createPlan` | request/agreement IDs, windows/destination, idempotency key | plan ID/version/blockers | assigned ops; KD-08 |
-| `pilotFulfilment.updatePlan` | plan/stops/vehicle fields, expected version, idempotency key | plan/version/blockers | assigned ops; KD-08 |
-| `pilotFulfilment.assignDriver` | plan ID, transporter/driver, capacity, expected version, idempotency key | plan summary | assigned ops; KD-08 |
-| `pilotFulfilment.markReady` | plan ID, expected version, idempotency key | plan summary | assigned ops; KD-08 |
-| `pilotFulfilment.recordCustody` | plan/stop/lot IDs, event, grams, evidence, expected versions, idempotency key | custody event and projections | assigned driver or ops; KD-08 |
-| `pilotFulfilment.listDriverJobs` / `getDriverJob` | bounded list or assigned plan ID | minimal route, collection contact, cleared lot, packaging and opaque purchase-release inputs | assigned driver; KD-14 |
-| `pilotFulfilment.reportDriverDiscrepancy` | assigned plan/stop/lot, observed grams, reason, evidence, idempotency key | owned issue | assigned driver; KD-14 |
-| `pilotFulfilment.acceptDelivery` | request/plan/agreement IDs, lot-keyed lines, buyer acknowledgement, idempotency key | acceptance revision, issues, obligations | buyer; KD-08/KD-09 |
-| `pilotFulfilment.getPlan` | plan ID | actor-safe plan/stops/lots/blockers | buyer, farmer, driver, ops, admin; KD-08/KD-11 through KD-15 |
-| `pilotFulfilment.listAssignedToDriver` | page args/status | driver-safe plans | transporter; KD-14 |
+| API                                               | Arguments                                                                                                                                  | Result                                                                                       | Consumer / owner                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `pilotInspections.record`                         | allocation, agreement revision, gross/tare weights, readings, classified quantities, optional assessed facility, evidence, idempotency key | inspection and lot/sublot summaries                                                          | assigned inspector; KD-07                                    |
+| `pilotInspections.correct`                        | inspection ID, corrected typed record, reason, idempotency key                                                                             | new inspection and superseded ID                                                             | assigned inspector; KD-07                                    |
+| `pilotInspections.getReceipt`                     | inspection ID                                                                                                                              | actor-safe private printable receipt model                                                   | farmer, buyer, assigned ops, admin; KD-07                    |
+| `pilotLots.recordDisposition`                     | lot ID, disposition, owner consent when required, evidence, expected version, idempotency key                                              | lot and issue summaries                                                                      | scoped ops; KD-07/KD-10                                      |
+| `pilotLots.listForActor`                          | page args/filter                                                                                                                           | actor-safe lots                                                                              | farmer, ops, admin; KD-07/KD-12/KD-13                        |
+| `pilotFulfilment.createPlan`                      | request/agreement IDs, windows/destination, idempotency key                                                                                | plan ID/version/blockers                                                                     | assigned ops; KD-08                                          |
+| `pilotFulfilment.updatePlan`                      | plan/stops/vehicle fields, expected version, idempotency key                                                                               | plan/version/blockers                                                                        | assigned ops; KD-08                                          |
+| `pilotFulfilment.assignDriver`                    | plan ID, transporter/driver, capacity, expected version, idempotency key                                                                   | plan summary                                                                                 | assigned ops; KD-08                                          |
+| `pilotFulfilment.markReady`                       | plan ID, expected version, idempotency key                                                                                                 | plan summary                                                                                 | assigned ops; KD-08                                          |
+| `pilotFulfilment.recordCustody`                   | plan/stop/lot IDs, event, grams, evidence, expected versions, idempotency key                                                              | custody event and projections                                                                | assigned driver or ops; KD-08                                |
+| `pilotFulfilment.listDriverJobs` / `getDriverJob` | bounded list or assigned plan ID                                                                                                           | minimal route, collection contact, cleared lot, packaging and opaque purchase-release inputs | assigned driver; KD-14                                       |
+| `pilotFulfilment.reportDriverDiscrepancy`         | assigned plan/stop/lot, observed grams, reason, evidence, idempotency key                                                                  | owned issue                                                                                  | assigned driver; KD-14                                       |
+| `pilotFulfilment.acceptDelivery`                  | request/plan/agreement IDs, lot-keyed lines, buyer acknowledgement, idempotency key                                                        | acceptance revision, issues, obligations                                                     | buyer; KD-08/KD-09                                           |
+| `pilotFulfilment.getPlan`                         | plan ID                                                                                                                                    | actor-safe plan/stops/lots/blockers                                                          | buyer, farmer, driver, ops, admin; KD-08/KD-11 through KD-15 |
+| `pilotFulfilment.listAssignedToDriver`            | page args/status                                                                                                                           | driver-safe plans                                                                            | transporter; KD-14                                           |
 
 `pilotFulfilment.recordCustody` can complete a coordination collection after quality and readiness checks. For `kuapa_purchase`, its positive collection path calls `pilotProcurement.acceptCollectionPurchase`; it cannot patch the lot or create a payable itself.
 
 ### Purchasing and finance APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotFinance.createBudget` | programme, source/evidence, capacity, provenance, idempotency key | budget ID/version | finance admin; KD-09/KD-15 |
-| `pilotFinance.adjustBudget` | budget ID, typed addition/correction, expected version, idempotency key | budget/version/available capacity | finance admin; KD-09 |
-| `pilotFinance.reserveFunding` | budget/request/agreement/offer revisions, produce and known-cost amounts, expiry, expected budget version, idempotency key | reservation and budget summaries | finance admin; KD-09 |
-| `pilotFinance.releaseFunding` | reservation ID, unused amount, reason, expected versions, idempotency key | reservation and budget summaries | finance admin; KD-09 |
-| `pilotProcurement.acceptCollectionPurchase` | `requestId`, `lotId`, `farmerOfferRevisionId`, `inspectionId`, `buyerAgreementRevisionId`, `acceptedGrams`, custody event/evidence, `fundingReservationId`, `expectedFundingReservationVersion`, `expectedBudgetVersion`, `expectedLotVersion`, `idempotencyKey` | lot, custody event, farmer payable entry, reservation, budget, activity event | called by fulfilment; KD-09 |
-| `pilotFinance.prepareBuyerPayment` | request ID, amount, purpose, idempotency key | provider-neutral initialization request | buyer through API; KD-09/KD-11 |
-| `pilotFinance.recordProviderResult` | trusted API principal, transaction/reference/status/amount, provider event key | transaction and posting refs | API webhook/verification; KD-09 |
-| `pilotFinance.recordExternalSettlement` | obligation ID, amount, evidence, paidAt, idempotency key | payment entry and derived obligation status | finance admin; KD-09/KD-15 |
-| `pilotFinance.reverseEntry` | entry ID, reason, evidence, idempotency key | compensating entry | finance admin; KD-09 |
-| `pilotFinance.getRequestStatement` | request ID | actor-safe statement and completeness | buyer/farmer/finance; KD-09/KD-11/KD-12/KD-15 |
-| `pilotFinance.getProgrammeSummary` | page/date/basis filters | separated actual/estimate totals | finance/admin; KD-15 |
-| `pilotFinance.listPurchaseApprovalQueue` | `programmeId` | current accepted purchase offers and reservation state | finance/admin; KD-15 |
+| API                                         | Arguments                                                                                                                                                                                                                                                        | Result                                                                        | Consumer / owner                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------- |
+| `pilotFinance.createBudget`                 | programme, source/evidence, capacity, provenance, idempotency key                                                                                                                                                                                                | budget ID/version                                                             | finance admin; KD-09/KD-15                    |
+| `pilotFinance.adjustBudget`                 | budget ID, typed addition/correction, expected version, idempotency key                                                                                                                                                                                          | budget/version/available capacity                                             | finance admin; KD-09                          |
+| `pilotFinance.reserveFunding`               | budget/request/agreement/offer revisions, produce and known-cost amounts, expiry, expected budget version, idempotency key                                                                                                                                       | reservation and budget summaries                                              | finance admin; KD-09                          |
+| `pilotFinance.releaseFunding`               | reservation ID, unused amount, reason, expected versions, idempotency key                                                                                                                                                                                        | reservation and budget summaries                                              | finance admin; KD-09                          |
+| `pilotProcurement.acceptCollectionPurchase` | `requestId`, `lotId`, `farmerOfferRevisionId`, `inspectionId`, `buyerAgreementRevisionId`, `acceptedGrams`, custody event/evidence, `fundingReservationId`, `expectedFundingReservationVersion`, `expectedBudgetVersion`, `expectedLotVersion`, `idempotencyKey` | lot, custody event, farmer payable entry, reservation, budget, activity event | called by fulfilment; KD-09                   |
+| `pilotFinance.prepareBuyerPayment`          | request ID, amount, purpose, idempotency key                                                                                                                                                                                                                     | provider-neutral initialization request                                       | buyer through API; KD-09/KD-11                |
+| `pilotFinance.recordProviderResult`         | trusted API principal, transaction/reference/status/amount, provider event key                                                                                                                                                                                   | transaction and posting refs                                                  | API webhook/verification; KD-09               |
+| `pilotFinance.recordExternalSettlement`     | obligation ID, amount, evidence, paidAt, idempotency key                                                                                                                                                                                                         | payment entry and derived obligation status                                   | finance admin; KD-09/KD-15                    |
+| `pilotFinance.reverseEntry`                 | entry ID, reason, evidence, idempotency key                                                                                                                                                                                                                      | compensating entry                                                            | finance admin; KD-09                          |
+| `pilotFinance.getRequestStatement`          | request ID                                                                                                                                                                                                                                                       | actor-safe statement and completeness                                         | buyer/farmer/finance; KD-09/KD-11/KD-12/KD-15 |
+| `pilotFinance.getProgrammeSummary`          | page/date/basis filters                                                                                                                                                                                                                                          | separated actual/estimate totals                                              | finance/admin; KD-15                          |
+| `pilotFinance.listPurchaseApprovalQueue`    | `programmeId`                                                                                                                                                                                                                                                    | current accepted purchase offers and reservation state                        | finance/admin; KD-15                          |
 
 `pilotProcurement.acceptCollectionPurchase` is one Convex transaction. It authenticates the principal; checks assignment, request mode, current accepted offer and inspection revisions, quality, quantities, title, custody, approval, reservation expiry, budget versions, and capacity; consumes the reservation into committed capacity; records collection and Kuapa title; creates the farmer payable once; inserts the activity event; and completes the idempotency record. Any failure rolls back every write. It calls no provider.
 
 ### Activity, issues, notifications, and demo APIs
 
-| API | Arguments | Result | Consumer / owner |
-| --- | --- | --- | --- |
-| `pilotActivity.listForRequest` | request ID/page args | recipient-safe timeline | all portals; KD-10 |
-| `pilotIssues.open` | request/lot/plan refs, type, summary, evidence, idempotency key | issue ID/version | authorized actor; KD-10 |
-| `pilotIssues.resolve` | issue ID, resolution/evidence, expected version, idempotency key | issue and affected projections | scoped ops/admin; KD-10 |
-| `pilotIssues.listAssigned` | page args/status/deadline | safe issue list | ops/admin; KD-10/KD-13/KD-15 |
-| `pilotIssues.listForProgramme` | programme and optional status | programme-scoped operational exceptions | admin; KD-15 |
-| `pilotNotifications.enqueueForEvent` | internal event ID | notification IDs | domain mutations; KD-10 |
-| `pilotDemo.seedDataset` | guarded deployment, programme/scenario/checkpoint, supplied clock, idempotency key | dataset ID/checkpoint | test-utils only; KD-17 |
-| `pilotDemo.resetDataset` | guarded deployment, exact dataset ID, idempotency key | deleted counts and reset checkpoint | test-utils only; KD-17 |
+| API                                  | Arguments                                                                          | Result                                  | Consumer / owner             |
+| ------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------- |
+| `pilotActivity.listForRequest`       | request ID/page args                                                               | recipient-safe timeline                 | all portals; KD-10           |
+| `pilotIssues.open`                   | request/lot/plan refs, type, summary, evidence, idempotency key                    | issue ID/version                        | authorized actor; KD-10      |
+| `pilotIssues.resolve`                | issue ID, resolution/evidence, expected version, idempotency key                   | issue and affected projections          | scoped ops/admin; KD-10      |
+| `pilotIssues.listAssigned`           | page args/status/deadline                                                          | safe issue list                         | ops/admin; KD-10/KD-13/KD-15 |
+| `pilotIssues.listForProgramme`       | programme and optional status                                                      | programme-scoped operational exceptions | admin; KD-15                 |
+| `pilotNotifications.enqueueForEvent` | internal event ID                                                                  | notification IDs                        | domain mutations; KD-10      |
+| `pilotDemo.seedDataset`              | guarded deployment, programme/scenario/checkpoint, supplied clock, idempotency key | dataset ID/checkpoint                   | test-utils only; KD-17       |
+| `pilotDemo.resetDataset`             | guarded deployment, exact dataset ID, idempotency key                              | deleted counts and reset checkpoint     | test-utils only; KD-17       |
 
 Production APIs use server time. The fake clock exists only in guarded demo/test helpers and deterministic pure calculations. A browser cannot send `now`, enable demo mode, or select a provider mode.
 
@@ -429,14 +470,14 @@ Payment status is derived separately from delivery. Due dates for the fixtures a
 
 All modules call one internal `evaluatePilotCancellation(requestId)` service. It returns the current stage, permitted initiators, required capabilities, releasable allocations and reservations, preserved lots and obligations, required issues, and notifications. `pilotRequests.resolveCancellation` executes that plan with expected versions in one transaction. Later tickets add their owned consequences to this service instead of adding permissive cancellation mutations.
 
-| Current facts | Result |
-| --- | --- |
-| No accepted farmer commitment | Withdraw current quotes/offers, release provisional holds, create no fee. |
-| Commitment but no collection/title transfer | Release uncollected commitments and unused funding reservations. Keep acceptance history and existing agreed obligations. |
-| Collected coordination lot | Keep farmer title and current custody, hold the lot, open a disposition issue, release only uncollected quantity. |
-| Collected Kuapa purchase lot | Keep Kuapa title, farmer payable, and committed funding. Open a disposition/resale issue. Release only unused quantity and reservation. |
-| Delivered, partly accepted, or disputed | Use lot-level acceptance and issue resolution. Do not directly cancel accepted or rejected physical facts. |
-| Settled or closed | Reopen through an authorized correction and post compensating financial entries. Never edit or delete the original posting. |
+| Current facts                               | Result                                                                                                                                  |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| No accepted farmer commitment               | Withdraw current quotes/offers, release provisional holds, create no fee.                                                               |
+| Commitment but no collection/title transfer | Release uncollected commitments and unused funding reservations. Keep acceptance history and existing agreed obligations.               |
+| Collected coordination lot                  | Keep farmer title and current custody, hold the lot, open a disposition issue, release only uncollected quantity.                       |
+| Collected Kuapa purchase lot                | Keep Kuapa title, farmer payable, and committed funding. Open a disposition/resale issue. Release only unused quantity and reservation. |
+| Delivered, partly accepted, or disputed     | Use lot-level acceptance and issue resolution. Do not directly cancel accepted or rejected physical facts.                              |
+| Settled or closed                           | Reopen through an authorized correction and post compensating financial entries. Never edit or delete the original posting.             |
 
 `cancellationState: "requested"` is separate from `status: "cancelled"`. A cancelled request may retain held lots and unpaid or disputed obligations and is not financially closed.
 
@@ -446,22 +487,22 @@ Buyer acceptance lines preserve lot and sublot identity. Coordination rejection 
 
 Each economic event has one authoritative `postingKey`. Domain mutations own postings as follows:
 
-| Event | Posting owner | Required entries |
-| --- | --- | --- |
-| Buyer agreement acknowledgement | none | Estimates may be calculated for display; no actual posting. |
-| Coordination buyer acceptance | `pilotFulfilment.acceptDelivery` | Buyer produce obligation, farmer proceeds obligations, coordination-fee revenue, and any agreed buyer transport obligation, each for accepted lot quantities only. |
-| Purchase collection acceptance | `pilotProcurement.acceptCollectionPurchase` | Purchase inventory cost and farmer payable at the accepted collection quantity. |
-| Buyer payment success | `pilotFinance.recordProviderResult` | Buyer receipt that settles named buyer obligations once. |
-| External farmer or cost payment | `pilotFinance.recordExternalSettlement` | Payment against a named obligation and a budget `spent` event when purchase capacity backs it. |
-| Actual transport/handling approval | `pilotFinance.recordExternalSettlement` or explicit cost approval | One actual cost. Coordination reimbursement is a separate buyer obligation/receipt. |
-| Buyer rejection or cancellation | issue/cancellation resolution | No automatic deletion. Post refunds, adjustments, or reversals only from an evidenced resolution. |
-| Correction | `pilotFinance.reverseEntry` | A compensating entry linked through `reversesEntryId`; the original remains. |
+| Event                                    | Posting owner                                                     | Required entries                                                                                                                                                                                                                     |
+| ---------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Buyer agreement acknowledgement          | none                                                              | Estimates may be calculated for display; no actual posting.                                                                                                                                                                          |
+| Guaranteed-coordination buyer acceptance | `pilotFulfilment.acceptDelivery`                                  | Buyer produce obligation, Kuapa Dwaso farmer proceeds obligations with fixed due dates and committed settlement backing, coordination-fee revenue, and any agreed buyer transport obligation, each for accepted lot quantities only. |
+| Purchase collection acceptance           | `pilotProcurement.acceptCollectionPurchase`                       | Purchase inventory cost and farmer payable at the accepted collection quantity.                                                                                                                                                      |
+| Buyer payment success                    | `pilotFinance.recordProviderResult`                               | Buyer receipt that settles named buyer obligations once.                                                                                                                                                                             |
+| External farmer or cost payment          | `pilotFinance.recordExternalSettlement`                           | Payment against a named obligation and a budget `spent` event when purchase capacity backs it.                                                                                                                                       |
+| Actual transport/handling approval       | `pilotFinance.recordExternalSettlement` or explicit cost approval | One actual cost. Coordination reimbursement is a separate buyer obligation/receipt.                                                                                                                                                  |
+| Buyer rejection or cancellation          | issue/cancellation resolution                                     | No automatic deletion. Post refunds, adjustments, or reversals only from an evidenced resolution.                                                                                                                                    |
+| Correction                               | `pilotFinance.reverseEntry`                                       | A compensating entry linked through `reversesEntryId`; the original remains.                                                                                                                                                         |
 
 Collected buyer funds, Kuapa revenue, farmer liabilities, inventory cost, reimbursements, and operating costs use distinct purposes and are never netted into one row. Estimates and actuals never share a posting. Unknown actual costs make contribution `Incomplete`; they do not become zero.
 
-Budget counters equal the sum of `pilotBudgetEvents`. Negative available capacity, negative counters, over-release, double consumption, and a second `postingKey` are rejected in the transaction. Active reservations reduce available capacity. Purchase acceptance moves the accepted amount from reserved to committed. Payment moves it from committed to spent. Expiry releases only unused reservation. Buyer cancellation cannot release capacity backing an acquired-lot payable.
+Budget counters equal the sum of `pilotBudgetEvents`. Negative available capacity, negative counters, over-release, double consumption, and a second `postingKey` are rejected in the transaction. Active reservations reduce available capacity. Purchase collection acceptance or guaranteed-coordination buyer acceptance moves farmer proceeds from reserved to committed. Farmer payment moves that capacity from committed to spent. Expiry cannot release an accepted offer's backing before its farmer obligation is posted. Buyer cancellation cannot release capacity backing a farmer payable.
 
-Coordination farmer funds never count as a purchasing budget. A buyer deposit can count only when programme configuration and evidence explicitly permit it. A funding record is evidence supplied to the product; it does not claim an independent bank balance check.
+The existing `pilotPurchasingBudgets` table and API names are retained for compatibility, but their capacity backs farmer settlement in both commercial modes. A buyer deposit can count only when programme configuration and evidence explicitly permit it. Expected buyer payment is not available capacity. A funding record is evidence supplied to the product; it does not claim an independent bank balance check.
 
 ## Event names
 
