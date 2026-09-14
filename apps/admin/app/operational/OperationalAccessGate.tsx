@@ -36,7 +36,7 @@ export function OperationalAccessGate({
       <AdminAccessState
         variant="loading"
         title={loadingTitle}
-        message="Checking identity, scoped permissions, and live operational records."
+        message="Checking identity, permissions, and current records."
       />
     );
   }

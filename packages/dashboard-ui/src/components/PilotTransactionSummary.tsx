@@ -43,7 +43,7 @@ export function PilotTransactionSummary({
 }: PilotTransactionSummaryProps) {
   return (
     <section
-      aria-label="Pilot transaction summary"
+      aria-label="Maize transaction summary"
       style={{ display: "grid", gap: 16 }}
     >
       <NextActionPanel {...nextAction} />

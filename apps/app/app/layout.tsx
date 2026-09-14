@@ -9,7 +9,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "KuapaDwaso App",
-  description: "Farmer, buyer, and transporter access to the Kuapa Dwaso warehouse network.",
+  description: "Maize supply, orders, collections, and payments with Kuapa Dwaso.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "Kuapa Dwaso", statusBarStyle: "default" },
   icons: { apple: "/pwa/apple-touch-icon.png" },
@@ -26,7 +26,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <ConvexClientProvider>
-          <AuthProvider><AppOutboxReplayer /><PilotDemoIndicator />{children}</AuthProvider>
+          <AuthProvider><AppOutboxReplayer />{process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" ? <PilotDemoIndicator /> : null}{children}</AuthProvider>
         </ConvexClientProvider>
         <PwaRuntime enabled={process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_PWA_DEV === "true"} />
       </body>

@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -42,12 +43,33 @@ export function PilotOperationsProvider({ children }: { children: ReactNode }) {
     api.pilotProgrammes.listAvailable,
     canLoad ? { limit: 20 } : "skip",
   ) as { page: PilotProgrammeOption[] } | undefined;
-  const programmes = useMemo(() => result?.page ?? [], [result]);
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const programmes = useMemo(
+    () =>
+      (result?.page ?? []).filter((programme) =>
+        demoPresentation
+          ? programme.datasetProvenance === "sample_only"
+          : programme.datasetProvenance === "live",
+      ),
+    [demoPresentation, result],
+  );
   const storageKey =
     principal === null || principal === undefined
       ? undefined
       : `kuapa_ops_pilot_programme:${principal.userId}`;
   const [selectedId, setSelectedId] = useState<Id<"pilotProgrammes">>();
+  useEffect(() => {
+    if (storageKey === undefined) {
+      setSelectedId(undefined);
+      return;
+    }
+    const saved = window.localStorage.getItem(storageKey);
+    setSelectedId(
+      saved !== null && programmes.some((programme) => programme.id === saved)
+        ? (saved as Id<"pilotProgrammes">)
+        : undefined,
+    );
+  }, [programmes, storageKey]);
   const activeProgramme =
     programmes.find((item) => item.id === selectedId) ?? programmes[0];
   const value = useMemo<PilotOperationsContextValue>(

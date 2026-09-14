@@ -87,6 +87,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       programmeName: programme.name,
       dataMode: programme.datasetProvenance,
     }));
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
 
   async function retrySync() {
     setSyncError(undefined);
@@ -216,7 +217,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       </aside>
 
       <main className="main-content">
-        <SampleDataBanner programmes={sampleProgrammes} />
+        {demoPresentation ? <SampleDataBanner programmes={sampleProgrammes} /> : null}
         <div className="content-container">
           {isOffline ? (
             <div className="offline-banner" role="alert">

@@ -39,6 +39,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
   const sampleProgrammes = pilotProgrammes?.page
     .map((programme) => programme.demoContext)
     .filter((context) => context.dataMode === "sample_only") ?? [];
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
 
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;
@@ -62,7 +63,7 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
       }}
       showStories={effectiveAccess?.permissions.includes("blog:read") === true}
     >
-      <SampleDataBanner programmes={sampleProgrammes} />
+      {demoPresentation ? <SampleDataBanner programmes={sampleProgrammes} /> : null}
       {children}
     </AdminShell>
   );

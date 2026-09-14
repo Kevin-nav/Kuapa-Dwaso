@@ -54,12 +54,15 @@ export default function DriverCollectionDetailPage({ params }: Props) {
   const job = useQuery(api.pilotFulfilment.getDriverJob, { planId: id as Id<"pilotFulfilmentPlans"> }) as DriverJob | undefined;
 
   if (job === undefined) return <div className="skeleton" style={{ minHeight: 430, borderRadius: 20 }} />;
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  if (demoPresentation !== (job.programme.dataMode === "sample_only")) {
+    return <div className="driver-empty"><Truck size={30} /><h1>Collection unavailable</h1><p>This job is not available in this workspace.</p></div>;
+  }
   const destinationStop = job.stops.find((stop) => stop.stopType === "destination");
 
   return (
     <div className="driver-page">
       <Link href="/transporter/collections" className="driver-back"><ArrowLeft size={16} /> Collection jobs</Link>
-      {job.programme.dataMode === "sample_only" ? <div className="driver-sample-banner">SAMPLE DATA · No real collection or payment</div> : null}
       <header className="driver-route-head"><div><p className="eyebrow">{job.programme.name}</p><h1>{(job.plan.plannedGrams / 1_000).toLocaleString()} kg route</h1><p><Truck size={15} /> {job.plan.vehicleRegistration ?? "Vehicle not recorded"}</p></div><span className={`status-chip status-${job.plan.status === "ready" || job.plan.status === "delivered" ? "success" : "warning"}`}>{job.plan.status.replaceAll("_", " ")}</span></header>
 
       <section className="driver-handover-status">
