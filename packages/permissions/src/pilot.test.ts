@@ -5,6 +5,7 @@ import {
   canTransitionPilotOffer,
   getPilotFieldVisibility,
   getPilotConfirmationBlockers,
+  pilotSettlementReservationCoversOffer,
   pilotAssignmentAllows,
   canTransitionPilotRequest,
 } from "./pilot.ts";
@@ -113,7 +114,47 @@ test("farmer offers require renewed acceptance after revised sent terms", () => 
   assert.equal(canTransitionPilotOffer("sent", "draft"), true);
   assert.equal(canTransitionPilotOffer("sent", "accepted"), true);
   assert.equal(canTransitionPilotOffer("accepted", "sent"), false);
+  assert.equal(canTransitionPilotOffer("accepted", "withdrawn"), false);
   assert.equal(canTransitionPilotOffer("declined", "accepted"), false);
+});
+
+test("both commercial modes require complete settlement capacity before acceptance", () => {
+  const input = {
+    expectedNetPesewas: 20_000,
+    offerExpiresAt: 2_000,
+    now: 1_000,
+    reservation: {
+      status: "active" as const,
+      produceAmountPesewas: 20_000,
+      knownCostAmountPesewas: 1_000,
+      consumedPesewas: 0,
+      releasedPesewas: 0,
+      expiresAt: 2_000,
+    },
+    budget: { status: "active" as const, reservedPesewas: 21_000 },
+  };
+  assert.equal(pilotSettlementReservationCoversOffer(input), true);
+  assert.equal(
+    pilotSettlementReservationCoversOffer({
+      ...input,
+      reservation: { ...input.reservation, produceAmountPesewas: 19_999 },
+    }),
+    false,
+  );
+  assert.equal(
+    pilotSettlementReservationCoversOffer({
+      ...input,
+      reservation: { ...input.reservation, expiresAt: 1_999 },
+    }),
+    false,
+  );
+  assert.equal(
+    pilotSettlementReservationCoversOffer({
+      ...input,
+      budget: { ...input.budget, status: "suspended" as const },
+    }),
+    false,
+  );
 });
 
 test("buyer, farmer, and driver reads remain owner or assignment scoped", () => {

@@ -36,7 +36,7 @@ export default function PilotDemandQueuePage() {
   return (
     <div className="ops-page-stack">
       <header className="ops-page-header">
-        <div><p className="ops-eyebrow">{activeProgramme?.code ?? "Pilot"}</p><h1>Demand queue</h1><p>Review buyer demand, secure farmer commitments, inspect lots and make exact quantities collection-ready.</p></div>
+        <div><p className="ops-eyebrow">{activeProgramme?.code ?? "Maize"}</p><h1>Demand queue</h1><p>Review buyer demand, secure farmer commitments, inspect lots and make exact quantities collection-ready.</p></div>
         <Link href="/pilot/supply" className="btn btn-primary"><Plus size={18} /> Record assisted supply</Link>
       </header>
 

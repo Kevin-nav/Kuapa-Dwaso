@@ -142,9 +142,9 @@ export default function BuyerProfilePage() {
       {/* Support Message */}
       <div className="attention-card" style={{ backgroundColor: "var(--color-info-bg)", borderColor: "var(--color-info-border)", color: "var(--color-info)" }}>
         <div className="attention-body">
-          <span className="attention-title" style={{ color: "var(--color-info)" }}>Sourcing Verified Stock</span>
+          <span className="attention-title" style={{ color: "var(--color-info)" }}>Kuapa Dwaso fulfilment</span>
           <span className="attention-text" style={{ color: "var(--color-text)" }}>
-            This account enables purchasing directly from aggregation warehousing depots. For modifications to default regional parameters, contact operations.
+            We manage sourcing, quality checks, delivery, and payment records for your orders. Contact us if your delivery market changes.
           </span>
         </div>
       </div>
@@ -178,7 +178,7 @@ export default function BuyerProfilePage() {
         </button>
       </div>
 
-      <p className="timestamp">KuapaDwaso Aggregator Client · Connected</p>
+      <p className="timestamp">Kuapa Dwaso · Connected</p>
     </div>
   );
 }

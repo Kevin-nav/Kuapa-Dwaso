@@ -534,7 +534,7 @@ function InvitesPanel({
         )}
         {type === "pilot_operations_invite" && (
           <>
-            <Field label="Pilot programme"><select value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle}><option value="">Select programme</option>{(pilotProgrammes?.page ?? []).map((programme) => <option key={programme.id} value={programme.id}>{programme.name} · {programme.datasetProvenance === "sample_only" ? "SAMPLE" : "LIVE"}</option>)}</select></Field>
+            <Field label="Maize programme"><select value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle}><option value="">Select programme</option>{(pilotProgrammes?.page ?? []).filter((programme) => process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" ? programme.datasetProvenance === "sample_only" : programme.datasetProvenance === "live").map((programme) => <option key={programme.id} value={programme.id}>{programme.name}</option>)}</select></Field>
             <Field label="Approved operations profile ID"><input value={linkedProfileId} onChange={(event) => setLinkedProfileId(event.target.value)} required style={inputStyle} /></Field>
           </>
         )}

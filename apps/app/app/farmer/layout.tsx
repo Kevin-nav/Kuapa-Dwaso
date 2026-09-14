@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Home, Sprout, Receipt, Wallet, User, Inbox } from "lucide-react";
+import { Home, Inbox, User, WalletCards, Wheat } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
 
@@ -88,26 +88,22 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
 
       <main className="page-shell" style={{ paddingTop: "84px" }}>{children}{pathname === "/farmer/profile" ? <ProfilePwaTools /> : null}</main>
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="Farmer navigation">
         <Link href="/farmer" className={`nav-link ${isActive("/farmer") ? "nav-link-active" : ""}`}>
           <Home size={22} />
           <span>Home</span>
         </Link>
         <Link href="/farmer/produce" className={`nav-link ${isActive("/farmer/produce") ? "nav-link-active" : ""}`}>
-          <Sprout size={22} />
-          <span>Produce</span>
+          <Wheat size={22} />
+          <span>My maize</span>
         </Link>
         <Link href="/farmer/offers" className={`nav-link ${isActive("/farmer/offers") || isActive("/farmer/supply") ? "nav-link-active" : ""}`}>
           <Inbox size={22} />
           <span>Offers</span>
         </Link>
-        <Link href="/farmer/receipts" className={`nav-link ${isActive("/farmer/receipts") ? "nav-link-active" : ""}`}>
-          <Receipt size={22} />
-          <span>Receipts</span>
-        </Link>
         <Link href="/farmer/fees" className={`nav-link ${isActive("/farmer/fees") ? "nav-link-active" : ""}`}>
-          <Wallet size={22} />
-          <span>Fees</span>
+          <WalletCards size={22} />
+          <span>Payments</span>
         </Link>
       </nav>
     </>

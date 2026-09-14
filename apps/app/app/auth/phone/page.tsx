@@ -232,7 +232,7 @@ function PhoneOnboarding({ initialIntent }: { initialIntent: OnboardingIntent | 
         <div className="auth-hero-body">
           <h2>One platform for the whole harvest chain.</h2>
           <p>
-            The maize pilot begins with a buyer requirement, lets farmers review
+            Maize sourcing begins with a buyer requirement, lets farmers review
             the terms, then records quality, delivery and settlement.
           </p>
 
@@ -415,7 +415,7 @@ function PhoneOnboarding({ initialIntent }: { initialIntent: OnboardingIntent | 
                             <option value="">Choose your region</option>
                             {GHANA_REGIONS.map((item) => <option key={item} value={item}>{item}</option>)}
                           </select>
-                          <span className="field-help">Use the farmer&apos;s actual region. A warehouse is not required for the maize pilot.</span>
+                          <span className="field-help">Use the farmer&apos;s actual region. A warehouse is not required for the maize programme.</span>
                         </div>
                         <div className="field-stack">
                           <label htmlFor="community">Community</label>

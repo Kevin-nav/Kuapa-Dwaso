@@ -16,3 +16,7 @@ It may contain heavier operational UI such as dashboards, tables, audit logs, di
 - Permission preview for a selected admin user, permission, and scope.
 
 Email invitations use the API Resend provider boundary. Local development can return mock delivery when Resend is not configured. SMS invitations remain mock-only until a real SMS provider is selected.
+
+Normal deployments should leave `NEXT_PUBLIC_DEMO_PRESENTATION=false`. Set it to
+`true` only in a separate presentation deployment; that build shows sample-only
+programmes and the required demonstration notice.

@@ -192,7 +192,6 @@ function InventorySummaryContent() {
     ? Math.max(0, Math.floor((earliestSellBy - renderedAt) / MS_PER_DAY))
     : null;
 
-  const warehouseName = warehouse?.name || listToRender[0]?.warehouseName || "Selected warehouse";
   const dispatchDays = warehouse?.dispatchDays || [];
 
   return (
@@ -216,7 +215,7 @@ function InventorySummaryContent() {
         }}
       >
         <ArrowLeft size={18} />
-        <span>Back to Marketplace</span>
+        <span>Back to stock</span>
       </button>
 
       {/* Main Stock Summary Header - Screenshot friendly layout */}
@@ -238,7 +237,7 @@ function InventorySummaryContent() {
           </h2>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.9375rem", color: "var(--color-text-muted)", marginTop: "4px" }}>
             <MapPin size={16} />
-            <span>{warehouseName}</span>
+            <span>Kuapa Dwaso supply</span>
           </div>
         </div>
 
@@ -284,7 +283,7 @@ function InventorySummaryContent() {
 
           {!isInventoryLoading && !hasAvailableBatches && (
             <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--color-text-muted)" }}>
-              This stock is no longer available for reservation. Try another warehouse listing or adjust your filters.
+              This stock is no longer available for reservation. Try another listing or adjust your filters.
             </div>
           )}
 
@@ -377,13 +376,13 @@ function InventorySummaryContent() {
           >
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
               <p style={{ margin: 0 }}>
-                <strong>1. Purchase Price:</strong> The listed price goes directly to matching the farmer&apos;s produce. There are no negotiation fees.
+                <strong>1. Produce Price:</strong> The listed price covers the selected produce. There are no negotiation fees.
               </p>
               <p style={{ margin: 0 }}>
                 <strong>2. Platform Service Fee:</strong> A small service charge is calculated upon checkout based on the quantity requested and grade category.
               </p>
               <p style={{ margin: 0 }}>
-                <strong>3. Dispatch & Shipping:</strong> Produce is grouped and shipped on the warehouse&apos;s dispatch days. Transporter delivery costs are calculated per destination market and split according to the default platform parameters.
+                <strong>3. Delivery:</strong> Kuapa Dwaso groups produce and ships it on the published delivery days. Transport costs are calculated for your destination.
               </p>
             </div>
           </div>
@@ -406,7 +405,7 @@ function InventorySummaryContent() {
         </button>
       </div>
 
-      <p className="timestamp">Official warehouse records synced · Connected</p>
+      <p className="timestamp">Kuapa Dwaso records · Connected</p>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export default function FarmerSupplyPage() {
       return;
     }
     if (programme === undefined) {
-      setError("No active maize pilot is available for your profile.");
+      setError("No active maize programme is available for your profile.");
       return;
     }
     const grams = Math.round(Number(kilograms) * 1000);
@@ -60,7 +60,7 @@ export default function FarmerSupplyPage() {
   return (
     <div className="pilot-farmer-stack">
       <button className="pilot-back" onClick={() => router.back()} type="button"><ArrowLeft size={18} /> Back</button>
-      <header className="pilot-farmer-heading"><span className="pilot-buyer-kicker">Maize pilot</span><h1>Tell us what maize you have</h1><p>This is a supply declaration, not a sale. You choose whether to accept any offer later.</p></header>
+      <header className="pilot-farmer-heading"><span className="pilot-buyer-kicker">Maize</span><h1>Tell us what maize you have</h1><p>This is a supply declaration, not a sale. You choose whether to accept any offer later.</p></header>
       {error === undefined ? null : <div className="attention-card" role="alert"><AlertCircle size={20} /><div className="attention-body"><span className="attention-title">Nothing was submitted</span><span className="attention-text">{error}</span></div></div>}
       <form className="pilot-request-form" onSubmit={(event) => void submit(event)}>
         <label className="form-group"><span className="form-label">Maize type</span><input className="form-input" required value={maizeType} onChange={(event) => setMaizeType(event.target.value)} /></label>

@@ -119,7 +119,7 @@ export function SampleDataBanner({
       <span aria-hidden="true" style={{ marginRight: 8 }}>
         ◇
       </span>
-      Sample pilot data — {names}. Payment, SMS and inspection simulations are
+      Demo data — {names}. Payment, SMS and inspection simulations are
       labelled at each event.
     </aside>
   );

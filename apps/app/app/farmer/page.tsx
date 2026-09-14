@@ -1,87 +1,99 @@
 "use client";
 
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { AlertTriangle, Bell, ChevronRight, FileText, HelpCircle, MapPin, Phone, Sprout } from "lucide-react";
+import { ArrowRight, CalendarDays, CircleHelp, HandCoins, MapPin, Sprout, Wheat } from "lucide-react";
 import { useAuth } from "@/app/auth/AuthProvider";
+import { farmerCopy } from "./copy";
+import { EmptyCard, Fact, formatDate, formatMoney, StatusChip } from "./farmer-ui";
+
+type Farmer = {
+  fullName?: string;
+  community?: string;
+  region?: string;
+};
 
 type Receipt = {
   _id: string;
-  receiptCode: string;
   cropType: string;
   quantityAvailable: number;
   quantityReceived: number;
   unit: string;
   status: string;
   receivedAt: number;
-  storageFeeAccrued?: number;
+  grade?: string;
 };
 
 type Sale = {
   _id: string;
-  paymentStatus: string;
+  quantitySold: number;
+  unit: string;
+  pricePerUnit: number;
   netAmountDueToFarmer: number;
+  paymentStatus: string;
+  createdAt: number;
+  batch?: { cropType?: string } | null;
+};
+
+type Payout = {
+  _id: string;
+  saleRecordId?: string;
+  amount: number;
+  status: string;
+  paidAt?: number;
 };
 
 type Dispatch = {
   dispatchId: string;
-  destination: string;
+  cropType?: string;
   status: string;
   quantity: number;
   unit: string;
+  plannedDepartureAt?: number;
 };
 
-function statusClass(status: string) {
-  if (["verified", "available", "paid", "delivered", "closed", "read"].includes(status)) return "success";
-  if (["received", "pending", "part_paid", "planned", "loading", "in_transit", "arrived"].includes(status)) return "warning";
-  if (["disputed", "withheld", "cancelled", "issue_reported"].includes(status)) return "danger";
-  return "neutral";
+function isMaize(cropType?: string): boolean {
+  return cropType?.trim().toLowerCase() === "maize";
+}
+
+function getFirstName(name?: string): string {
+  return name?.trim().split(/\s+/)[0] ?? "there";
+}
+
+function getOpenMaizeDispatches(dispatches: Dispatch[]): Dispatch[] {
+  return dispatches
+    .filter((dispatch) => isMaize(dispatch.cropType) && !["delivered", "closed", "cancelled"].includes(dispatch.status))
+    .sort((left, right) => (left.plannedDepartureAt ?? Number.MAX_SAFE_INTEGER) - (right.plannedDepartureAt ?? Number.MAX_SAFE_INTEGER));
 }
 
 export default function FarmerDashboard() {
   const { principal } = useAuth();
   const farmerProfile = principal?.profiles?.find((profile) => profile.profileType === "farmer");
   const farmerId = farmerProfile?.profileId as Id<"farmers"> | undefined;
-  const markNotificationRead = useMutation(api.notifications.markRead);
-  const acknowledgeNotification = useMutation(api.notifications.acknowledge);
+  const actorUserId = principal?.userId as Id<"users"> | undefined;
 
   const farmer = useQuery(
     api.farmers.getById,
-    principal !== null && principal !== undefined && farmerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, farmerId }
-      : "skip",
-  );
+    actorUserId !== undefined && farmerId !== undefined ? { actorUserId, farmerId } : "skip",
+  ) as Farmer | null | undefined;
   const receipts = useQuery(
     api.inventoryBatches.listFarmerReceipts,
-    principal !== null && principal !== undefined && farmerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, farmerId }
-      : "skip",
+    actorUserId !== undefined && farmerId !== undefined ? { actorUserId, farmerId, limit: 30 } : "skip",
   ) as Receipt[] | undefined;
   const sales = useQuery(
     api.sales.listForFarmer,
-    principal !== null && principal !== undefined && farmerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, farmerId, limit: 20 }
-      : "skip",
+    actorUserId !== undefined && farmerId !== undefined ? { actorUserId, farmerId, limit: 20 } : "skip",
   ) as Sale[] | undefined;
   const payouts = useQuery(
     api.payments.listPayoutLedgerForFarmer,
-    principal !== null && principal !== undefined && farmerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, farmerId, limit: 20 }
-      : "skip",
-  );
+    actorUserId !== undefined && farmerId !== undefined ? { actorUserId, farmerId, limit: 20 } : "skip",
+  ) as Payout[] | undefined;
   const dispatches = useQuery(
     api.dispatches.listForFarmer,
-    principal !== null && principal !== undefined && farmerId !== undefined
-      ? { actorUserId: principal.userId as Id<"users">, farmerId, limit: 3 }
-      : "skip",
+    actorUserId !== undefined && farmerId !== undefined ? { actorUserId, farmerId, limit: 20 } : "skip",
   ) as Dispatch[] | undefined;
-  const notifications = useQuery(
-    api.notifications.listForActor,
-    principal !== null && principal !== undefined ? { actorUserId: principal.userId as Id<"users">, limit: 3 } : "skip",
-  );
-  const warehouses = useQuery(api.warehouses.list, {});
 
   if (farmer === undefined || receipts === undefined || sales === undefined || payouts === undefined || dispatches === undefined) {
     return <div className="skeleton" style={{ minHeight: "420px", borderRadius: "20px" }} />;
@@ -89,180 +101,108 @@ export default function FarmerDashboard() {
 
   if (farmer === null) {
     return (
-      <div className="farmer-card">
-        <span className="card-title">Farmer profile not found</span>
-        <span className="card-meta">Complete signup or claim your warehouse-created farmer profile.</span>
-        <Link href="/signup" className="btn btn-primary">Continue signup</Link>
-      </div>
+      <EmptyCard
+        title="Your profile is not ready"
+        hint="Finish signup so Kuapa Dwaso can record your maize and payments."
+        action={<Link href="/signup" className="btn btn-primary">Continue signup</Link>}
+      />
     );
   }
 
-  const warehouse = warehouses?.find((item) => item._id === farmer.preferredWarehouseId);
-  const activeBatches = receipts.filter((receipt) =>
-    ["received", "verified", "available", "partially_reserved", "reserved", "partially_sold"].includes(receipt.status),
-  );
-  const totalDueAmount = sales
-    .filter((sale) => sale.paymentStatus === "pending" || sale.paymentStatus === "part_paid")
+  const maizeReceipts = receipts.filter((receipt) => isMaize(receipt.cropType));
+  const maizeSales = sales
+    .filter((sale) => isMaize(sale.batch?.cropType))
+    .sort((left, right) => right.createdAt - left.createdAt);
+  const openDispatches = getOpenMaizeDispatches(dispatches);
+  const pendingAmount = maizeSales
+    .filter((sale) => sale.paymentStatus !== "paid")
     .reduce((total, sale) => total + sale.netAmountDueToFarmer, 0);
-  const totalAccruedFees = receipts.reduce((total, receipt) => total + (receipt.storageFeeAccrued ?? 0), 0);
-  const pendingPayoutAmount = payouts
-    .filter((payout) => payout.status !== "paid" && payout.status !== "cancelled")
+  const paidAmount = payouts
+    .filter((payout) => payout.status === "paid")
     .reduce((total, payout) => total + payout.amount, 0);
+  const availableQuantity = maizeReceipts.reduce((total, receipt) => total + Math.max(0, receipt.quantityAvailable), 0);
+  const nextCollection = openDispatches[0];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div className="home-header">
-        <p className="eyebrow">Farmer portal</p>
-        <h1>{farmer.fullName}</h1>
-        <div className="home-warehouse">
-          <MapPin size={16} />
-          <span>{warehouse?.name ?? farmer.community}</span>
-        </div>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <header className="home-header">
+        <p className="eyebrow">{farmerCopy.home.eyebrow}</p>
+        <h1>{farmerCopy.home.welcome}, {getFirstName(farmer.fullName)}</h1>
+        <p className="card-meta" style={{ maxWidth: "38rem" }}>See your maize, offers, next collection, and payments in one place.</p>
+      </header>
 
       <section className="pilot-farmer-callout">
-        <div><span className="pilot-buyer-kicker">Maize pilot</span><h2>Have maize ready to sell?</h2><p>Declare the quantity and location. No warehouse selection is required, and you approve the full offer before collection.</p></div>
-        <Link className="btn btn-primary" href="/farmer/supply"><Sprout size={18} /> Declare maize supply</Link>
-        <Link className="pilot-inline-link" href="/farmer/offers">Open my offer inbox <ChevronRight size={16} /></Link>
+        <div><span className="pilot-buyer-kicker">Sell maize</span><h2>Have maize ready?</h2><p>Tell Kuapa Dwaso the quantity and location. You will see the full offer before collection.</p></div>
+        <Link className="btn btn-primary" href="/farmer/supply"><Sprout size={18} /> Add maize</Link>
       </section>
 
-      {totalAccruedFees > 0 && (
-        <div className="attention-card">
-          <AlertTriangle className="attention-icon" size={24} />
-          <div className="attention-body">
-            <span className="attention-title">Storage fees accruing</span>
-            <span className="attention-text">GHS {totalAccruedFees.toFixed(2)} is currently tracked and will be settled through sale deductions or fee updates.</span>
-            <Link href="/farmer/fees" style={{ fontSize: "0.875rem", fontWeight: 700, textDecoration: "underline" }}>View details</Link>
-          </div>
-        </div>
-      )}
-
-      <div className="summary-strip">
-        <div className="summary-card">
-          <span className="summary-label">Stored Batches</span>
-          <span className="summary-value">{activeBatches.length}</span>
-        </div>
-        <div className="summary-card" style={{ borderLeftColor: "var(--color-primary)" }}>
-          <span className="summary-label">Payouts Pending</span>
-          <span className="summary-value" style={{ color: "var(--color-primary)" }}>GHS {pendingPayoutAmount.toFixed(2)}</span>
-        </div>
-      </div>
-
-      <div className="summary-strip">
-        <div className="summary-card">
-          <span className="summary-label">Sales Due</span>
-          <span className="summary-value">GHS {totalDueAmount.toFixed(2)}</span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-label">Dispatch Updates</span>
-          <span className="summary-value">{dispatches.length}</span>
-        </div>
-      </div>
-
-      <section>
-        <div className="section-title-row">
-          <h2 className="section-title">My Produce</h2>
+      <section className="farmer-card" aria-labelledby="available-maize-title" style={{ borderColor: "var(--color-primary)", background: "linear-gradient(145deg, var(--color-surface), var(--color-primary-tint))" }}>
+        <div className="card-header">
+          <span id="available-maize-title" className="card-title"><Wheat size={19} />{farmerCopy.home.available}</span>
           <Link href="/farmer/produce" className="section-link">See all</Link>
         </div>
-        <div className="compact-list" style={{ marginTop: "8px" }}>
-          {receipts.length === 0 ? (
-            <div className="compact-row">
-              <div className="row-info">
-                <span className="row-title">No receipts yet</span>
-                <span className="row-subtitle">Warehouse receipts will appear after intake.</span>
-              </div>
-            </div>
-          ) : (
-            receipts.slice(0, 3).map((receipt) => (
-              <Link href={`/farmer/receipts/${receipt._id}`} key={receipt._id} className="compact-row">
-                <div className="row-left">
-                  <div className="row-icon-wrapper"><Sprout size={18} /></div>
-                  <div className="row-info">
-                    <span className="row-title">{receipt.cropType}</span>
-                    <span className="row-subtitle">{receipt.quantityAvailable} {receipt.unit} available</span>
-                  </div>
-                </div>
-                <span className={`status-chip status-${statusClass(receipt.status)}`}>{receipt.status.replaceAll("_", " ")}</span>
-              </Link>
-            ))
-          )}
+        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+          <strong style={{ fontSize: "2.15rem", color: "var(--color-ink)", lineHeight: 1 }}>{availableQuantity.toLocaleString("en-GH")}</strong>
+          <span style={{ color: "var(--color-text-muted)", fontWeight: 700 }}>kg</span>
+        </div>
+        <span className="card-meta">{farmerCopy.home.availableHint}</span>
+        <Link href="/farmer/produce" className="btn btn-primary btn-full">View my maize <ArrowRight size={17} /></Link>
+      </section>
+
+      <section className="farmer-card" aria-labelledby="next-collection-title">
+        <div className="card-header">
+          <span id="next-collection-title" className="card-title"><CalendarDays size={18} />{farmerCopy.home.nextCollection}</span>
+          {nextCollection !== undefined ? <StatusChip value={nextCollection.status} /> : null}
+        </div>
+        {nextCollection === undefined ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <strong style={{ color: "var(--color-ink)" }}>{farmerCopy.home.noCollection}</strong>
+            <span className="card-meta">{farmerCopy.home.collectionHint}</span>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px" }}>
+            <Fact label="Date">{formatDate(nextCollection.plannedDepartureAt)}</Fact>
+            <Fact label="Quantity">{nextCollection.quantity.toLocaleString("en-GH")} {nextCollection.unit}</Fact>
+          </div>
+        )}
+        {nextCollection !== undefined ? <span className="card-meta">{farmerCopy.home.collectionHint}</span> : null}
+        <Link href="/farmer/contact" className="section-link" style={{ alignSelf: "flex-start" }}>Ask about collection</Link>
+      </section>
+
+      <section className="farmer-card" aria-labelledby="latest-offer-title">
+        <div className="card-header">
+          <span id="latest-offer-title" className="card-title"><HandCoins size={18} />Offers</span>
+          <Link href="/farmer/offers" className="section-link">See all</Link>
+        </div>
+        <p className="card-meta">Review Kuapa Dwaso offers, including quantity, price, collection, and payment date.</p>
+        <Link href="/farmer/offers" className="btn btn-secondary btn-full">View offers <ArrowRight size={17} /></Link>
+      </section>
+
+      <section className="summary-strip" aria-label="Payment summary">
+        <div className="summary-card">
+          <span className="summary-label">{farmerCopy.home.payment}</span>
+          <span className="summary-value">{formatMoney(pendingAmount)}</span>
+          <span className="card-meta">{pendingAmount > 0 ? "Due to you" : farmerCopy.home.noPayment}</span>
+        </div>
+        <div className="summary-card" style={{ borderLeftColor: "var(--color-success)" }}>
+          <span className="summary-label">Paid</span>
+          <span className="summary-value" style={{ color: "var(--color-success)" }}>{formatMoney(paidAmount)}</span>
+          <span className="card-meta">Recorded payments</span>
         </div>
       </section>
 
-      <section>
-        <div className="section-title-row">
-          <h2 className="section-title">Recent Receipts</h2>
-          <Link href="/farmer/receipts" className="section-link">See all</Link>
-        </div>
-        <div className="compact-list" style={{ marginTop: "8px" }}>
-          {receipts.slice(0, 2).map((receipt) => (
-            <Link href={`/farmer/receipts/${receipt._id}`} key={receipt._id} className="compact-row">
-              <div className="row-left">
-                <div className="row-icon-wrapper" style={{ backgroundColor: "#f1f5f9", color: "#475569" }}><FileText size={18} /></div>
-                <div className="row-info">
-                  <span className="row-title" style={{ fontFamily: "var(--font-mono)" }}>{receipt.receiptCode}</span>
-                  <span className="row-subtitle">Received {new Date(receipt.receivedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <ChevronRight size={18} style={{ color: "var(--color-line)" }} />
-            </Link>
-          ))}
+      <section className="attention-card" style={{ backgroundColor: "var(--color-info-bg)", borderColor: "var(--color-info-border)", color: "var(--color-info)" }}>
+        <CircleHelp size={20} aria-hidden="true" />
+        <div className="attention-body">
+          <span className="attention-title">{farmerCopy.home.support}</span>
+          <span className="attention-text">{farmerCopy.home.supportHint}</span>
+          <Link href="/farmer/contact" className="section-link" style={{ alignSelf: "flex-start" }}>Contact us</Link>
         </div>
       </section>
 
-      {dispatches.length > 0 && (
-        <section>
-          <div className="section-title-row"><h2 className="section-title">Dispatch Status</h2></div>
-          <div className="compact-list" style={{ marginTop: "8px" }}>
-            {dispatches.map((dispatch) => (
-              <div key={dispatch.dispatchId} className="compact-row">
-                <div className="row-info">
-                  <span className="row-title">{dispatch.destination}</span>
-                  <span className="row-subtitle">{dispatch.quantity} {dispatch.unit}</span>
-                </div>
-                <span className={`status-chip status-${statusClass(dispatch.status)}`}>{dispatch.status.replaceAll("_", " ")}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {notifications !== undefined && notifications.length > 0 && (
-        <section>
-          <div className="section-title-row"><h2 className="section-title">Notifications</h2></div>
-          <div className="compact-list" style={{ marginTop: "8px" }}>
-            {notifications.map((notification) => (
-              <div key={notification._id} className="compact-row">
-                <div className="row-left">
-                  <div className="row-icon-wrapper"><Bell size={18} /></div>
-                  <div className="row-info">
-                    <span className="row-title">{notification.title}</span>
-                    <span className="row-subtitle">{notification.message}</span>
-                    {notification.dueAt !== undefined && <span className="row-subtitle">Due {new Date(notification.dueAt).toLocaleString()}</span>}
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "6px" }}>
-                      {notification.actionUrl !== undefined && <Link href={notification.actionUrl} className="btn btn-secondary">Open</Link>}
-                      {notification.status !== "read" && principal !== null && principal !== undefined && (
-                        <button type="button" className="btn btn-secondary" onClick={() => void markNotificationRead({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Mark read</button>
-                      )}
-                      {notification.actionRequired === true && notification.acknowledgedAt === undefined && principal !== null && principal !== undefined && (
-                        <button type="button" className="btn btn-primary" onClick={() => void acknowledgeNotification({ actorUserId: principal.userId as Id<"users">, notificationId: notification._id })}>Acknowledge</button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
-        <Link href="/farmer/contact" style={{ width: "100%" }}>
-              <button type="button" className="btn btn-secondary btn-full"><Phone size={18} /><span>Contact support</span></button>
-        </Link>
-        <Link href="/farmer/issue" style={{ width: "100%" }}>
-          <button type="button" className="btn btn-secondary btn-full"><HelpCircle size={18} /><span>Report an Issue</span></button>
-        </Link>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--color-text-muted)", fontSize: "0.82rem" }}>
+        <MapPin size={14} aria-hidden="true" />
+        <span>{farmer.community ?? farmer.region ?? "Ghana"}</span>
       </div>
     </div>
   );

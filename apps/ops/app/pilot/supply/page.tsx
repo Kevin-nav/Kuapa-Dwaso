@@ -117,7 +117,7 @@ export default function PilotSupplyPage() {
   return (
     <div className="ops-page-stack">
       <header className="ops-page-header">
-        <div><p className="ops-eyebrow">{activeProgramme?.name ?? "Maize pilot"}</p><h1>Supply desk</h1><p>Verify farmer declarations and match real, unallocated maize to buyer demand.</p></div>
+        <div><p className="ops-eyebrow">{activeProgramme?.name ?? "Maize programme"}</p><h1>Supply desk</h1><p>Verify farmer declarations and match real, unallocated maize to buyer demand.</p></div>
         <button type="button" className="btn btn-primary" onClick={() => setShowForm((open) => !open)}><Plus size={18} /> Assisted supply</button>
       </header>
 

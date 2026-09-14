@@ -33,7 +33,7 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
               ["Stories and insights", "/blog"],
               ["About", "/#market"],
               ["Contact", officialContactHref],
-              ["Join the pilot", appAuthHref],
+              ["Get started", appAuthHref],
             ]}
           />
           <div>

@@ -87,6 +87,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       programmeName: programme.name,
       dataMode: programme.datasetProvenance,
     }));
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
 
   async function retrySync() {
     setSyncError(undefined);
@@ -113,7 +114,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
                 onChange={(event) =>
                   setActiveProgrammeId(event.target.value as typeof activeProgrammeId)
                 }
-                aria-label="Active pilot programme"
+                aria-label="Active maize programme"
               >
                 {programmes.map((programme) => (
                   <option key={programme.id} value={programme.id}>
@@ -137,7 +138,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             </label>
           ) : (
             <div className="topbar-title">
-              {isPilotRoute ? activeProgramme?.name ?? "Maize pilot" : activeWarehouse.name}
+              {isPilotRoute ? activeProgramme?.name ?? "Maize programme" : activeWarehouse.name}
             </div>
           )}
         </div>
@@ -172,7 +173,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
               </div>
               <div className="profile-dropdown-body">
                 <span className="profile-info-label">Current workspace</span>
-                <strong>{isPilotRoute ? activeProgramme?.name ?? "No pilot assignment" : activeWarehouse.name}</strong>
+                <strong>{isPilotRoute ? activeProgramme?.name ?? "No programme assignment" : activeWarehouse.name}</strong>
               </div>
               <div className="profile-dropdown-footer">
                 <Link href="/notifications" className="btn-logout" onClick={() => setShowProfileMenu(false)}>
@@ -193,7 +194,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
           <Link href="/" className={`sidebar-link ${pathname === "/" ? "active" : ""}`}>
             <Home size={19} /><span>Home</span>
           </Link>
-          <p className="ops-nav-label">Maize pilot</p>
+          <p className="ops-nav-label">Maize programme</p>
           {pilotNav.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
@@ -216,7 +217,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       </aside>
 
       <main className="main-content">
-        <SampleDataBanner programmes={sampleProgrammes} />
+        {demoPresentation ? <SampleDataBanner programmes={sampleProgrammes} /> : null}
         <div className="content-container">
           {isOffline ? (
             <div className="offline-banner" role="alert">

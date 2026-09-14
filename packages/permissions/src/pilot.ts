@@ -163,7 +163,7 @@ export const allowedPilotOfferTransitions: Readonly<
 > = {
   draft: ["sent", "expired", "withdrawn"],
   sent: ["draft", "accepted", "declined", "expired", "withdrawn"],
-  accepted: ["withdrawn"],
+  accepted: [],
   declined: [],
   expired: [],
   withdrawn: [],
@@ -174,4 +174,49 @@ export function canTransitionPilotOffer(
   next: PilotOfferStatus,
 ): boolean {
   return allowedPilotOfferTransitions[current].includes(next);
+}
+
+export type PilotSettlementReservationCoverageInput = {
+  expectedNetPesewas: number;
+  offerExpiresAt: number;
+  now: number;
+  reservation: {
+    status:
+      | "active"
+      | "partly_consumed"
+      | "consumed"
+      | "released"
+      | "expired"
+      | "reversed";
+    produceAmountPesewas: number;
+    knownCostAmountPesewas: number;
+    consumedPesewas: number;
+    releasedPesewas: number;
+    expiresAt: number;
+  };
+  budget: {
+    status: "draft" | "active" | "suspended" | "closed";
+    reservedPesewas: number;
+  };
+};
+
+/** A sent or accepted offer must retain its complete farmer-payment reserve. */
+export function pilotSettlementReservationCoversOffer(
+  input: PilotSettlementReservationCoverageInput,
+): boolean {
+  const reservedForThisOffer =
+    input.reservation.produceAmountPesewas +
+    input.reservation.knownCostAmountPesewas;
+  return (
+    Number.isSafeInteger(input.expectedNetPesewas) &&
+    input.expectedNetPesewas > 0 &&
+    input.reservation.status === "active" &&
+    input.reservation.consumedPesewas === 0 &&
+    input.reservation.releasedPesewas === 0 &&
+    input.reservation.produceAmountPesewas >= input.expectedNetPesewas &&
+    input.reservation.expiresAt > input.now &&
+    input.reservation.expiresAt >= input.offerExpiresAt &&
+    input.budget.status === "active" &&
+    input.budget.reservedPesewas >= reservedForThisOffer
+  );
 }

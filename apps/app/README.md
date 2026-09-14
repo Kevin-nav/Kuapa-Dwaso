@@ -12,3 +12,7 @@ Auth routes:
 For local development, put `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_CONVEX_URL`, and
 `NEXT_PUBLIC_API_URL` in the repo root `.env.local`. The app scripts load root
 `.env.local`, then root `.env`, then app-local env files as optional overrides.
+
+Normal deployments should leave `NEXT_PUBLIC_DEMO_PRESENTATION=false`. Set it to
+`true` only in a separate presentation deployment; that build shows sample-only
+programmes and the required demonstration notice.

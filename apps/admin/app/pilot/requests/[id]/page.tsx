@@ -46,8 +46,9 @@ export default function PilotStatementPage() {
   const [pageNow] = useState(() => Date.now());
 
   if (detail === undefined || statement === undefined || access === undefined) return <main className="pilot-admin"><section className="pilot-admin__panel"><h1>Loading transaction statement</h1></section></main>;
-  if (detail === null) return <main className="pilot-admin"><section className="pilot-admin__panel"><h1>Request unavailable</h1><p>This request is outside your assigned programme scope.</p><Link href="/pilot">Return to pilot</Link></section></main>;
+  if (detail === null) return <main className="pilot-admin"><section className="pilot-admin__panel"><h1>Request unavailable</h1><p>This request is outside your assigned programme scope.</p><Link href="/pilot">Return to maize sourcing</Link></section></main>;
   const sample = statement.entries.some((entry) => entry.provenance === "sample_only");
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
 
   async function upload(file: File) {
     if (firebaseUser === null || detail === null || detail === undefined) throw new Error("Sign in before attaching evidence.");
@@ -76,9 +77,9 @@ export default function PilotStatementPage() {
   }
 
   return <main className="pilot-admin">
-    <Link className="pilot-admin__text-link" href="/pilot"><ArrowLeft size={15} /> Pilot control room</Link>
+    <Link className="pilot-admin__text-link" href="/pilot"><ArrowLeft size={15} /> Maize control room</Link>
     <header className="pilot-admin__hero"><div><span className="pilot-admin__eyebrow">Transaction statement · {String(requestId).slice(-8)}</span><h1>{detail.request.maizeType} to {detail.request.destination.label}</h1><p>{(detail.request.confirmedGrams ?? detail.request.requestedGrams) / 1000} kg · {detail.request.commercialMode.replaceAll("_", " ")} · {detail.request.status.replaceAll("_", " ")}</p></div></header>
-    {sample ? <div className="pilot-admin__sample"><AlertTriangle size={18} /><strong>Sample transaction</strong><span>These fictional postings never enter live programme totals.</span></div> : null}
+    {demoPresentation && sample ? <div className="pilot-admin__sample"><AlertTriangle size={18} /><strong>Demonstration</strong><span>No real orders or payments.</span></div> : null}
     <section className="pilot-admin__metrics"><Metric label="Obligations" value={money(statement.totals.obligationPesewas)} /><Metric label="Settled" value={money(statement.totals.settledPesewas)} /><Metric label="Outstanding" value={money(statement.totals.outstandingPesewas)} danger={statement.totals.outstandingPesewas > 0} /><Metric label="Cost completeness" value={statement.costCompleteness?.status ?? "Not applicable"} danger={statement.costCompleteness?.status === "incomplete"} /></section>
     {message ? <p className="pilot-admin__message" role="status">{message}</p> : null}
     <section className="pilot-admin__panel"><div className="pilot-admin__panel-head"><div><span className="pilot-admin__eyebrow">Immutable ledger</span><h2>Postings and balances</h2></div><FileCheck2 size={22} /></div>

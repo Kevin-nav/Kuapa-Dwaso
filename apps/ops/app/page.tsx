@@ -45,7 +45,7 @@ export default function OpsHomePage() {
         <div className="ops-workspace-copy">
           <span className="ops-icon-tile"><Leaf size={22} /></span>
           <div>
-            <p className="ops-eyebrow">Demand-led maize pilot</p>
+            <p className="ops-eyebrow">Demand-led maize sourcing</p>
             <h2>{activeProgramme?.name ?? "No programme assigned"}</h2>
             <p>
               {pilotLoading
@@ -84,19 +84,19 @@ export default function OpsHomePage() {
             <p>
               {assignedWarehouses.length > 0
                 ? `${inventory.length} inventory batch${inventory.length === 1 ? "" : "es"}; ${disputes.length} recorded issue${disputes.length === 1 ? "" : "s"}.`
-                : "Warehouse intake stays separate. You can run assigned pilot work without one."}
+                : "Warehouse intake stays separate. You can run assigned programme work without one."}
             </p>
           </div>
         </div>
         {assignedWarehouses.length > 0 ? (
           <Link href="/inventory" className="ops-arrow-link">Open inventory <ArrowRight size={17} /></Link>
         ) : (
-          <span className="ops-muted-action"><Package size={16} /> Not needed for pilot work</span>
+          <span className="ops-muted-action"><Package size={16} /> Not needed for programme work</span>
         )}
       </section>
 
       {programmes.length === 0 && !pilotLoading ? (
-        <div className="ops-callout" role="status"><AlertTriangle size={20} /><span>No pilot programme is assigned to this identity. Existing warehouse tools remain available when assigned.</span></div>
+        <div className="ops-callout" role="status"><AlertTriangle size={20} /><span>No maize programme is assigned to this identity. Existing warehouse tools remain available when assigned.</span></div>
       ) : null}
     </div>
   );

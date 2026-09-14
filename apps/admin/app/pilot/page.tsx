@@ -40,8 +40,18 @@ export default function PilotAdminPage() {
   const canReadFinance = permissionSet.has("pilotFinance:read");
   const canManageFinance = permissionSet.has("pilotFinance:manage");
   const programmes = useQuery(api.pilotProgrammes.listAvailable, actorUserId === undefined ? "skip" : { limit: 50 }) as { page: Programme[] } | undefined;
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const visibleProgrammes = useMemo(
+    () =>
+      (programmes?.page ?? []).filter((programme) =>
+        demoPresentation
+          ? programme.datasetProvenance === "sample_only"
+          : programme.datasetProvenance === "live",
+      ),
+    [demoPresentation, programmes],
+  );
   const [selectedId, setSelectedId] = useState<string>("");
-  const selected = programmes?.page.find((programme) => programme.id === selectedId) ?? programmes?.page[0];
+  const selected = visibleProgrammes.find((programme) => programme.id === selectedId) ?? visibleProgrammes[0];
   const [now] = useState(() => Date.now());
 
   const requests = useQuery(api.pilotRequests.listAssigned, selected === undefined ? "skip" : { programmeId: selected.id, limit: 50 }) as { page: Array<{ requestId: Id<"pilotBuyerRequests">; status: string; requestedGrams: number; confirmedGrams?: number; commercialMode: string; deliveryWindowEndAt: number }> } | undefined;
@@ -52,8 +62,8 @@ export default function PilotAdminPage() {
   const queue = useQuery(api.pilotFinance.listPurchaseApprovalQueue, selected === undefined || !canReadFinance ? "skip" : { programmeId: selected.id }) as ApprovalRow[] | undefined;
   const entries = useQuery(api.pilotFinance.listFinancialEntries, selected === undefined || !canReadFinance ? "skip" : { programmeId: selected.id, limit: 50 }) as { page: FinancialEntry[] } | undefined;
 
-  if (actorUserId === undefined) return <StateCard title="Administrator required" detail="Sign in with an active administrator identity to manage the maize pilot." />;
-  if (programmes === undefined || access === undefined) return <StateCard title="Loading pilot control room" detail="Checking programme-scoped access and current records." />;
+  if (actorUserId === undefined) return <StateCard title="Administrator required" detail="Sign in with an active administrator identity to manage maize sourcing." />;
+  if (programmes === undefined || access === undefined) return <StateCard title="Loading maize control room" detail="Checking programme access and current records." />;
 
   const requestRows = requests?.page ?? [];
   const openIssues = (issues ?? []).filter((issue) => !["resolved", "closed"].includes(issue.status));
@@ -64,12 +74,12 @@ export default function PilotAdminPage() {
   return (
     <main className="pilot-admin">
       <header className="pilot-admin__hero">
-        <div><span className="pilot-admin__eyebrow">Maize pilot control room</span><h1>Act on the next operational risk.</h1><p>Programme controls, supply exposure, collections and real liabilities stay separate from warehouse operations.</p></div>
-        <div className="pilot-admin__selector"><label htmlFor="programme">Programme</label><select id="programme" value={selected?.id ?? ""} onChange={(event) => setSelectedId(event.target.value)}>{programmes.page.map((programme) => <option key={programme.id} value={programme.id}>{programme.name} · {programme.datasetProvenance === "sample_only" ? "SAMPLE" : "LIVE"}</option>)}</select></div>
+        <div><span className="pilot-admin__eyebrow">Maize control room</span><h1>Act on the next operational risk.</h1><p>Track supply, collections, funding and payments.</p></div>
+        <div className="pilot-admin__selector"><label htmlFor="programme">Programme</label><select id="programme" value={selected?.id ?? ""} onChange={(event) => setSelectedId(event.target.value)}>{visibleProgrammes.map((programme) => <option key={programme.id} value={programme.id}>{programme.name}</option>)}</select></div>
       </header>
 
-      {selected === undefined ? <CreateProgramme canManage={canManageProgrammes} /> : <>
-        {selected.datasetProvenance === "sample_only" ? <div className="pilot-admin__sample"><Sprout size={18} /><strong>Sample programme</strong><span>All records and totals below are fictional demo data and are excluded from live reporting.</span></div> : null}
+      {selected === undefined ? <CreateProgramme canManage={canManageProgrammes} demoPresentation={demoPresentation} /> : <>
+        {demoPresentation ? <div className="pilot-admin__sample"><Sprout size={18} /><strong>Demonstration</strong><span>No real orders or payments.</span></div> : null}
         <section className="pilot-admin__metrics" aria-label="Priority risks">
           <Metric label="Supply requests" value={requestRows.length} detail={`${requestRows.filter((row) => ["submitted", "under_review", "quoted"].includes(row.status)).length} still sourcing`} />
           <Metric label="Overdue actions" value={overdueIssues.length} detail={`${openIssues.length} open issues`} danger={overdueIssues.length > 0} />
@@ -91,7 +101,7 @@ export default function PilotAdminPage() {
           <AssignmentManager programme={selected} assignments={assignments?.page ?? []} candidates={candidates ?? []} canManage={canManageAssignments} />
           <FinancePanel programme={selected} summary={finance} queue={queue ?? []} canRead={canReadFinance} canManage={canManageFinance} />
         </div>
-        <CreateProgramme canManage={canManageProgrammes} compact />
+        <CreateProgramme canManage={canManageProgrammes} compact demoPresentation={demoPresentation} />
       </>}
     </main>
   );
@@ -136,7 +146,7 @@ function ProgrammeConfiguration({ programme, canManage }: { programme: Programme
   }
 
   return <section className="pilot-admin__panel"><div className="pilot-admin__panel-head"><div><span className="pilot-admin__eyebrow">Commercial policy</span><h2>Configuration</h2></div><StatusPill>{programme.commercialConfigurationStatus}</StatusPill></div>
-    <fieldset disabled={!canManage || busy} className="pilot-admin__form"><label>Maize type<input value={maizeType} onChange={(event) => setMaizeType(event.target.value)} /></label><label>Maximum moisture (%)<input type="number" step="0.1" value={moisture} onChange={(event) => setMoisture(event.target.value)} /></label><label>Buyer coordination fee (GHS/kg)<input type="number" step="0.01" value={fee} onChange={(event) => setFee(event.target.value)} /></label><label>Payment after acceptance (days)<input type="number" min="0" value={paymentDays} onChange={(event) => setPaymentDays(event.target.value)} /></label><label>Per-purchase limit (GHS)<input type="number" min="0" value={limit} onChange={(event) => setLimit(event.target.value)} /></label><label>Approval reference(s)<input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Board minute or demo assumption" /></label></fieldset>
+    <fieldset disabled={!canManage || busy} className="pilot-admin__form"><label>Maize type<input value={maizeType} onChange={(event) => setMaizeType(event.target.value)} /></label><label>Maximum moisture (%)<input type="number" step="0.1" value={moisture} onChange={(event) => setMoisture(event.target.value)} /></label><label>Buyer coordination fee (GHS/kg)<input type="number" step="0.01" value={fee} onChange={(event) => setFee(event.target.value)} /></label><label>Farmer payment after acceptance (days)<input type="number" min="0" value={paymentDays} onChange={(event) => setPaymentDays(event.target.value)} /></label><label>Per-transaction funding limit (GHS)<input type="number" min="0" value={limit} onChange={(event) => setLimit(event.target.value)} /></label><label>Approval reference(s)<input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Board minute or approval record" /></label></fieldset>
     <div className="pilot-admin__actions"><button disabled={!canManage || busy} onClick={() => void save("draft")}>Save draft</button><button className="primary" disabled={!canManage || busy} onClick={() => void save("approved")}><CheckCircle2 size={16} /> Approve terms</button>{programme.status !== "active" ? <button disabled={!canManage || busy} onClick={() => void changeStatus("active")}>Enable programme</button> : <button disabled={!canManage || busy} onClick={() => void changeStatus("suspended")}>Suspend</button>}</div>
     {!canManage ? <p className="pilot-admin__muted">Your role can read this policy but cannot change or enable it.</p> : null}{message ? <p role="status" className="pilot-admin__message">{message}</p> : null}</section>;
 }
@@ -146,8 +156,8 @@ function AssignmentManager({ programme, assignments, candidates, canManage }: { 
   const [target, setTarget] = useState(""); const [message, setMessage] = useState<string>();
   const candidateName = (id: string) => candidates.find((item) => item.userId === id)?.name ?? id.slice(-8);
   return <section className="pilot-admin__panel"><div className="pilot-admin__panel-head"><div><span className="pilot-admin__eyebrow">Scoped access</span><h2>Programme team</h2></div><UserPlus size={22} /></div>
-    <div className="pilot-admin__assignment-form"><select aria-label="Assignment target" value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Choose an approved operator</option>{candidates.map((candidate) => <option key={candidate.userId} value={candidate.userId}>{candidate.name} · {candidate.identityKind} · {candidate.warehouseCount} warehouses</option>)}</select><button disabled={!canManage || target === ""} onClick={() => void grant({ programmeId: programme.id, targetUserId: target as Id<"users">, capabilities: [...capabilities], idempotencyKey: crypto.randomUUID() }).then(() => setMessage("Programme access granted.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Access was not granted."))}>Grant pilot access</button></div>
-    <Link className="pilot-admin__text-link" href={`/access?type=pilot_operations_invite&pilotProgrammeId=${programme.id}`}>Invite a new pilot operator →</Link>
+    <div className="pilot-admin__assignment-form"><select aria-label="Assignment target" value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Choose an approved operator</option>{candidates.map((candidate) => <option key={candidate.userId} value={candidate.userId}>{candidate.name} · {candidate.identityKind} · {candidate.warehouseCount} warehouses</option>)}</select><button disabled={!canManage || target === ""} onClick={() => void grant({ programmeId: programme.id, targetUserId: target as Id<"users">, capabilities: [...capabilities], idempotencyKey: crypto.randomUUID() }).then(() => setMessage("Programme access granted.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Access was not granted."))}>Grant access</button></div>
+    <Link className="pilot-admin__text-link" href={`/access?type=pilot_operations_invite&pilotProgrammeId=${programme.id}`}>Invite an operator →</Link>
     <div className="pilot-admin__assignments">{assignments.map((assignment) => <div key={assignment.assignmentId}><div><strong>{candidateName(assignment.userId)}</strong><span>{assignment.capabilities.length} capabilities</span></div><button disabled={!canManage} onClick={() => void revoke({ assignmentId: assignment.assignmentId, expectedVersion: assignment.version, reason: "Programme access removed by administrator", idempotencyKey: crypto.randomUUID() }).then(() => setMessage("Assignment revoked.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Assignment was not revoked."))}>Revoke</button></div>)}</div>
     {message ? <p role="status" className="pilot-admin__message">{message}</p> : null}</section>;
 }
@@ -156,7 +166,8 @@ function FinancePanel({ summary, queue, canRead, canManage, programme }: { summa
   const { firebaseUser } = useAdminAuth();
   const reserve = useMutation(api.pilotFinance.reserveFunding); const createBudget = useMutation(api.pilotFinance.createBudget);
   const [costByRevision, setCostByRevision] = useState<Record<string, string>>({}); const [message, setMessage] = useState<string>();
-  const [budgetForm, setBudgetForm] = useState({ label: "Demo purchasing fund", reference: "DEMO-FUND-01", capacity: "50000" }); const [budgetEvidence, setBudgetEvidence] = useState<File>();
+  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const [budgetForm, setBudgetForm] = useState({ label: demoPresentation ? "Demonstration fund" : "", reference: demoPresentation ? "DEMO-FUND-01" : "", capacity: demoPresentation ? "50000" : "" }); const [budgetEvidence, setBudgetEvidence] = useState<File>();
   if (!canRead) return <section className="pilot-admin__panel"><ShieldCheck size={24} /><h2>Finance is restricted</h2><p className="pilot-admin__muted">A programme-scoped finance permission is required to read statements or purchasing capacity.</p></section>;
   const budget = summary?.budgets.find((item) => item.status === "active"); const actuals = summary?.actuals;
   return <section className="pilot-admin__panel pilot-admin__panel--wide"><div className="pilot-admin__panel-head"><div><span className="pilot-admin__eyebrow">Finance-only actions</span><h2>Purchasing exposure and actuals</h2></div><CircleDollarSign size={24} /></div>
@@ -167,12 +178,12 @@ function FinancePanel({ summary, queue, canRead, canManage, programme }: { summa
     {!canManage ? <p className="pilot-admin__muted">Read-only finance access: approval and settlement controls are disabled.</p> : null}{message ? <p role="status" className="pilot-admin__message">{message}</p> : null}</section>;
 }
 
-function CreateProgramme({ canManage, compact = false }: { canManage: boolean; compact?: boolean }) {
+function CreateProgramme({ canManage, compact = false, demoPresentation }: { canManage: boolean; compact?: boolean; demoPresentation: boolean }) {
   const create = useMutation(api.pilotProgrammes.create); const [open, setOpen] = useState(!compact); const [message, setMessage] = useState<string>();
-  const [form, setForm] = useState({ code: "MAIZE_DEMO", name: "Maize sourcing pilot", region: "Greater Accra", datasetId: "maize-demo-v1" });
+  const [form, setForm] = useState({ code: demoPresentation ? "MAIZE_DEMO" : "MAIZE_WESTERN", name: "Maize sourcing", region: "Western Region", datasetId: "maize-demo-v1" });
   if (!canManage) return null;
   if (!open) return <button className="pilot-admin__new" onClick={() => setOpen(true)}>Create another programme</button>;
-  return <section className="pilot-admin__panel pilot-admin__create"><div><span className="pilot-admin__eyebrow">Programme setup</span><h2>Create a clearly labelled sample programme</h2></div><div className="pilot-admin__form pilot-admin__form--row">{(["code", "name", "region", "datasetId"] as const).map((key) => <label key={key}>{key.replace("datasetId", "Dataset ID")}<input value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} /></label>)}</div><div className="pilot-admin__actions"><button className="primary" onClick={() => void create({ code: form.code, name: form.name, region: form.region, datasetProvenance: "sample_only", datasetId: form.datasetId, idempotencyKey: crypto.randomUUID() }).then(() => setMessage("Sample programme created. Approve its demo assumptions before enabling it.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Programme was not created."))}>Create sample programme</button>{compact ? <button onClick={() => setOpen(false)}>Cancel</button> : null}</div>{message ? <p role="status" className="pilot-admin__message">{message}</p> : null}</section>;
+  return <section className="pilot-admin__panel pilot-admin__create"><div><span className="pilot-admin__eyebrow">Programme setup</span><h2>Create maize programme</h2></div><div className="pilot-admin__form pilot-admin__form--row">{(["code", "name", "region"] as const).map((key) => <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))} /></label>)}{demoPresentation ? <label>Dataset ID<input value={form.datasetId} onChange={(event) => setForm((current) => ({ ...current, datasetId: event.target.value }))} /></label> : null}</div><div className="pilot-admin__actions"><button className="primary" onClick={() => void create({ code: form.code, name: form.name, region: form.region, datasetProvenance: demoPresentation ? "sample_only" : "live", ...(demoPresentation ? { datasetId: form.datasetId } : {}), idempotencyKey: crypto.randomUUID() }).then(() => setMessage("Programme created.")).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Programme was not created."))}>Create programme</button>{compact ? <button onClick={() => setOpen(false)}>Cancel</button> : null}</div>{message ? <p role="status" className="pilot-admin__message">{message}</p> : null}</section>;
 }
 
 type FinancialEntry = { postingKind: string; obligation?: { outstandingPesewas: number } };

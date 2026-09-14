@@ -72,10 +72,10 @@ export default function OrdersListPage() {
   return (
     <div style={{ display: "flex", flex: "1 0 auto", flexDirection: "column", gap: "16px" }}>
       <div>
-        <p className="eyebrow">Purchase Orders</p>
-        <h1>Order History</h1>
+        <p className="eyebrow">Orders</p>
+        <h1>Your orders</h1>
         <p style={{ marginBottom: "10px" }}>
-          Track the matched inventory reservations, payment clearance, and shipping fulfillment timeline of your requests.
+          Track delivery and payment for orders handled by Kuapa Dwaso.
         </p>
       </div>
 
@@ -93,7 +93,7 @@ export default function OrdersListPage() {
         />
         <input
           type="text"
-          placeholder="Search by crop, destination market, or ID..."
+          placeholder="Search by crop, destination, or order ID..."
           className="form-input"
           style={{ paddingLeft: "42px" }}
           value={searchQuery}
@@ -126,7 +126,7 @@ export default function OrdersListPage() {
                   {o.cropType} · {o.requestedQuantity} {o.unit}
                 </div>
                 <div style={{ fontSize: "0.875rem", color: "var(--color-text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span>Market: {o.destinationMarket}</span>
+                  <span>Destination: {o.destinationMarket}</span>
                   <span>Submitted: {formattedDate}</span>
                   <span>Payment: {o.paymentStatus.replace(/_/g, " ")}</span>
                   <span>Delivery: {o.deliveryDateSnapshot ? new Date(o.deliveryDateSnapshot).toLocaleDateString("en-GH", { dateStyle: "medium" }) : "Legacy order — operations will confirm"}</span>
@@ -145,7 +145,7 @@ export default function OrdersListPage() {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "2px", color: "var(--color-primary)", fontWeight: "700", fontSize: "0.875rem" }}>
-                  <span>Track Status</span>
+                  <span>View order</span>
                   <ChevronRight size={14} />
                 </div>
               </div>
@@ -184,7 +184,7 @@ function buyerStatusLabel(status: string) {
     matched_to_inventory: "Stock matched",
     reserved: "Stock reserved",
     preparing: "Being prepared",
-    ready_for_dispatch: "Ready to leave warehouse",
+    ready_for_dispatch: "Ready for delivery",
     in_transit: "On the way",
     delivered: "Arrived at destination",
     completed: "Completed",

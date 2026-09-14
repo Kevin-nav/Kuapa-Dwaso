@@ -9,8 +9,37 @@ export const pilotProgrammeStatuses = [
 ] as const;
 export type PilotProgrammeStatus = (typeof pilotProgrammeStatuses)[number];
 
+/**
+ * Persisted compatibility keys. `coordination` is the stored value for the
+ * guaranteed-coordination arrangement and must not be renamed in place.
+ */
 export const pilotCommercialModes = ["coordination", "kuapa_purchase"] as const;
 export type PilotCommercialMode = (typeof pilotCommercialModes)[number];
+
+export type PilotCommercialModePolicy = {
+  productName: "guaranteed_coordination" | "kuapa_purchase";
+  buyerCounterparty: "kuapa_dwaso";
+  farmerPaymentObligor: "kuapa_dwaso";
+  titleTransferAt: "buyer_acceptance" | "purchase_collection_acceptance";
+  inventoryRiskAfterTitleTransfer: "buyer" | "kuapa_dwaso";
+};
+
+export const pilotCommercialModePolicies = {
+  coordination: {
+    productName: "guaranteed_coordination",
+    buyerCounterparty: "kuapa_dwaso",
+    farmerPaymentObligor: "kuapa_dwaso",
+    titleTransferAt: "buyer_acceptance",
+    inventoryRiskAfterTitleTransfer: "buyer",
+  },
+  kuapa_purchase: {
+    productName: "kuapa_purchase",
+    buyerCounterparty: "kuapa_dwaso",
+    farmerPaymentObligor: "kuapa_dwaso",
+    titleTransferAt: "purchase_collection_acceptance",
+    inventoryRiskAfterTitleTransfer: "kuapa_dwaso",
+  },
+} as const satisfies Record<PilotCommercialMode, PilotCommercialModePolicy>;
 
 export const pilotAssignmentStatuses = [
   "active",

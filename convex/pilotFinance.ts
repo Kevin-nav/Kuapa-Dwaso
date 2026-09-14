@@ -129,6 +129,33 @@ function reservationProjection(reservation: Doc<"pilotFundingReservations">) {
   };
 }
 
+async function reservationBacksBindingOffer(
+  ctx: QueryCtx | MutationCtx,
+  reservation: Doc<"pilotFundingReservations">,
+): Promise<boolean> {
+  const revision = await ctx.db.get(reservation.farmerOfferRevisionId);
+  if (revision === null) return false;
+  const offer = await ctx.db.get(revision.offerId);
+  const isBinding =
+    offer !== null &&
+    offer.status === "accepted" &&
+    offer.acceptedRevisionId === revision._id &&
+    offer.currentRevisionId === revision._id;
+  if (!isBinding) return false;
+  const entries = await ctx.db
+    .query("pilotFinancialEntries")
+    .withIndex("by_request_created_at", (query) =>
+      query.eq("requestId", reservation.requestId),
+    )
+    .collect();
+  return !entries.some(
+    (entry) =>
+      entry.fundingReservationId === reservation._id &&
+      entry.postingKind === "obligation" &&
+      entry.purpose === "farmer_proceeds",
+  );
+}
+
 async function requireFinance(
   ctx: QueryCtx | MutationCtx,
   programmeId: Id<"pilotProgrammes">,
@@ -375,8 +402,7 @@ export const adjustBudget = mutation({
     await insertBudgetEvent(ctx, {
       programmeId: budget.programmeId,
       budgetId: budget._id,
-      eventType:
-        args.direction === "increase" ? "capacity_added" : "reversed",
+      eventType: args.direction === "increase" ? "capacity_added" : "reversed",
       amountPesewas: args.amountPesewas,
       postingKey: `budget:${budget._id}:adjustment:${receipt.receiptId}`,
       reasonCode: cleanText(args.reasonCode, "Adjustment reason"),
@@ -480,12 +506,18 @@ export const reserveFunding = mutation({
           "pilotFundingReservations",
         ),
       );
-      assertAllowed(reservation !== null, "Funding reservation replay was not found.");
+      assertAllowed(
+        reservation !== null,
+        "Funding reservation replay was not found.",
+      );
       return reservationProjection(reservation);
     }
     assertExpectedVersion(args.expectedBudgetVersion);
     assertPositivePesewas(args.produceAmountPesewas, "produceAmountPesewas");
-    assertPilotMoneyPesewas(args.knownCostAmountPesewas, "knownCostAmountPesewas");
+    assertPilotMoneyPesewas(
+      args.knownCostAmountPesewas,
+      "knownCostAmountPesewas",
+    );
     const now = Date.now();
     assertAllowed(
       Number.isSafeInteger(args.expiresAt) && args.expiresAt > now,
@@ -499,19 +531,22 @@ export const reserveFunding = mutation({
     ]);
     assertAllowed(
       programme !== null &&
-      request !== null &&
+        request !== null &&
         agreement !== null &&
         revision !== null &&
         request.programmeId === budget.programmeId &&
-        request.commercialMode === "kuapa_purchase" &&
         request.currentAgreementRevisionId === agreement._id &&
         agreement.requestId === request._id &&
         agreement.state === "acknowledged" &&
-        agreement.commercialMode === "kuapa_purchase" &&
+        agreement.commercialMode === request.commercialMode &&
         revision.requestId === request._id &&
         revision.buyerAgreementRevisionId === agreement._id &&
-        revision.commercialMode === "kuapa_purchase",
-      "Funding reservation requires matching current purchase terms.",
+        revision.commercialMode === request.commercialMode,
+      "Funding reservation requires matching current commercial terms.",
+    );
+    assertAllowed(
+      args.expiresAt >= revision.expiresAt,
+      "Settlement capacity must remain reserved for the full offer validity period.",
     );
     assertAllowed(
       programme.datasetProvenance === "sample_only" ||
@@ -521,24 +556,41 @@ export const reserveFunding = mutation({
     const requestedExposurePesewas =
       args.produceAmountPesewas + args.knownCostAmountPesewas;
     assertAllowed(
-      programme.currentCommercialConfiguration?.purchaseLimitPesewas === undefined ||
-        requestedExposurePesewas <= programme.currentCommercialConfiguration.purchaseLimitPesewas,
+      request.commercialMode !== "kuapa_purchase" ||
+        programme.currentCommercialConfiguration?.purchaseLimitPesewas ===
+          undefined ||
+        requestedExposurePesewas <=
+          programme.currentCommercialConfiguration.purchaseLimitPesewas,
       "Purchase exposure exceeds the approved per-reservation limit.",
     );
     const offer = await ctx.db.get(revision.offerId);
     assertAllowed(
       offer !== null &&
         offer.currentRevisionId === revision._id &&
-        offer.acceptedRevisionId === revision._id &&
-        offer.status === "accepted",
-      "Farmer purchase offer is not currently accepted.",
+        offer.acceptedRevisionId === undefined &&
+        (offer.status === "draft" || offer.status === "sent"),
+      "Settlement capacity must be reserved before the farmer accepts the current offer.",
+    );
+    const existingReservations = await ctx.db
+      .query("pilotFundingReservations")
+      .withIndex("by_offer_revision", (query) =>
+        query.eq("farmerOfferRevisionId", revision._id),
+      )
+      .collect();
+    assertAllowed(
+      existingReservations.every(
+        (reservation) =>
+          reservation.status !== "active" &&
+          reservation.status !== "partly_consumed",
+      ),
+      "The current farmer offer already has reserved settlement capacity.",
     );
     assertAllowed(
       budget.version === args.expectedBudgetVersion &&
         budget.status === "active" &&
         pilotPurchasingBudgetAvailablePesewas(budget) >=
           args.produceAmountPesewas + args.knownCostAmountPesewas,
-      "Purchasing budget changed, is inactive, or lacks available capacity.",
+      "Settlement budget changed, is inactive, or lacks available capacity.",
     );
     assertAllowed(
       args.produceAmountPesewas >= revision.expectedNetPesewas,
@@ -575,7 +627,10 @@ export const reserveFunding = mutation({
       eventType: "reserved",
       amountPesewas,
       postingKey: `reservation:${reservationId}:reserved`,
-      reasonCode: "purchase_exposure_approved",
+      reasonCode:
+        request.commercialMode === "coordination"
+          ? "guaranteed_coordination_settlement_reserved"
+          : "purchase_exposure_approved",
       recordedByUserId: principal._id,
       createdAt: now,
     });
@@ -626,6 +681,13 @@ export const releaseFunding = mutation({
     const reasonCode = cleanText(args.reasonCode, "Release reason");
     const budget = await ctx.db.get(reservation.budgetId);
     assertAllowed(budget !== null, "Purchasing budget was not found.");
+    const request = await ctx.db.get(reservation.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    assertAllowed(
+      !(await reservationBacksBindingOffer(ctx, reservation)) ||
+        request.cancellationState !== "none",
+      "An accepted farmer offer keeps its settlement capacity until cancellation resolution.",
+    );
     const unusedPesewas =
       reservation.produceAmountPesewas +
       reservation.knownCostAmountPesewas -
@@ -716,6 +778,13 @@ export const expireFunding = mutation({
     assertExpectedVersion(args.expectedBudgetVersion);
     const budget = await ctx.db.get(reservation.budgetId);
     assertAllowed(budget !== null, "Purchasing budget was not found.");
+    const request = await ctx.db.get(reservation.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    assertAllowed(
+      !(await reservationBacksBindingOffer(ctx, reservation)) ||
+        request.cancellationState !== "none",
+      "An accepted farmer offer cannot lose settlement capacity through expiry.",
+    );
     const now = Date.now();
     const unusedPesewas =
       reservation.produceAmountPesewas +
@@ -774,8 +843,7 @@ function amountForAcceptedQuantity(input: {
     input.rate.unit === "fixed",
     "Produce price must be per kilogram or a fixed amount.",
   );
-  const numerator =
-    BigInt(input.rate.numerator) * BigInt(input.acceptedGrams);
+  const numerator = BigInt(input.rate.numerator) * BigInt(input.acceptedGrams);
   const denominator = BigInt(input.rate.scale) * BigInt(input.agreedGrams);
   return Number((numerator * 2n + denominator) / (denominator * 2n));
 }
@@ -852,7 +920,8 @@ export async function postBuyerAcceptanceFinancialEntries(
       revenueEntryIds: [],
     };
   const buyerTerms = agreement.paymentTerms.filter(
-    (term) => term.trigger === "buyer_acceptance" || term.trigger === "fixed_date",
+    (term) =>
+      term.trigger === "buyer_acceptance" || term.trigger === "fixed_date",
   );
   assertAllowed(
     buyerTerms.length === 1,
@@ -904,8 +973,7 @@ export async function postBuyerAcceptanceFinancialEntries(
     detail.map((line) => ({
       id: line.key,
       exact: {
-        numerator:
-          BigInt(produceAmountPesewas) * BigInt(line.acceptedGrams),
+        numerator: BigInt(produceAmountPesewas) * BigInt(line.acceptedGrams),
         denominator: BigInt(acceptedGrams),
       },
     })),
@@ -966,141 +1034,232 @@ export async function postBuyerAcceptanceFinancialEntries(
       byRevision.set(key, group);
     }
     for (const group of byRevision.values()) {
-    const groupGrams = group.lines.reduce(
-      (sum, line) => sum + line.acceptedGrams,
-      0,
-    );
-    const amounts =
-      groupGrams === group.revision.offeredGrams
-        ? {
-            expectedGrossPesewas: group.revision.expectedGrossPesewas,
-            expectedChargesPesewas: group.revision.expectedChargesPesewas,
-            expectedNetPesewas: group.revision.expectedNetPesewas,
-          }
-        : group.revision.priceBasis === "per_kg"
-          ? calculatePilotOfferAmounts({
-              offeredGrams: groupGrams,
-              priceRate: group.revision.priceRate,
-              chargeTerms: group.revision.chargeTerms,
-            })
-          : {
-              expectedGrossPesewas: Math.round(
-                (group.revision.expectedGrossPesewas * groupGrams) /
-                  group.revision.offeredGrams,
-              ),
-              expectedChargesPesewas: Math.round(
-                (group.revision.expectedChargesPesewas * groupGrams) /
-                  group.revision.offeredGrams,
-              ),
-              expectedNetPesewas: Math.round(
-                (group.revision.expectedNetPesewas * groupGrams) /
-                  group.revision.offeredGrams,
-              ),
-            };
-    const payableAmounts = reconcilePilotLineAmounts(
-      group.lines.map((line) => ({
-        id: line.key,
-        exact: {
-          numerator:
-            BigInt(amounts.expectedNetPesewas) * BigInt(line.acceptedGrams),
-          denominator: BigInt(groupGrams),
-        },
-      })),
-    );
-    const revenueAmounts = reconcilePilotLineAmounts(
-      group.lines.map((line) => ({
-        id: line.key,
-        exact: {
-          numerator:
-            BigInt(amounts.expectedChargesPesewas) *
-            BigInt(line.acceptedGrams),
-          denominator: BigInt(groupGrams),
-        },
-      })),
-    );
-    const farmerTerms = group.revision.paymentTerms.filter(
-      (term) =>
-        term.trigger === "cleared_buyer_funds" || term.trigger === "fixed_date",
-    );
-    assertAllowed(
-      farmerTerms.length === 1,
-      "Coordination offer needs one farmer settlement deadline.",
-    );
-    const fixedFarmerDueAt =
-      farmerTerms[0]!.trigger === "fixed_date"
-        ? pilotPaymentDueAt(farmerTerms[0]!, input.triggerAt)
-        : undefined;
-    for (const line of group.lines) {
-      const payable = payableAmounts.find((amount) => amount.id === line.key)!;
-      const payableKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:farmer-proceeds`;
-      await assertPostingKeyAvailable(ctx, payableKey);
-      farmerPayableEntryIds.push(
-        await ctx.db.insert("pilotFinancialEntries", {
-          programmeId: request.programmeId,
-          requestId: request._id,
-          lotId: line.lot._id,
-          offerRevisionId: group.revision._id,
-          acceptanceId: acceptance._id,
-          postingKind: "obligation",
-          purpose: "farmer_proceeds",
-          basis: "actual",
-          payer: {
-            kind: "kuapa_dwaso",
-            displayNameSnapshot: "Kuapa Dwaso",
-          },
-          payee: {
-            kind: "farmer",
-            id: String(line.lot.farmerId),
-            displayNameSnapshot: "Farmer",
-          },
-          amountPesewas: payable.amountPesewas,
-          currency: "GHS",
-          ...(fixedFarmerDueAt === undefined
-            ? {}
-            : { dueAt: fixedFarmerDueAt }),
-          postingKey: payableKey,
-          evidenceUploadAssetIds: [],
-          provenance: programme.datasetProvenance,
-          reasonCode: "buyer_acceptance",
-          recordedByUserId: input.actorUserId,
-          createdAt: now,
-        }),
+      const groupGrams = group.lines.reduce(
+        (sum, line) => sum + line.acceptedGrams,
+        0,
       );
-      const revenue = revenueAmounts.find((amount) => amount.id === line.key)!;
-      if (revenue.amountPesewas > 0) {
-        const revenueKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:coordination-fee`;
-        await assertPostingKeyAvailable(ctx, revenueKey);
-        revenueEntryIds.push(
-          await ctx.db.insert("pilotFinancialEntries", {
+      const amounts =
+        groupGrams === group.revision.offeredGrams
+          ? {
+              expectedGrossPesewas: group.revision.expectedGrossPesewas,
+              expectedChargesPesewas: group.revision.expectedChargesPesewas,
+              expectedNetPesewas: group.revision.expectedNetPesewas,
+            }
+          : group.revision.priceBasis === "per_kg"
+            ? calculatePilotOfferAmounts({
+                offeredGrams: groupGrams,
+                priceRate: group.revision.priceRate,
+                chargeTerms: group.revision.chargeTerms,
+              })
+            : {
+                expectedGrossPesewas: Math.round(
+                  (group.revision.expectedGrossPesewas * groupGrams) /
+                    group.revision.offeredGrams,
+                ),
+                expectedChargesPesewas: Math.round(
+                  (group.revision.expectedChargesPesewas * groupGrams) /
+                    group.revision.offeredGrams,
+                ),
+                expectedNetPesewas: Math.round(
+                  (group.revision.expectedNetPesewas * groupGrams) /
+                    group.revision.offeredGrams,
+                ),
+              };
+      const payableAmounts = reconcilePilotLineAmounts(
+        group.lines.map((line) => ({
+          id: line.key,
+          exact: {
+            numerator:
+              BigInt(amounts.expectedNetPesewas) * BigInt(line.acceptedGrams),
+            denominator: BigInt(groupGrams),
+          },
+        })),
+      );
+      const revenueAmounts = reconcilePilotLineAmounts(
+        group.lines.map((line) => ({
+          id: line.key,
+          exact: {
+            numerator:
+              BigInt(amounts.expectedChargesPesewas) *
+              BigInt(line.acceptedGrams),
+            denominator: BigInt(groupGrams),
+          },
+        })),
+      );
+      const farmerTerms = group.revision.paymentTerms.filter(
+        (term) => term.trigger === "fixed_date",
+      );
+      assertAllowed(
+        farmerTerms.length === 1,
+        "Guaranteed coordination needs one fixed farmer payment deadline.",
+      );
+      const fixedFarmerDueAt = pilotPaymentDueAt(
+        farmerTerms[0]!,
+        input.triggerAt,
+      );
+      const reservations = await ctx.db
+        .query("pilotFundingReservations")
+        .withIndex("by_offer_revision", (query) =>
+          query.eq("farmerOfferRevisionId", group.revision._id),
+        )
+        .collect();
+      let funding:
+        | {
+            reservation: Doc<"pilotFundingReservations">;
+            budget: Doc<"pilotPurchasingBudgets">;
+          }
+        | undefined;
+      for (const reservation of reservations) {
+        const budget = await ctx.db.get(reservation.budgetId);
+        const unusedPesewas =
+          reservation.produceAmountPesewas +
+          reservation.knownCostAmountPesewas -
+          reservation.consumedPesewas -
+          reservation.releasedPesewas;
+        if (
+          reservation.programmeId === request.programmeId &&
+          reservation.requestId === request._id &&
+          reservation.buyerAgreementRevisionId === agreement._id &&
+          (reservation.status === "active" ||
+            reservation.status === "partly_consumed") &&
+          reservation.produceAmountPesewas >= amounts.expectedNetPesewas &&
+          unusedPesewas >= amounts.expectedNetPesewas &&
+          budget !== null &&
+          budget.programmeId === request.programmeId &&
+          budget.status === "active" &&
+          budget.reservedPesewas >= amounts.expectedNetPesewas
+        ) {
+          funding = { reservation, budget };
+          break;
+        }
+      }
+      assertAllowed(
+        funding !== undefined,
+        "Guaranteed coordination farmer proceeds require reserved settlement capacity.",
+      );
+      const groupPayableEntries: Array<{
+        entryId: FinancialEntryId;
+        lotId: Id<"pilotProcurementLots">;
+        amountPesewas: number;
+      }> = [];
+      for (const line of group.lines) {
+        const payable = payableAmounts.find(
+          (amount) => amount.id === line.key,
+        )!;
+        const payableKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:farmer-proceeds`;
+        await assertPostingKeyAvailable(ctx, payableKey);
+        const farmerPayableEntryId = await ctx.db.insert(
+          "pilotFinancialEntries",
+          {
             programmeId: request.programmeId,
             requestId: request._id,
             lotId: line.lot._id,
             offerRevisionId: group.revision._id,
             acceptanceId: acceptance._id,
-            postingKind: "revenue",
-            purpose: "coordination_fee",
+            fundingReservationId: funding.reservation._id,
+            postingKind: "obligation",
+            purpose: "farmer_proceeds",
             basis: "actual",
             payer: {
+              kind: "kuapa_dwaso",
+              displayNameSnapshot: "Kuapa Dwaso",
+            },
+            payee: {
               kind: "farmer",
               id: String(line.lot.farmerId),
               displayNameSnapshot: "Farmer",
             },
-            payee: {
-              kind: "kuapa_dwaso",
-              displayNameSnapshot: "Kuapa Dwaso",
-            },
-            amountPesewas: revenue.amountPesewas,
+            amountPesewas: payable.amountPesewas,
             currency: "GHS",
-            postingKey: revenueKey,
+            dueAt: fixedFarmerDueAt,
+            postingKey: payableKey,
             evidenceUploadAssetIds: [],
             provenance: programme.datasetProvenance,
-            reasonCode: "buyer_acceptance",
+            reasonCode: "guaranteed_coordination_buyer_acceptance",
             recordedByUserId: input.actorUserId,
             createdAt: now,
-          }),
+          },
         );
+        farmerPayableEntryIds.push(farmerPayableEntryId);
+        groupPayableEntries.push({
+          entryId: farmerPayableEntryId,
+          lotId: line.lot._id,
+          amountPesewas: payable.amountPesewas,
+        });
+        const revenue = revenueAmounts.find(
+          (amount) => amount.id === line.key,
+        )!;
+        if (revenue.amountPesewas > 0) {
+          const revenueKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:coordination-fee`;
+          await assertPostingKeyAvailable(ctx, revenueKey);
+          revenueEntryIds.push(
+            await ctx.db.insert("pilotFinancialEntries", {
+              programmeId: request.programmeId,
+              requestId: request._id,
+              lotId: line.lot._id,
+              offerRevisionId: group.revision._id,
+              acceptanceId: acceptance._id,
+              postingKind: "revenue",
+              purpose: "coordination_fee",
+              basis: "actual",
+              payer: {
+                kind: "farmer",
+                id: String(line.lot.farmerId),
+                displayNameSnapshot: "Farmer",
+              },
+              payee: {
+                kind: "kuapa_dwaso",
+                displayNameSnapshot: "Kuapa Dwaso",
+              },
+              amountPesewas: revenue.amountPesewas,
+              currency: "GHS",
+              postingKey: revenueKey,
+              evidenceUploadAssetIds: [],
+              provenance: programme.datasetProvenance,
+              reasonCode: "buyer_acceptance",
+              recordedByUserId: input.actorUserId,
+              createdAt: now,
+            }),
+          );
+        }
       }
-    }
+      const unusedBefore =
+        funding.reservation.produceAmountPesewas +
+        funding.reservation.knownCostAmountPesewas -
+        funding.reservation.consumedPesewas -
+        funding.reservation.releasedPesewas;
+      await ctx.db.patch(funding.reservation._id, {
+        consumedPesewas:
+          funding.reservation.consumedPesewas + amounts.expectedNetPesewas,
+        status:
+          unusedBefore === amounts.expectedNetPesewas
+            ? "consumed"
+            : "partly_consumed",
+        version: funding.reservation.version + 1,
+        updatedAt: now,
+      });
+      await ctx.db.patch(funding.budget._id, {
+        reservedPesewas:
+          funding.budget.reservedPesewas - amounts.expectedNetPesewas,
+        committedPesewas:
+          funding.budget.committedPesewas + amounts.expectedNetPesewas,
+        version: funding.budget.version + 1,
+        updatedAt: now,
+      });
+      for (const payable of groupPayableEntries) {
+        await insertBudgetEvent(ctx, {
+          programmeId: request.programmeId,
+          budgetId: funding.budget._id,
+          reservationId: funding.reservation._id,
+          financialEntryId: payable.entryId,
+          eventType: "committed",
+          amountPesewas: payable.amountPesewas,
+          postingKey: `acceptance:${acceptance._id}:lot:${payable.lotId}:settlement-committed`,
+          reasonCode: "guaranteed_coordination_buyer_acceptance",
+          recordedByUserId: input.actorUserId,
+          createdAt: now,
+        });
+      }
     }
   }
   for (const term of agreement.chargeTerms.filter(
@@ -1112,7 +1271,9 @@ export async function postBuyerAcceptanceFinancialEntries(
       produceAmountPesewas,
     });
     if (amountPesewas === 0) continue;
-    const isTransport = /transport|delivery|haul/i.test(`${term.code} ${term.label}`);
+    const isTransport = /transport|delivery|haul/i.test(
+      `${term.code} ${term.label}`,
+    );
     const postingKey = `acceptance:${acceptance._id}:buyer-charge:${term.code}`;
     await assertPostingKeyAvailable(ctx, postingKey);
     buyerObligationEntryIds.push(
@@ -1156,9 +1317,14 @@ function buildPilotProviderReference(input: {
   requestId: Id<"pilotBuyerRequests">;
   idempotencyKey: string;
 }): string {
-  const request = String(input.requestId).replace(/[^A-Za-z0-9]/g, "").slice(-12);
+  const request = String(input.requestId)
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(-12);
   const key = input.idempotencyKey.replace(/[^A-Za-z0-9]/g, "").slice(0, 16);
-  return `KD-PILOT-${input.provider.toUpperCase()}-${request}-${key}`.slice(0, 60);
+  return `KD-PILOT-${input.provider.toUpperCase()}-${request}-${key}`.slice(
+    0,
+    60,
+  );
 }
 
 async function requireBuyerPaymentActor(
@@ -1299,7 +1465,10 @@ export const recordProviderInitialization = mutation({
     const transaction = await ctx.db
       .query("pilotPaymentTransactions")
       .withIndex("by_provider_reference", (q) =>
-        q.eq("providerReference", cleanText(args.providerReference, "Provider reference")),
+        q.eq(
+          "providerReference",
+          cleanText(args.providerReference, "Provider reference"),
+        ),
       )
       .unique();
     assertAllowed(
@@ -1309,10 +1478,20 @@ export const recordProviderInitialization = mutation({
     await ctx.db.patch(transaction._id, {
       ...(args.providerAccessCode === undefined
         ? {}
-        : { providerAccessCode: cleanText(args.providerAccessCode, "Provider access code") }),
+        : {
+            providerAccessCode: cleanText(
+              args.providerAccessCode,
+              "Provider access code",
+            ),
+          }),
       ...(args.authorizationUrl === undefined
         ? {}
-        : { authorizationUrl: cleanText(args.authorizationUrl, "Authorization URL") }),
+        : {
+            authorizationUrl: cleanText(
+              args.authorizationUrl,
+              "Authorization URL",
+            ),
+          }),
       ...(args.providerStatus === undefined
         ? {}
         : { providerStatus: args.providerStatus.trim().slice(0, 100) }),
@@ -1356,7 +1535,11 @@ async function applyProviderResult(
       "Verified payment amount or currency does not match the pilot transaction.",
     );
     if (transaction.status === "succeeded") {
-      return { transactionId: transaction._id, duplicate: true, receiptEntryIds: [] };
+      return {
+        transactionId: transaction._id,
+        duplicate: true,
+        receiptEntryIds: [],
+      };
     }
     assertAllowed(
       !["failed", "reversed"].includes(transaction.status),
@@ -1388,7 +1571,9 @@ async function applyProviderResult(
         await ctx.db.insert("pilotFinancialEntries", {
           programmeId: transaction.programmeId,
           requestId: transaction.requestId,
-          ...(obligation.lotId === undefined ? {} : { lotId: obligation.lotId }),
+          ...(obligation.lotId === undefined
+            ? {}
+            : { lotId: obligation.lotId }),
           ...(obligation.acceptanceId === undefined
             ? {}
             : { acceptanceId: obligation.acceptanceId }),
@@ -1433,11 +1618,14 @@ async function applyProviderResult(
       )
       .collect();
     const buyerObligations = currentEntries.filter(
-      (entry) => entry.postingKind === "obligation" && entry.payer.kind === "buyer",
+      (entry) =>
+        entry.postingKind === "obligation" && entry.payer.kind === "buyer",
     );
     let allBuyerFundsCleared = buyerObligations.length > 0;
     for (const obligation of buyerObligations) {
-      if ((await financialEntryState(ctx, obligation, now)).outstandingPesewas > 0)
+      if (
+        (await financialEntryState(ctx, obligation, now)).outstandingPesewas > 0
+      )
         allBuyerFundsCleared = false;
     }
     const deadlineMarkerIds = allBuyerFundsCleared
@@ -1459,7 +1647,10 @@ async function applyProviderResult(
         {
           audience: "buyer",
           targetId: String(transaction.buyerId),
-          title: transaction.provider === "mock" ? "Sample payment recorded" : "Payment recorded",
+          title:
+            transaction.provider === "mock"
+              ? "Sample payment recorded"
+              : "Payment recorded",
           detail: `GHS ${(transaction.amountPesewas / 100).toFixed(2)} received.`,
         },
         {
@@ -1488,7 +1679,8 @@ async function applyProviderResult(
     const receipts = entries.filter(
       (entry) =>
         entry.postingKind === "receipt" &&
-        entry.reasonCode === `provider:${transaction.provider}:${transaction._id}`,
+        entry.reasonCode ===
+          `provider:${transaction.provider}:${transaction._id}`,
     );
     for (const receipt of receipts) {
       const postingKey = `provider-reversal:${transaction._id}:${receipt._id}`;
@@ -1521,7 +1713,11 @@ async function applyProviderResult(
       reversedAt: now,
       updatedAt: now,
     });
-    return { transactionId: transaction._id, duplicate: false, receiptEntryIds: [] };
+    return {
+      transactionId: transaction._id,
+      duplicate: false,
+      receiptEntryIds: [],
+    };
   }
   const status =
     input.status === "failed" || input.status === "abandoned"
@@ -1540,7 +1736,11 @@ async function applyProviderResult(
       : { providerMessage: input.providerMessage.trim().slice(0, 500) }),
     updatedAt: now,
   });
-  return { transactionId: transaction._id, duplicate: false, receiptEntryIds: [] };
+  return {
+    transactionId: transaction._id,
+    duplicate: false,
+    receiptEntryIds: [],
+  };
 }
 
 export const reconcileProviderPayment = mutation({
@@ -1559,7 +1759,10 @@ export const reconcileProviderPayment = mutation({
     const transaction = await ctx.db
       .query("pilotPaymentTransactions")
       .withIndex("by_provider_reference", (q) =>
-        q.eq("providerReference", cleanText(args.providerReference, "Provider reference")),
+        q.eq(
+          "providerReference",
+          cleanText(args.providerReference, "Provider reference"),
+        ),
       )
       .unique();
     assertAllowed(
@@ -1569,10 +1772,16 @@ export const reconcileProviderPayment = mutation({
     return await applyProviderResult(ctx, {
       transaction,
       status: args.status,
-      ...(args.amountPesewas === undefined ? {} : { amountPesewas: args.amountPesewas }),
+      ...(args.amountPesewas === undefined
+        ? {}
+        : { amountPesewas: args.amountPesewas }),
       ...(args.currency === undefined ? {} : { currency: args.currency }),
-      ...(args.providerStatus === undefined ? {} : { providerStatus: args.providerStatus }),
-      ...(args.providerMessage === undefined ? {} : { providerMessage: args.providerMessage }),
+      ...(args.providerStatus === undefined
+        ? {}
+        : { providerStatus: args.providerStatus }),
+      ...(args.providerMessage === undefined
+        ? {}
+        : { providerMessage: args.providerMessage }),
     });
   },
 });
@@ -1593,7 +1802,10 @@ export const recordProviderEvent = mutation({
   },
   handler: async (ctx, args) => {
     assertPaymentServiceSecret(args.serviceSecret);
-    const providerEventId = cleanText(args.providerEventId, "Provider event id");
+    const providerEventId = cleanText(
+      args.providerEventId,
+      "Provider event id",
+    );
     const existing = await ctx.db
       .query("paymentWebhookEvents")
       .withIndex("by_provider_event", (q) =>
@@ -1601,7 +1813,11 @@ export const recordProviderEvent = mutation({
       )
       .unique();
     if (existing !== null)
-      return { eventId: existing._id, status: existing.status, duplicate: true };
+      return {
+        eventId: existing._id,
+        status: existing.status,
+        duplicate: true,
+      };
     const now = Date.now();
     const transaction =
       args.providerReference === undefined
@@ -1637,17 +1853,28 @@ export const recordProviderEvent = mutation({
     const reconciliation = await applyProviderResult(ctx, {
       transaction,
       status: args.normalizedStatus,
-      ...(args.amountPesewas === undefined ? {} : { amountPesewas: args.amountPesewas }),
+      ...(args.amountPesewas === undefined
+        ? {}
+        : { amountPesewas: args.amountPesewas }),
       ...(args.currency === undefined ? {} : { currency: args.currency }),
-      ...(args.providerStatus === undefined ? {} : { providerStatus: args.providerStatus }),
-      ...(args.providerMessage === undefined ? {} : { providerMessage: args.providerMessage }),
+      ...(args.providerStatus === undefined
+        ? {}
+        : { providerStatus: args.providerStatus }),
+      ...(args.providerMessage === undefined
+        ? {}
+        : { providerMessage: args.providerMessage }),
     });
     await ctx.db.patch(eventId, {
       status: "processed",
       processedAt: Date.now(),
       updatedAt: Date.now(),
     });
-    return { eventId, status: "processed" as const, duplicate: false, reconciliation };
+    return {
+      eventId,
+      status: "processed" as const,
+      duplicate: false,
+      reconciliation,
+    };
   },
 });
 
@@ -1668,7 +1895,10 @@ async function financialEntryState(
   ]);
   let settledPesewas = 0;
   for (const settlement of settlements) {
-    if (settlement.postingKind !== "payment" && settlement.postingKind !== "receipt")
+    if (
+      settlement.postingKind !== "payment" &&
+      settlement.postingKind !== "receipt"
+    )
       continue;
     const settlementReversals = await ctx.db
       .query("pilotFinancialEntries")
@@ -1825,9 +2055,8 @@ export const recordExternalSettlement = mutation({
     ]);
     return {
       paymentEntryId,
-      obligationStatus: (
-        await financialEntryState(ctx, obligation, Date.now())
-      ).status,
+      obligationStatus: (await financialEntryState(ctx, obligation, Date.now()))
+        .status,
     };
   },
 });
@@ -2154,8 +2383,10 @@ export const reverseFinancialEntry = mutation({
     }
     assertAllowed(
       entry.postingKind !== "reversal" &&
-        !(entry.postingKind === "obligation" &&
-          entry.fundingReservationId !== undefined),
+        !(
+          entry.postingKind === "obligation" &&
+          entry.fundingReservationId !== undefined
+        ),
       "Funded purchase obligations require an issue-backed ownership correction before reversal.",
     );
     assertPositivePesewas(args.amountPesewas, "amountPesewas");
@@ -2296,8 +2527,7 @@ export async function activateFarmerDeadlinesAfterBuyerFunds(
       entry.dueAt === undefined,
   )) {
     const existing = entries.find(
-      (entry) =>
-        entry.postingKey === `farmer-deadline:${obligation._id}`,
+      (entry) => entry.postingKey === `farmer-deadline:${obligation._id}`,
     );
     if (existing !== undefined) continue;
     assertAllowed(
@@ -2481,9 +2711,7 @@ export const listFinancialEntries = query({
     const result = await ctx.db
       .query("pilotFinancialEntries")
       .withIndex("by_request_created_at", (q) =>
-        args.requestId === undefined
-          ? q
-          : q.eq("requestId", args.requestId),
+        args.requestId === undefined ? q : q.eq("requestId", args.requestId),
       )
       .order("desc")
       .paginate({ cursor: args.cursor ?? null, numItems: args.limit });
@@ -2510,130 +2738,121 @@ async function getProgrammeSummaryHandler(
   ctx: QueryCtx,
   args: { programmeId: Id<"pilotProgrammes"> },
 ) {
-    await requireFinance(ctx, args.programmeId, "pilotFinance:read");
-    const [budgets, reservations, entries] = await Promise.all([
-      ctx.db
-        .query("pilotPurchasingBudgets")
-        .withIndex("by_programme_status", (q) =>
-          q.eq("programmeId", args.programmeId),
-        )
-        .collect(),
-      ctx.db
-        .query("pilotFundingReservations")
-        .withIndex("by_request_status")
-        .collect(),
-      ctx.db.query("pilotFinancialEntries").collect(),
-    ]);
-    const scoped = entries.filter(
-      (entry) => entry.programmeId === args.programmeId,
-    );
-    const reversedById = new Map<string, number>();
-    for (const entry of scoped) {
-      if (entry.postingKind !== "reversal" || entry.reversesEntryId === undefined)
-        continue;
-      reversedById.set(
-        entry.reversesEntryId,
-        (reversedById.get(entry.reversesEntryId) ?? 0) + entry.amountPesewas,
-      );
-    }
-    const active = scoped.filter(
-      (entry) => entry.postingKind !== "reversal",
-    );
-    const sum = (predicate: (entry: FinancialEntry) => boolean) =>
-      active
-        .filter(predicate)
-        .reduce(
-          (total, entry) =>
-            total +
-            Math.max(0, entry.amountPesewas - (reversedById.get(entry._id) ?? 0)),
-          0,
-        );
-    const buyerProducePesewas = sum(
-      (entry) =>
-        entry.postingKind === "obligation" &&
-        entry.purpose === "buyer_produce",
-    );
-    const coordinationRevenuePesewas = sum(
-      (entry) =>
-        entry.postingKind === "revenue" &&
-        entry.purpose === "coordination_fee",
-    );
-    const buyerTransportPesewas = sum(
-      (entry) =>
-        entry.postingKind === "obligation" &&
-        entry.purpose === "buyer_transport",
-    );
-    const purchaseInventoryCostPesewas = sum(
-      (entry) =>
-        entry.postingKind === "cost" &&
-        entry.purpose === "purchase_inventory",
-    );
-    const operatingCostPesewas = sum(
-      (entry) =>
-        entry.postingKind === "cost" &&
-        ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
-          entry.purpose,
-        ),
-    );
-    const farmerPayablesPesewas = sum(
-      (entry) =>
-        entry.postingKind === "obligation" &&
-        entry.purpose === "farmer_proceeds",
-    );
-    const missingEstimatedActualCosts = active.some(
-      (entry) =>
-        entry.basis === "estimate" &&
-        ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
-          entry.purpose,
-        ),
-    );
-    const coordinationCostMissing =
-      buyerTransportPesewas > 0 && operatingCostPesewas === 0;
-    const purchaseCostMissing = reservations
-      .filter(
-        (reservation) =>
-          reservation.programmeId === args.programmeId &&
-          reservation.consumedPesewas > 0 &&
-          reservation.knownCostAmountPesewas > 0,
+  await requireFinance(ctx, args.programmeId, "pilotFinance:read");
+  const [budgets, reservations, entries] = await Promise.all([
+    ctx.db
+      .query("pilotPurchasingBudgets")
+      .withIndex("by_programme_status", (q) =>
+        q.eq("programmeId", args.programmeId),
       )
-      .some((reservation) => {
-        const recorded = sum(
-          (entry) =>
-            entry.fundingReservationId === reservation._id &&
-            entry.postingKind === "cost" &&
-            ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
-              entry.purpose,
-            ),
-        );
-        return recorded < reservation.knownCostAmountPesewas;
-      });
-    const missingActualCosts =
-      missingEstimatedActualCosts || coordinationCostMissing || purchaseCostMissing;
-    return {
-      programmeId: args.programmeId,
-      budgets: budgets.map(budgetProjection),
-      actuals: {
+      .collect(),
+    ctx.db
+      .query("pilotFundingReservations")
+      .withIndex("by_request_status")
+      .collect(),
+    ctx.db.query("pilotFinancialEntries").collect(),
+  ]);
+  const scoped = entries.filter(
+    (entry) => entry.programmeId === args.programmeId,
+  );
+  const reversedById = new Map<string, number>();
+  for (const entry of scoped) {
+    if (entry.postingKind !== "reversal" || entry.reversesEntryId === undefined)
+      continue;
+    reversedById.set(
+      entry.reversesEntryId,
+      (reversedById.get(entry.reversesEntryId) ?? 0) + entry.amountPesewas,
+    );
+  }
+  const active = scoped.filter((entry) => entry.postingKind !== "reversal");
+  const sum = (predicate: (entry: FinancialEntry) => boolean) =>
+    active
+      .filter(predicate)
+      .reduce(
+        (total, entry) =>
+          total +
+          Math.max(0, entry.amountPesewas - (reversedById.get(entry._id) ?? 0)),
+        0,
+      );
+  const buyerProducePesewas = sum(
+    (entry) =>
+      entry.postingKind === "obligation" && entry.purpose === "buyer_produce",
+  );
+  const coordinationRevenuePesewas = sum(
+    (entry) =>
+      entry.postingKind === "revenue" && entry.purpose === "coordination_fee",
+  );
+  const buyerTransportPesewas = sum(
+    (entry) =>
+      entry.postingKind === "obligation" && entry.purpose === "buyer_transport",
+  );
+  const purchaseInventoryCostPesewas = sum(
+    (entry) =>
+      entry.postingKind === "cost" && entry.purpose === "purchase_inventory",
+  );
+  const operatingCostPesewas = sum(
+    (entry) =>
+      entry.postingKind === "cost" &&
+      ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
+        entry.purpose,
+      ),
+  );
+  const farmerPayablesPesewas = sum(
+    (entry) =>
+      entry.postingKind === "obligation" && entry.purpose === "farmer_proceeds",
+  );
+  const missingEstimatedActualCosts = active.some(
+    (entry) =>
+      entry.basis === "estimate" &&
+      ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
+        entry.purpose,
+      ),
+  );
+  const coordinationCostMissing =
+    buyerTransportPesewas > 0 && operatingCostPesewas === 0;
+  const purchaseCostMissing = reservations
+    .filter(
+      (reservation) =>
+        reservation.programmeId === args.programmeId &&
+        reservation.consumedPesewas > 0 &&
+        reservation.knownCostAmountPesewas > 0,
+    )
+    .some((reservation) => {
+      const recorded = sum(
+        (entry) =>
+          entry.fundingReservationId === reservation._id &&
+          entry.postingKind === "cost" &&
+          ["transport_cost", "handling_cost", "other_agreed_cost"].includes(
+            entry.purpose,
+          ),
+      );
+      return recorded < reservation.knownCostAmountPesewas;
+    });
+  const missingActualCosts =
+    missingEstimatedActualCosts ||
+    coordinationCostMissing ||
+    purchaseCostMissing;
+  return {
+    programmeId: args.programmeId,
+    budgets: budgets.map(budgetProjection),
+    actuals: {
+      buyerProducePesewas,
+      farmerPayablesPesewas,
+      coordinationRevenuePesewas,
+      buyerTransportPesewas,
+      purchaseInventoryCostPesewas,
+      operatingCostPesewas,
+      buyerReceiptsPesewas: sum((entry) => entry.postingKind === "receipt"),
+      externalPaymentsPesewas: sum((entry) => entry.postingKind === "payment"),
+      contribution: pilotActualContribution({
         buyerProducePesewas,
-        farmerPayablesPesewas,
-        coordinationRevenuePesewas,
         buyerTransportPesewas,
-        purchaseInventoryCostPesewas,
+        farmerPayablesPesewas,
         operatingCostPesewas,
-        buyerReceiptsPesewas: sum(
-          (entry) => entry.postingKind === "receipt",
-        ),
-        externalPaymentsPesewas: sum(
-          (entry) => entry.postingKind === "payment",
-        ),
-        contribution: pilotActualContribution({
-          buyerProducePesewas,
-          buyerTransportPesewas,
-          farmerPayablesPesewas,
-          operatingCostPesewas,
-          costsComplete: !missingActualCosts,
-        }),
-      },
-    };
+        costsComplete: !missingActualCosts,
+      }),
+    },
+  };
 }
 
 export const getFinanceOverview = query({
@@ -2646,24 +2865,53 @@ export const listPurchaseApprovalQueue = query({
   handler: async (ctx, args) => {
     await requireFinance(ctx, args.programmeId, "pilotFinance:read");
     const [requests, offers, revisions, reservations] = await Promise.all([
-      ctx.db.query("pilotBuyerRequests").withIndex("by_programme_status", (q) => q.eq("programmeId", args.programmeId)).collect(),
+      ctx.db
+        .query("pilotBuyerRequests")
+        .withIndex("by_programme_status", (q) =>
+          q.eq("programmeId", args.programmeId),
+        )
+        .collect(),
       ctx.db.query("pilotFarmerOffers").collect(),
-      ctx.db.query("pilotFarmerOfferRevisions").withIndex("by_request_created_at").collect(),
-      ctx.db.query("pilotFundingReservations").withIndex("by_request_status").collect(),
+      ctx.db
+        .query("pilotFarmerOfferRevisions")
+        .withIndex("by_request_created_at")
+        .collect(),
+      ctx.db
+        .query("pilotFundingReservations")
+        .withIndex("by_request_status")
+        .collect(),
     ]);
-    const requestById = new Map(requests.map((request) => [request._id, request]));
-    const revisionById = new Map(revisions.map((revision) => [revision._id, revision]));
+    const requestById = new Map(
+      requests.map((request) => [request._id, request]),
+    );
+    const revisionById = new Map(
+      revisions.map((revision) => [revision._id, revision]),
+    );
     const activeReservationRevisionIds = new Set(
       reservations
-        .filter((reservation) => reservation.programmeId === args.programmeId && ["active", "partly_consumed"].includes(reservation.status))
+        .filter(
+          (reservation) =>
+            reservation.programmeId === args.programmeId &&
+            ["active", "partly_consumed"].includes(reservation.status),
+        )
         .map((reservation) => reservation.farmerOfferRevisionId),
     );
     const page = [];
     for (const offer of offers) {
-      if (offer.programmeId !== args.programmeId || offer.commercialMode !== "kuapa_purchase" || offer.status !== "accepted" || offer.acceptedRevisionId === undefined) continue;
+      if (
+        offer.programmeId !== args.programmeId ||
+        !["draft", "sent"].includes(offer.status) ||
+        offer.currentRevisionId === undefined
+      )
+        continue;
       const request = requestById.get(offer.requestId);
-      const revision = revisionById.get(offer.acceptedRevisionId);
-      if (request === undefined || revision === undefined || request.currentAgreementRevisionId !== revision.buyerAgreementRevisionId) continue;
+      const revision = revisionById.get(offer.currentRevisionId);
+      if (
+        request === undefined ||
+        revision === undefined ||
+        request.currentAgreementRevisionId !== revision.buyerAgreementRevisionId
+      )
+        continue;
       const agreement = await ctx.db.get(revision.buyerAgreementRevisionId);
       if (agreement === null || agreement.state !== "acknowledged") continue;
       const farmer = await ctx.db.get(offer.farmerId);
@@ -2672,11 +2920,14 @@ export const listPurchaseApprovalQueue = query({
         requestStatus: request.status,
         buyerAgreementRevisionId: agreement._id,
         farmerOfferRevisionId: revision._id,
+        commercialMode: revision.commercialMode,
         farmerName: farmer?.fullName ?? "Farmer",
         offeredGrams: revision.offeredGrams,
         expectedNetPesewas: revision.expectedNetPesewas,
         expiresAt: revision.expiresAt,
-        approvalStatus: activeReservationRevisionIds.has(revision._id) ? ("approved" as const) : ("awaiting_approval" as const),
+        approvalStatus: activeReservationRevisionIds.has(revision._id)
+          ? ("approved" as const)
+          : ("awaiting_approval" as const),
       });
     }
     return page.sort((a, b) => a.expiresAt - b.expiresAt);

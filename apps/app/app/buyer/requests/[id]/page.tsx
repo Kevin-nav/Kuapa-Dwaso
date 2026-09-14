@@ -27,7 +27,6 @@ type RequestDetail = {
     maizeType: string;
     requestedGrams: number;
     confirmedGrams?: number;
-    commercialMode: "coordination" | "kuapa_purchase";
     destination: { label: string };
     deliveryWindowStartAt: number;
     deliveryWindowEndAt: number;
@@ -39,7 +38,6 @@ type RequestDetail = {
     revisionId: Id<"pilotBuyerAgreementRevisions">;
     revision: number;
     quantityGrams: number;
-    commercialMode: "coordination" | "kuapa_purchase";
     producePriceRate: { numerator: number; scale: number; unit: string };
     chargeTerms: Array<{ label: string; payer: string; calculation: string; rate: { numerator: number; scale: number; unit: string } }>;
     paymentTerms: Array<{ trigger: string; offsetCalendarDays: number }>;
@@ -64,6 +62,20 @@ function nextAction(detail: RequestDetail) {
   if (request.status === "delivered") return { title: "Record delivery acceptance", detail: "Arrival is recorded separately. Check each identified lot before accepting or rejecting it.", tone: "warning" as const };
   if (request.status === "disputed") return { title: "An issue is being reviewed", detail: "The accepted and rejected quantities remain on the record while operations resolves the issue.", tone: "danger" as const };
   return { title: "Follow sourcing progress", detail: "Committed, quality-cleared, and delivered quantities are shown separately.", tone: "success" as const };
+}
+
+function paymentTriggerLabel(trigger: string) {
+  const labels: Record<string, string> = {
+    buyer_acceptance: "delivery acceptance",
+    cleared_buyer_funds: "cleared buyer funds",
+    purchase_collection_acceptance: "collection acceptance",
+    fixed_date: "the agreed date",
+  };
+  return labels[trigger] ?? trigger.replaceAll("_", " ");
+}
+
+function chargePayerLabel(payer: string) {
+  return payer === "buyer" ? "You pay" : "Handled by Kuapa Dwaso";
 }
 
 export default function BuyerRequestDetailPage() {
@@ -156,17 +168,17 @@ export default function BuyerRequestDetailPage() {
       ]} />
 
       {agreement === null ? (
-        <section className="pilot-buyer-empty"><FileCheck2 size={28} /><h2>No quotation yet</h2><p>Requested quantity is not a supply commitment. Operations will publish a revision when sourcing terms are ready.</p></section>
+        <section className="pilot-buyer-empty"><FileCheck2 size={28} /><h2>No quotation yet</h2><p>Kuapa Dwaso will send a quotation when sourcing terms are ready.</p></section>
       ) : (
         <>
           <CommercialTermsSummary
-            revisionLabel={`Revision ${agreement.revision}${agreement.isExpired ? " · expired" : ""}`}
+            revisionLabel={`Quotation ${agreement.revision}${agreement.isExpired ? " · expired" : ""}`}
             terms={[
               { label: "Confirmed quantity", value: formatPilotQuantity(agreement.quantityGrams) },
               { label: "Produce value", value: grossQuote === undefined ? "Pending" : formatPilotMoney(grossQuote) },
-              { label: "Transaction", value: agreement.commercialMode === "coordination" ? "Farmers sell; Kuapa Dwaso coordinates" : "Kuapa Dwaso purchases and resells" },
-              { label: "Payment", value: agreement.paymentTerms.map((term) => `${term.offsetCalendarDays} day(s) after ${term.trigger.replaceAll("_", " ")}`).join(", ") },
-              ...agreement.chargeTerms.map((term) => ({ label: term.label, value: `${term.payer} pays · ${term.calculation.replaceAll("_", " ")}` })),
+              { label: "Supply and delivery", value: "Managed by Kuapa Dwaso" },
+              { label: "Payment", value: agreement.paymentTerms.map((term) => `${term.offsetCalendarDays} ${term.offsetCalendarDays === 1 ? "day" : "days"} after ${paymentTriggerLabel(term.trigger)}`).join(", ") },
+              ...agreement.chargeTerms.map((term) => ({ label: term.label, value: `${chargePayerLabel(term.payer)} · ${term.calculation.replaceAll("_", " ")}` })),
             ]}
           />
           {detail.request.status === "quoted" && agreement.state === "proposed" ? (
@@ -182,10 +194,10 @@ export default function BuyerRequestDetailPage() {
         <section className="pilot-acceptance-panel">
           <span className="pilot-buyer-kicker">Buyer acceptance</span>
           <h2>Check the delivered lots</h2>
-          <p>Choose one identified lot to reject, or accept all. Mixed quantities must already be split into separate sublots.</p>
+          <p>Accept all delivered lots or reject one with a reason and evidence.</p>
           <label className="form-group"><span className="form-label">Delivery outcome</span><select className="form-input" value={rejectedLotId} onChange={(event) => setRejectedLotId(event.target.value)}><option value="">Accept every delivered lot</option>{lots.map((lot) => <option key={lot.id} value={lot.id}>Reject {lot.lotCode} · {formatPilotQuantity(lot.sourceGrams)}</option>)}</select></label>
           {rejectedLotId === "" ? null : <div className="pilot-rejection-fields"><label className="form-group"><span className="form-label">Contractual rejection reason</span><textarea className="form-input" required value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} /></label><label className="form-group"><span className="form-label">Rejection evidence</span><input accept="image/*,application/pdf" className="form-input" onChange={(event) => setEvidenceFile(event.target.files?.[0])} type="file" /></label></div>}
-          <MaterialDecision actionLabel="Record delivery decision" title="Record immutable buyer acceptance?" detail="This confirms the outcome for every delivered lot. Corrections use the issue workflow and do not erase the original record." confirmLabel={rejectedLotId === "" ? "Accept delivered lots" : "Record acceptance and rejection"} isSubmitting={busy} onConfirm={() => run(() => recordAcceptance(Date.now()))} />
+          <MaterialDecision actionLabel="Record delivery decision" title="Confirm this delivery?" detail="This records the outcome for each delivered lot. Contact Kuapa Dwaso if something needs correcting." confirmLabel={rejectedLotId === "" ? "Accept delivered lots" : "Record acceptance and rejection"} isSubmitting={busy} onConfirm={() => run(() => recordAcceptance(Date.now()))} />
         </section>
       ) : null}
 

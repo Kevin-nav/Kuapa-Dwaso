@@ -242,7 +242,7 @@ export default function OrderDetailPage({ params }: Props) {
       )}
 
       <section style={{ background: "var(--color-info-bg)", border: "1px solid var(--color-info-border)", borderRadius: 14, padding: 16, display: "grid", gap: 8 }}>
-        <strong>Published delivery promise</strong>
+        <strong>Delivery details</strong>
         <span><strong>Destination:</strong> {currentOrder.destinationMarket}</span>
         <span><strong>Delivery day:</strong> {currentOrder.deliveryDateSnapshot ? new Date(currentOrder.deliveryDateSnapshot).toLocaleDateString("en-GH", { dateStyle: "full", ...(currentOrder.marketDeliveryRun?.timezone === undefined ? {} : { timeZone: currentOrder.marketDeliveryRun.timezone }) }) : "Legacy order — operations will confirm"}</span>
         <span><strong>Expected arrival:</strong> {currentOrder.expectedArrivalStartSnapshot && currentOrder.expectedArrivalEndSnapshot ? `${new Date(currentOrder.expectedArrivalStartSnapshot).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit", ...(currentOrder.marketDeliveryRun?.timezone === undefined ? {} : { timeZone: currentOrder.marketDeliveryRun.timezone }) })}–${new Date(currentOrder.expectedArrivalEndSnapshot).toLocaleTimeString("en-GH", { hour: "numeric", minute: "2-digit", ...(currentOrder.marketDeliveryRun?.timezone === undefined ? {} : { timeZone: currentOrder.marketDeliveryRun.timezone }) })}` : "Operations will confirm"}</span>
@@ -412,7 +412,7 @@ export default function OrderDetailPage({ params }: Props) {
             {latestPayment !== undefined
               ? `Latest transaction ${latestPayment.providerReference} is ${latestPayment.status.replace(/_/g, " ")}.`
               : currentOrder.totalAmount === undefined
-                ? "Payment will be available after warehouse pricing is complete."
+                ? "Payment will be available after pricing is confirmed."
                 : `Pay securely through the platform payment provider${currentOrder.paymentDeadline ? ` before ${new Date(currentOrder.paymentDeadline).toLocaleString("en-GH", { dateStyle: "medium", timeStyle: "short", ...(currentOrder.marketDeliveryRun?.timezone === undefined ? {} : { timeZone: currentOrder.marketDeliveryRun.timezone }) })}` : ""}. If payment or connectivity is interrupted, return to this order and try again; your order details remain saved.`}
           </span>
           {latestPayment?.providerMessage !== undefined && (
@@ -449,7 +449,7 @@ export default function OrderDetailPage({ params }: Props) {
       {currentOrder.reservations && currentOrder.reservations.length > 0 && (
         <div>
           <h3 className="section-title" style={{ marginBottom: "10px" }}>
-            Locked Warehouse Reservations
+            Reserved produce
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {currentOrder.reservations.map((res, idx) => (
@@ -486,7 +486,7 @@ export default function OrderDetailPage({ params }: Props) {
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "10px" }}>
         <a href="tel:+233240000000" className="btn btn-primary btn-full">
           <Phone size={18} />
-          <span>Call Warehouse Support</span>
+          <span>Call Kuapa Dwaso support</span>
         </a>
       </div>
 

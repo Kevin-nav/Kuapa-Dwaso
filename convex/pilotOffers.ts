@@ -1,5 +1,8 @@
 import { v } from "convex/values";
-import { canTransitionPilotOffer } from "@kuapa-dwaso/permissions/pilot";
+import {
+  canTransitionPilotOffer,
+  pilotSettlementReservationCoversOffer,
+} from "@kuapa-dwaso/permissions/pilot";
 import {
   calculatePilotOfferAmounts,
   pilotAllocationFits,
@@ -7,12 +10,18 @@ import {
 import {
   assertExpectedVersion,
   assertPilotChargeTerm,
+  assertPilotFarmerPaymentCommitment,
   assertPilotPaymentTerm,
   assertPilotQuantityGrams,
   assertPilotRate,
 } from "@kuapa-dwaso/validators/pilot";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import {
   requirePilotCapability,
   requirePilotPrincipal,
@@ -133,6 +142,40 @@ async function getOfferAllocation(
     "Offer has conflicting active allocations.",
   );
   return active[0] ?? null;
+}
+
+async function hasCurrentSettlementReservation(
+  ctx: QueryCtx | MutationCtx,
+  revision: Doc<"pilotFarmerOfferRevisions">,
+): Promise<boolean> {
+  const reservations = await ctx.db
+    .query("pilotFundingReservations")
+    .withIndex("by_offer_revision", (query) =>
+      query.eq("farmerOfferRevisionId", revision._id),
+    )
+    .collect();
+  for (const reservation of reservations) {
+    if (
+      reservation.programmeId !== revision.programmeId ||
+      reservation.requestId !== revision.requestId ||
+      reservation.buyerAgreementRevisionId !== revision.buyerAgreementRevisionId
+    )
+      continue;
+    const budget = await ctx.db.get(reservation.budgetId);
+    if (
+      budget !== null &&
+      budget.programmeId === revision.programmeId &&
+      pilotSettlementReservationCoversOffer({
+        expectedNetPesewas: revision.expectedNetPesewas,
+        offerExpiresAt: revision.expiresAt,
+        now: Date.now(),
+        reservation,
+        budget,
+      })
+    )
+      return true;
+  }
+  return false;
 }
 
 async function offerSummary(
@@ -399,8 +442,8 @@ export const createRevision = mutation({
       "Price basis and rate unit do not match.",
     );
     for (const term of args.chargeTerms) assertPilotChargeTerm(term);
-    assertAllowed(args.paymentTerms.length > 0, "Payment terms are required.");
     for (const term of args.paymentTerms) assertPilotPaymentTerm(term);
+    assertPilotFarmerPaymentCommitment(args.commercialMode, args.paymentTerms);
     validateClauses(args.inspectionTerms, "Inspection terms");
     validateClauses(args.titleTransferTerms, "Title transfer terms");
     validateClauses(args.custodyTransferTerms, "Custody transfer terms");
@@ -409,6 +452,13 @@ export const createRevision = mutation({
       args.expiresAt > Date.now() && args.expiresAt <= agreement.expiresAt,
       "Offer expiry must be in the future and no later than buyer terms.",
     );
+    const farmerPaymentTerm = args.paymentTerms[0]!;
+    if (farmerPaymentTerm.trigger === "fixed_date")
+      assertAllowed(
+        farmerPaymentTerm.fixedDueAt !== undefined &&
+          farmerPaymentTerm.fixedDueAt >= args.expiresAt,
+        "A fixed farmer payment date cannot fall before the offer expires.",
+      );
     const totals = calculatePilotOfferAmounts(args);
     const candidates = await ctx.db
       .query("pilotFarmerOffers")
@@ -431,6 +481,22 @@ export const createRevision = mutation({
         offer.status !== "accepted",
         "Accepted offer terms cannot be revised while committed.",
       );
+    if (offer?.currentRevisionId !== undefined) {
+      const reservations = await ctx.db
+        .query("pilotFundingReservations")
+        .withIndex("by_offer_revision", (query) =>
+          query.eq("farmerOfferRevisionId", offer!.currentRevisionId!),
+        )
+        .collect();
+      assertAllowed(
+        reservations.every(
+          (reservation) =>
+            reservation.status !== "active" &&
+            reservation.status !== "partly_consumed",
+        ),
+        "Release the current settlement reservation before revising this offer.",
+      );
+    }
     const receipt = await beginPilotIdempotency(ctx, operation);
     assertAllowed(
       receipt.kind === "started",
@@ -616,22 +682,10 @@ export const decide = mutation({
           agreement.expiresAt > Date.now(),
         "Buyer terms are no longer acknowledged and current.",
       );
-      if (revision.commercialMode === "kuapa_purchase") {
-        const reservations = await ctx.db
-          .query("pilotFundingReservations")
-          .withIndex("by_offer_revision", (q) =>
-            q.eq("farmerOfferRevisionId", revision._id),
-          )
-          .collect();
-        assertAllowed(
-          reservations.some(
-            (reservation) =>
-              ["active", "partly_consumed"].includes(reservation.status) &&
-              reservation.expiresAt > Date.now(),
-          ),
-          "Purchase offer acceptance requires current funding approval.",
-        );
-      }
+      assertAllowed(
+        await hasCurrentSettlementReservation(ctx, revision),
+        "Offer acceptance requires reserved farmer payment capacity.",
+      );
     }
     const receipt = await beginPilotIdempotency(ctx, operation);
     assertAllowed(
@@ -820,15 +874,6 @@ async function closeOffer(
     canTransitionPilotOffer(offer.status, input.outcome),
     "Offer can no longer be closed.",
   );
-  if (offer.status === "accepted") {
-    const request = await ctx.db.get(offer.requestId);
-    assertAllowed(
-      offer.commercialMode === "coordination" &&
-        request !== null &&
-        request.status === "quoted",
-      "A funded purchase or commitment on a confirmed request requires request cancellation.",
-    );
-  }
   if (input.outcome === "expired")
     assertAllowed(offer.expiresAt <= Date.now(), "Offer has not expired.");
   const released =

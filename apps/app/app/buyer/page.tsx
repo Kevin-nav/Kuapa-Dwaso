@@ -128,9 +128,9 @@ export default function BuyerDashboard() {
       </div>
 
       <section className="pilot-buyer-hero">
-        <span className="pilot-buyer-kicker">Maize pilot</span>
-        <h1>Request supply before stock moves</h1>
-        <p>Start with demand. We will show sourced, quality-cleared, and delivered quantities separately.</p>
+        <span className="pilot-buyer-kicker">Maize</span>
+        <h1>Tell us what maize you need</h1>
+        <p>Kuapa Dwaso sources, checks, and delivers against your request.</p>
         <Link className="btn btn-primary" href="/buyer/requests/new"><Sprout size={19} /> Request maize supply</Link>
       </section>
 
@@ -141,7 +141,7 @@ export default function BuyerDashboard() {
           <div className="attention-body">
             <span className="attention-title">Profile Pending Verification</span>
             <span className="attention-text">
-              Your buyer profile is currently pending verification. You can still browse stock and request produce orders, but dispatch will require verification confirmation.
+              Your buyer profile is being reviewed. You can still request supply, but delivery may require verification.
             </span>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function BuyerDashboard() {
 
       <section style={{ display: "grid", gap: 10 }}>
         <div className="section-title-row"><h2 className="section-title">Next delivery to {marketLabel}</h2><Link href="/buyer/orders/create" className="section-link">See runs</Link></div>
-        {defaultMarket === undefined ? <div className="attention-card"><div className="attention-body"><span className="attention-title">Warehouse destination not set</span><span className="attention-text">Save a preferred market in your profile if you want to use the separate warehouse-stock route.</span></div></div> : upcomingRuns === undefined ? <div className="skeleton" style={{ height: 110, borderRadius: 14 }} /> : upcomingRuns.length === 0 ? <div className="attention-card"><div className="attention-body"><span className="attention-title">No published run is open yet</span><span className="attention-text">Operations will publish the next destination, cutoff, and collection window here.</span></div></div> : upcomingRuns.map((run) => <Link key={run._id} href={`/buyer/orders/create?run=${run._id}`} className="farmer-card"><div className="card-header"><span className="card-title"><MapPin size={17} /> {run.destinationName}</span><span className="status-chip status-success">Orders open</span></div><div className="card-meta" style={{ display: "grid", gap: 5 }}><span><Calendar size={16} /> Delivery {formatRunDate(run.deliveryDateAt, run.timezone)}, {formatRunTime(run.expectedArrivalStartAt, run.timezone)}–{formatRunTime(run.expectedArrivalEndAt, run.timezone)}</span><span><Clock3 size={16} /> Order and pay by {formatRunDateTime(run.orderCutoffAt, run.timezone)}</span><span><strong>Collection:</strong> {run.destinationInstructions}</span></div><div className="card-details"><strong>Browse stock for this run</strong><ArrowRight size={17} /></div></Link>)}
+        {defaultMarket === undefined ? <div className="attention-card"><div className="attention-body"><span className="attention-title">Delivery destination not set</span><span className="attention-text">Save a preferred market in your profile to browse available stock.</span></div></div> : upcomingRuns === undefined ? <div className="skeleton" style={{ height: 110, borderRadius: 14 }} /> : upcomingRuns.length === 0 ? <div className="attention-card"><div className="attention-body"><span className="attention-title">No published run is open yet</span><span className="attention-text">Operations will publish the next destination, cutoff, and collection window here.</span></div></div> : upcomingRuns.map((run) => <Link key={run._id} href={`/buyer/orders/create?run=${run._id}`} className="farmer-card"><div className="card-header"><span className="card-title"><MapPin size={17} /> {run.destinationName}</span><span className="status-chip status-success">Orders open</span></div><div className="card-meta" style={{ display: "grid", gap: 5 }}><span><Calendar size={16} /> Delivery {formatRunDate(run.deliveryDateAt, run.timezone)}, {formatRunTime(run.expectedArrivalStartAt, run.timezone)}–{formatRunTime(run.expectedArrivalEndAt, run.timezone)}</span><span><Clock3 size={16} /> Order and pay by {formatRunDateTime(run.orderCutoffAt, run.timezone)}</span><span><strong>Collection:</strong> {run.destinationInstructions}</span></div><div className="card-details"><strong>Browse stock for this run</strong><ArrowRight size={17} /></div></Link>)}
       </section>
 
       {(() => {
@@ -171,7 +171,7 @@ export default function BuyerDashboard() {
         />
         <input
           type="text"
-          placeholder="Search crop or warehouse location..."
+          placeholder="Search crop or destination..."
           className="form-input"
           style={{ paddingLeft: "42px" }}
           value={searchQuery}
@@ -220,7 +220,7 @@ export default function BuyerDashboard() {
       {/* Marketplace Listings */}
       <div>
         <div className="section-title-row" style={{ marginBottom: "12px" }}>
-          <h2 className="section-title">Available Warehouse Stock</h2>
+          <h2 className="section-title">Available stock</h2>
           <span style={{ fontSize: "0.875rem", color: "var(--color-text-muted)" }}>
             {filteredSummaries.length} listings
           </span>
@@ -250,7 +250,7 @@ export default function BuyerDashboard() {
                         {item.cropType}
                       </span>
                       <span style={{ fontSize: "0.8125rem", color: "var(--color-text-muted)" }}>
-                        {item.warehouseName}
+                        Kuapa Dwaso supply
                       </span>
                     </div>
                   </div>
@@ -304,7 +304,7 @@ export default function BuyerDashboard() {
               <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🌾</div>
               <h3 style={{ color: "var(--color-ink)", marginBottom: "8px" }}>No Produce Available</h3>
               <p style={{ maxWidth: "320px", margin: "0 auto", color: "var(--color-text-muted)" }}>
-                {defaultMarket === undefined ? "Save a preferred market in your profile to browse warehouse stock." : `There are no buyer-visible warehouse listings matching your filters for ${defaultMarket}.`}
+                {defaultMarket === undefined ? "Save a preferred market in your profile to browse available stock." : `There is no stock matching your filters for ${defaultMarket}.`}
               </p>
             </div>
           )}
@@ -336,6 +336,6 @@ function ListingPhoto({ photoId, user, cropType }: { photoId: string | undefined
     </div>
   ) : (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt={`${cropType} produce at the warehouse`} loading="lazy" style={{ width: "100%", height: "180px", objectFit: "cover", borderRadius: "12px", marginBottom: "14px", border: "1px solid var(--color-line)" }} />
+    <img src={url} alt={`${cropType} produce available through Kuapa Dwaso`} loading="lazy" style={{ width: "100%", height: "180px", objectFit: "cover", borderRadius: "12px", marginBottom: "14px", border: "1px solid var(--color-line)" }} />
   );
 }

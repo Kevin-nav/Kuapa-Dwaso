@@ -64,7 +64,7 @@ export function ConnectivityBanner({ state, pendingCount = 0 }: { state: Connect
   const text = state === "offline"
     ? `You are offline${pendingCount > 0 ? ` — ${pendingCount} action${pendingCount === 1 ? "" : "s"} saved on this device` : ""}.`
     : state === "limited"
-      ? "Your connection is limited. Live information may be unavailable."
+      ? "Your connection is limited. Current information may be unavailable."
       : `${pendingCount} action${pendingCount === 1 ? "" : "s"} waiting to sync.`;
   return <div role="status" style={{ padding: "10px 14px", background: "#f1ebfb", color: "#5b21b6", border: "1px solid #d9c9f2", borderRadius: 12, marginBottom: 12, fontWeight: 700 }}>{text}</div>;
 }
