@@ -7,7 +7,7 @@ import { StoryCard } from "./story-card";
 export const metadata: Metadata = {
   title: "Stories & Insights | Kuapa Dwaso",
   description:
-    "Field visits, prospective collaboration discussions, events, and pilot updates from Kuapa Dwaso.",
+    "Field visits, prospective collaboration discussions, events, and market updates from Kuapa Dwaso.",
   alternates: { canonical: "/blog" },
   openGraph: {
     title: "Kuapa Dwaso Stories & Insights",

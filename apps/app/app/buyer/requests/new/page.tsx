@@ -14,7 +14,8 @@ type Draft = {
   destination: string;
   deliveryDate: string;
   moisturePercent: string;
-  commercialMode: "coordination" | "kuapa_purchase";
+  /** Legacy drafts may contain this backend-only field. Buyers do not edit it. */
+  commercialMode?: "coordination" | "kuapa_purchase";
   serverRequestId?: string;
   serverVersion?: number;
   creationIdempotencyKey?: string;
@@ -25,8 +26,8 @@ const initialDraft: Draft = {
   destination: "",
   deliveryDate: "",
   moisturePercent: "13.5",
-  commercialMode: "coordination",
 };
+const BACKEND_COMMERCIAL_MODE = "coordination" as const;
 
 export default function NewBuyerRequestPage() {
   const router = useRouter();
@@ -46,6 +47,7 @@ export default function NewBuyerRequestPage() {
         serverRequestId: _serverRequestId,
         serverVersion: _serverVersion,
         creationIdempotencyKey: _creationIdempotencyKey,
+        commercialMode: _commercialMode,
         ...editable
       } = current;
       return { ...editable, ...changes };
@@ -85,7 +87,7 @@ export default function NewBuyerRequestPage() {
       return;
     }
     if (programme === undefined) {
-      setError("No active maize programme is available for this buyer.");
+      setError("Maize requests are temporarily unavailable. Please try again later.");
       return;
     }
     const kilograms = Number(draft.kilograms);
@@ -119,7 +121,7 @@ export default function NewBuyerRequestPage() {
               offsetCalendarDays: 1,
               timezone: "Africa/Accra",
             },
-            commercialMode: draft.commercialMode,
+            commercialMode: BACKEND_COMMERCIAL_MODE,
             idempotencyKey: creationIdempotencyKey,
           })
         : { requestId: draft.serverRequestId as Id<"pilotBuyerRequests">, version: draft.serverVersion };
@@ -151,7 +153,7 @@ export default function NewBuyerRequestPage() {
       <header>
         <span className="pilot-buyer-kicker">New supply request</span>
         <h1>What maize do you need?</h1>
-        <p>Nothing is confirmed yet. Operations will review supply and send priced terms for your approval.</p>
+        <p>Tell Kuapa Dwaso what you need. We will review supply and send a quotation for your approval.</p>
       </header>
       {restored ? <div className="pilot-form-note"><Check size={18} /> Restored your saved draft from this device.</div> : null}
       {error === undefined ? null : <div className="attention-card" role="alert"><AlertCircle size={20} /><div className="attention-body"><span className="attention-title">Request not submitted</span><span className="attention-text">{error}</span></div></div>}
@@ -163,13 +165,9 @@ export default function NewBuyerRequestPage() {
           <label className="form-group"><span className="form-label">Needed on</span><input className="form-input" required type="date" value={draft.deliveryDate} onChange={(event) => changeDraft({ deliveryDate: event.target.value })} /></label>
           <label className="form-group"><span className="form-label">Maximum moisture (%)</span><input className="form-input" max="30" min="1" required step="0.1" type="number" value={draft.moisturePercent} onChange={(event) => changeDraft({ moisturePercent: event.target.value })} /></label>
         </div>
-        <fieldset className="pilot-mode-choice">
-          <legend>How should Kuapa Dwaso participate?</legend>
-          <label><input checked={draft.commercialMode === "coordination"} name="mode" onChange={() => changeDraft({ commercialMode: "coordination" })} type="radio" /><span><b>Coordinate the transaction</b><small>Farmers remain sellers; your final terms identify charges and payment responsibility.</small></span></label>
-          <label><input checked={draft.commercialMode === "kuapa_purchase"} name="mode" onChange={() => changeDraft({ commercialMode: "kuapa_purchase" })} type="radio" /><span><b>Buy from Kuapa Dwaso</b><small>Available only after finance approves purchasing funds. Kuapa Dwaso becomes the seller.</small></span></label>
-        </fieldset>
+        <div className="pilot-form-note">Kuapa Dwaso manages sourcing, quality checks, delivery, and settlement.</div>
         <div className="pilot-form-note"><CloudOff size={18} /> Draft changes stay on this device for seven days. Submission requires a connection.</div>
-        <button className="btn btn-primary btn-full" disabled={isSubmitting || programmes === undefined} type="submit">{isSubmitting ? "Submitting…" : "Submit for sourcing review"}</button>
+        <button className="btn btn-primary btn-full" disabled={isSubmitting || programmes === undefined} type="submit">{isSubmitting ? "Submitting…" : "Send request"}</button>
       </form>
     </div>
   );

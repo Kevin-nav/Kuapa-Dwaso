@@ -5,14 +5,11 @@ import { useQuery } from "convex/react";
 import { ArrowRight, CirclePlus, PackageSearch, Warehouse } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { formatPilotQuantity, PilotStatus, SampleDataBanner } from "@kuapa-dwaso/ui/pilot";
+import { formatPilotQuantity, PilotStatus } from "@kuapa-dwaso/ui/pilot";
 
 type Programme = {
   id: Id<"pilotProgrammes">;
-  name: string;
   status: string;
-  datasetProvenance: "live" | "sample_only";
-  demoContext: { programmeId: string; programmeName: string; dataMode: string; datasetId?: string };
 };
 type RequestItem = {
   requestId: Id<"pilotBuyerRequests">;
@@ -44,19 +41,12 @@ export default function BuyerRequestsPage() {
 
   return (
     <div className="pilot-buyer-stack">
-      {programme?.datasetProvenance === "sample_only" ? (
-        <SampleDataBanner programmes={[{
-          programmeId: programme.id,
-          programmeName: programme.name,
-          ...(programme.demoContext.datasetId === undefined ? {} : { datasetId: programme.demoContext.datasetId }),
-        }]} />
-      ) : null}
       <header className="pilot-buyer-hero">
         <span className="pilot-buyer-kicker">Direct maize sourcing</span>
         <h1>Request maize before it moves</h1>
         <p>
-          Tell us the quantity, quality, destination, and timing. Operations will
-          source against your request and return explicit terms for approval.
+          Tell Kuapa Dwaso the quantity, quality, destination, and timing. We
+          will source against your request and send a quotation for approval.
         </p>
         <Link className="btn btn-primary" href="/buyer/requests/new">
           <CirclePlus size={19} /> Request maize supply
@@ -66,15 +56,15 @@ export default function BuyerRequestsPage() {
       {programmes !== undefined && programme === undefined ? (
         <section className="pilot-buyer-empty">
           <PackageSearch size={32} />
-          <h2>No active programme is available</h2>
-          <p>Your profile is ready. An administrator still needs to enable a maize programme for buyers.</p>
+          <h2>Maize requests are temporarily unavailable</h2>
+          <p>Kuapa Dwaso will let you know when sourcing is ready for new requests.</p>
         </section>
       ) : null}
 
       <section aria-labelledby="pilot-requests-title" className="pilot-buyer-section">
         <div className="section-title-row">
           <div>
-            <span className="pilot-buyer-kicker">Your pipeline</span>
+            <span className="pilot-buyer-kicker">Your requests</span>
             <h2 id="pilot-requests-title" className="section-title">Maize supply requests</h2>
           </div>
           <span className="pilot-buyer-count">{requests?.page.length ?? 0}</span>
@@ -86,7 +76,7 @@ export default function BuyerRequestsPage() {
           <div className="pilot-buyer-empty">
             <PackageSearch size={30} />
             <h3>No supply requests yet</h3>
-            <p>Create a request even when warehouse stock is empty. Sourcing progress will appear here.</p>
+            <p>Tell Kuapa Dwaso what you need. Sourcing progress will appear here.</p>
           </div>
         ) : null}
         <div className="pilot-request-list">
@@ -112,8 +102,8 @@ export default function BuyerRequestsPage() {
       <aside className="pilot-stock-path">
         <Warehouse size={22} />
         <div>
-          <strong>Need already stored produce?</strong>
-          <p>Available warehouse stock remains a separate ordering path.</p>
+          <strong>Need stock already available?</strong>
+          <p>Browse produce that Kuapa Dwaso has already listed.</p>
         </div>
         <Link href="/buyer">Browse stock</Link>
       </aside>

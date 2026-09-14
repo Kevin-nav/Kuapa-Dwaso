@@ -11,14 +11,14 @@ import { Logo, SiteHeader } from "./site-header";
 
 const promises = [
   ["Demand comes first", "We begin with a real buyer requirement"],
-  ["Terms stay clear", "You see the important terms before you decide"],
+  ["Kuapa Dwaso stays involved", "One team manages the transaction"],
   [
     "Quality gets checked",
     "Produce is checked against what the buyer asked for",
   ],
   [
-    "Delivery is coordinated",
-    "We bring supply together for a practical journey",
+    "Payment is recorded",
+    "Delivery, buyer payment, and supplier settlement stay traceable",
   ],
 ] as const;
 
@@ -28,20 +28,20 @@ const steps = [
     body: "We capture the crop, quantity, quality, location, date, and payment expectations.",
   },
   {
-    title: "We find farmers who can supply it",
-    body: "We check available produce and bring together enough supply for the request.",
+    title: "We source and assemble supply",
+    body: "We work with suppliers and partners to bring together enough produce for the request.",
   },
   {
-    title: "Everyone sees the terms",
-    body: "Farmers review the offer and decide whether it works for them before produce moves.",
+    title: "Kuapa Dwaso sends the terms",
+    body: "Buyers receive a clear quotation. Suppliers receive their offer separately before produce moves.",
   },
   {
     title: "We check and coordinate",
     body: "Quality is checked, quantities are brought together, and transport is arranged.",
   },
   {
-    title: "The order is delivered",
-    body: "Delivery, buyer acceptance, payment, and farmer settlement are recorded clearly.",
+    title: "We deliver and settle",
+    body: "Delivery, buyer acceptance, payment, and supplier settlement are recorded clearly.",
   },
 ] as const;
 
@@ -88,7 +88,6 @@ export default async function LandingPage({
       <SiteHeader joinHref={appAuthHref} loginHref={appLoginHref} />
       <main>
         <HeroSection farmerHref={farmerHref} buyerHref={buyerHref} />
-        <PilotNote />
         <PromiseBar />
         <MarketSection buyerHref={buyerHref} />
         <HowItWorks />
@@ -131,9 +130,9 @@ function HeroSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref:
             <span className="text-[#8ae0a8]">before the produce moves.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
-            Our first software pilot is for commercial maize buyers and farmers
-            with maize to sell. We record the terms, quality checks, collection,
-            delivery and settlement without requiring a Kuapa Dwaso warehouse.
+            We start with commercial maize buyers and suppliers. Tell Kuapa
+            Dwaso what you need and we will manage the terms, quality checks,
+            collection, delivery, and settlement.
           </p>
           <div className="mt-8 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <a href={buyerHref} className="btn-primary">
@@ -150,18 +149,6 @@ function HeroSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref:
         </div>
       </div>
     </section>
-  );
-}
-
-function PilotNote() {
-  return (
-    <aside className="border-b border-brand-line bg-brand-gold/15">
-      <p className="mx-auto max-w-6xl px-5 py-3 text-center text-sm font-semibold leading-relaxed text-brand-ink sm:px-6">
-        Pilot software is ready for controlled demonstrations. Live commercial
-        operations, partner commitments and payment outcomes must be confirmed
-        transaction by transaction.
-      </p>
-    </aside>
   );
 }
 
@@ -201,7 +188,7 @@ function MarketSection({ buyerHref }: { buyerHref: string }) {
             <div>
               <p className="market-label">For farmers</p>
               <h3 className="mt-3 font-display text-2xl font-semibold">
-                Know the opportunity before you move your produce.
+                Know the offer before you move your produce.
               </h3>
               <p className="mt-3 leading-relaxed text-white/68">
                 See what a buyer needs and understand the important terms before
@@ -211,11 +198,11 @@ function MarketSection({ buyerHref }: { buyerHref: string }) {
             <div>
               <p className="market-label">For buyers</p>
               <h3 className="mt-3 font-display text-2xl font-semibold">
-                Reach farmers who can meet a real requirement.
+                Receive supply assembled against a real requirement.
               </h3>
               <p className="mt-3 leading-relaxed text-white/68">
-                Share what you need and receive produce checked against the
-                quality you agreed to.
+                Share what you need and let Kuapa Dwaso manage sourcing,
+                quality, delivery, and settlement.
               </p>
             </div>
           </div>
@@ -258,8 +245,8 @@ function HowItWorks() {
             </h2>
           </div>
           <p className="max-w-xl self-end text-base leading-relaxed text-brand-ink/65 sm:text-lg">
-            Kuapa Dwaso stays involved through the journey so farmers and buyers
-            are not left to coordinate everything alone.
+            Kuapa Dwaso stays involved so buyers and suppliers are not left to
+            coordinate everything alone.
           </p>
         </div>
 
@@ -303,7 +290,7 @@ function AudienceSection({ farmerHref, buyerHref }: { farmerHref: string; buyerH
           <AudienceCard
             number="02"
             title="Buyers"
-            body="Commercial buyers can request a maize type, quantity, quality specification, destination and delivery window before any produce is collected."
+            body="Commercial buyers can request a maize type, quantity, quality specification, destination and delivery window. Kuapa Dwaso manages the rest."
             linkLabel="Request maize supply"
             href={buyerHref}
           />
@@ -438,8 +425,8 @@ function FieldStoriesFallback() {
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-brand-ink/65 sm:text-lg">
             Our direction is shaped by conversations with farmers, buyers, and
-            agricultural partners. Read what we are learning as the pilot takes
-            shape.
+            agricultural partners. Read what we are learning as the service
+            takes shape.
           </p>
         </div>
         <a className="field-stories-link" href="/blog">
@@ -483,8 +470,7 @@ function FinalCta({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: st
           Tell us what you grow or what you need to buy.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-white/82 sm:text-lg">
-          Join the pilot and help shape a more dependable way for produce to
-          reach the right market.
+          Start with a real maize request or tell us what you have to sell.
         </p>
         <div className="mt-8 grid gap-3 sm:flex sm:justify-center sm:gap-4">
           <a href={buyerHref} className="btn-light">
