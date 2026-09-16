@@ -8,11 +8,6 @@
  * @module
  */
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
 import type * as admin from "../admin.js";
 import type * as adminAccess from "../adminAccess.js";
 import type * as auditLogs from "../auditLogs.js";
@@ -23,6 +18,8 @@ import type * as buyers from "../buyers.js";
 import type * as clientActions from "../clientActions.js";
 import type * as crons from "../crons.js";
 import type * as deadlineNotifications from "../deadlineNotifications.js";
+import type * as demoPreviewCleanup from "../demoPreviewCleanup.js";
+import type * as demoPreviewSetup from "../demoPreviewSetup.js";
 import type * as dispatches from "../dispatches.js";
 import type * as disputes from "../disputes.js";
 import type * as farmers from "../farmers.js";
@@ -36,15 +33,15 @@ import type * as marketServiceSchedules from "../marketServiceSchedules.js";
 import type * as notificationServiceAuth from "../notificationServiceAuth.js";
 import type * as notifications from "../notifications.js";
 import type * as observabilityAccess from "../observabilityAccess.js";
-import type * as payments from "../payments.js";
 import type * as paymentServiceAuth from "../paymentServiceAuth.js";
+import type * as payments from "../payments.js";
 import type * as pilotAccess from "../pilotAccess.js";
 import type * as pilotActivity from "../pilotActivity.js";
 import type * as pilotAllocations from "../pilotAllocations.js";
 import type * as pilotAssignments from "../pilotAssignments.js";
 import type * as pilotAuth from "../pilotAuth.js";
-import type * as pilotFulfilment from "../pilotFulfilment.js";
 import type * as pilotFinance from "../pilotFinance.js";
+import type * as pilotFulfilment from "../pilotFulfilment.js";
 import type * as pilotIdempotency from "../pilotIdempotency.js";
 import type * as pilotInspections from "../pilotInspections.js";
 import type * as pilotIssues from "../pilotIssues.js";
@@ -73,14 +70,12 @@ import type * as warehouses from "../warehouses.js";
 import type * as webPushDeliveries from "../webPushDeliveries.js";
 import type * as workflowHelpers from "../workflowHelpers.js";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   adminAccess: typeof adminAccess;
@@ -92,6 +87,8 @@ declare const fullApi: ApiFromModules<{
   clientActions: typeof clientActions;
   crons: typeof crons;
   deadlineNotifications: typeof deadlineNotifications;
+  demoPreviewCleanup: typeof demoPreviewCleanup;
+  demoPreviewSetup: typeof demoPreviewSetup;
   dispatches: typeof dispatches;
   disputes: typeof disputes;
   farmers: typeof farmers;
@@ -105,15 +102,15 @@ declare const fullApi: ApiFromModules<{
   notificationServiceAuth: typeof notificationServiceAuth;
   notifications: typeof notifications;
   observabilityAccess: typeof observabilityAccess;
-  payments: typeof payments;
   paymentServiceAuth: typeof paymentServiceAuth;
+  payments: typeof payments;
   pilotAccess: typeof pilotAccess;
   pilotActivity: typeof pilotActivity;
   pilotAllocations: typeof pilotAllocations;
   pilotAssignments: typeof pilotAssignments;
   pilotAuth: typeof pilotAuth;
-  pilotFulfilment: typeof pilotFulfilment;
   pilotFinance: typeof pilotFinance;
+  pilotFulfilment: typeof pilotFulfilment;
   pilotIdempotency: typeof pilotIdempotency;
   pilotInspections: typeof pilotInspections;
   pilotIssues: typeof pilotIssues;
@@ -142,12 +139,31 @@ declare const fullApi: ApiFromModules<{
   webPushDeliveries: typeof webPushDeliveries;
   workflowHelpers: typeof workflowHelpers;
 }>;
+
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
+
 export declare const components: {};
