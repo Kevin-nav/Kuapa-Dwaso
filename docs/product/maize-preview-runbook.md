@@ -1,28 +1,31 @@
 # Maize preview runbook
 
-This runbook prepares four shared profiles on one existing live maize
-programme. It does not create or reconfigure a programme, weaken application
-permissions, or expose an admin account on the public login pages.
+This temporary flow presents Kuapa Dwaso as the coordinator between farmers,
+buyers, transporters, and operations. Kuapa Dwaso does not buy or resell the
+maize in this flow. The setup creates no purchasing budget, funding reservation,
+purchase approval or warehouse. It records buyer-to-farmer maize obligations,
+a configurable 3% seller-side coordination fee, and separate buyer transport
+and handling charges. Operations receives a lightweight approved
+profile with no assigned warehouses so its name and role display correctly.
 
-The setup command creates or reuses these Firebase and Convex identities:
+The command creates or reuses four shared identities:
 
-| Role        | Profile name   | Prepared activity                      |
+| Role        | Name           | Prepared work                          |
 | ----------- | -------------- | -------------------------------------- |
 | Farmer      | Ama Mensah     | Three accepted maize offers            |
 | Buyer       | Adwoa Owusu    | Three confirmed maize requests         |
-| Transporter | Kwame Asare    | Three ready, assigned collection jobs  |
+| Transporter | Kwame Asare    | Three assigned collection jobs         |
 | Operations  | Akosua Boateng | Three inspections and collection plans |
 
-Every prepared quantity uses 50 kg bags. The records contain 100, 150, and 200
-bags, equal to 5,000 kg, 7,500 kg, and 10,000 kg. The interface presents these
-as hundreds of bags; kilograms remain the canonical stored unit.
+The three routes contain 100, 150, and 200 bags of 50 kg maize. The first
+request combines 40 bags from the shared farmer with two 30-bag background
+farmer lots. Those two background profiles have no Firebase login and use the
+team-owned farmer phone for collection contact. Buyer projections show only
+anonymous numbered collection points; operations and the assigned transporter
+retain the exact source contacts. Convex stores
+the quantities as 5,000 kg, 7,500 kg, and 10,000 kg.
 
-## Before setup
-
-Choose one programme that is already active, has live provenance, and has an
-approved live maize quality policy. Record its exact Convex ID in
-`PREVIEW_CLEANUP_PROGRAMME_ID`. Set `NEXT_PUBLIC_PREVIEW_PROGRAMME_ID` to the
-same ID for the App and Ops deployments.
+## Configure the setup window
 
 Set these values outside the repository:
 
@@ -37,9 +40,7 @@ PREVIEW_FARMER_PHONE_NUMBER
 PREVIEW_BUYER_PHONE_NUMBER
 PREVIEW_TRANSPORTER_PHONE_NUMBER
 PREVIEW_OPERATIONS_PHONE_NUMBER
-PREVIEW_INSPECTION_EVIDENCE_UPLOAD_ASSET_IDS
 PREVIEW_CLEANUP_DEPLOYMENT
-PREVIEW_CLEANUP_PROGRAMME_ID
 PREVIEW_CLEANUP_START_AT
 PREVIEW_CLEANUP_END_AT
 PREVIEW_ACCESS_CUTOFF_UTC
@@ -48,99 +49,75 @@ FIREBASE_SERVICE_ACCOUNT_JSON_BASE64
 NEXT_PUBLIC_FIREBASE_API_KEY
 ```
 
-Use four distinct E.164 phone numbers controlled by the team. Add the same
-numbers to `PREVIEW_SMS_RECIPIENT_ALLOWLIST`. The admin UID must point to the
-existing private admin account and must differ from all four shared-account
-UIDs.
+Use four distinct E.164 phone numbers controlled by the team. Put the same
+numbers in `PREVIEW_SMS_RECIPIENT_ALLOWLIST`. The private admin UID must differ
+from all four shared-account UIDs.
 
-Choose the cleanup window before running setup. Current time must fall inside
-that window, the window cannot exceed fourteen days, and the access cutoff must
-be inside it. Keep those timestamps unchanged through cleanup.
-
-The exact programme must also have one active purchasing budget with at least
-enough available capacity to reserve the farmer proceeds for all three offers.
-The setup command uses the existing finance approval mutation. It does not
-insert a reservation or bypass the budget checks.
-
-Full setup requires three distinct upload asset IDs in
-`PREVIEW_INSPECTION_EVIDENCE_UPLOAD_ASSET_IDS`, separated by commas. Each asset
-must already be a completed, private `pilot_inspection_evidence` upload owned by
-Akosua Boateng and scoped to the exact programme. An inspection attaches its
-asset, so the same asset cannot support more than one route.
-
-If the four shared identities do not exist yet, bootstrap only the actors,
-profiles, assignment, requests, and declarations first:
-
-```text
-corepack pnpm preview:setup -- --profiles-only --execute --confirm=PROVISION_PREVIEW_ACTORS
-```
-
-Sign in as Akosua Boateng and create the three private inspection evidence
-uploads through the normal upload flow. Record their upload asset IDs, set
-`PREVIEW_INSPECTION_EVIDENCE_UPLOAD_ASSET_IDS`, then run the full dry run and
-execution below. Do not use `--profiles-only` for that second pass.
+Current time must fall inside the cleanup window. The window cannot exceed 14
+days. Leave at least 10 hours between setup and the access cutoff so all three
+prepared routes have valid collection and delivery windows.
 
 ## Review and execute
 
-Setup defaults to a dry run:
+The command is a dry run unless `--execute` is present:
 
 ```text
 corepack pnpm preview:setup
 ```
 
-The full dry run checks Firebase UID and phone ownership, confirms the current
-admin can read the exact programme, rejects sample-only or inactive programmes,
-requires three distinct evidence IDs, and prints the intended profile, request,
-inspection, finance, and route actions. It does not provision actors or write
-Convex records.
+The dry run checks the deployment, Firebase UID and phone ownership, the
+private admin identity, and the bounded time window. It prints the accounts and
+records it will prepare without writing data.
 
-After reviewing the output, execute with the exact confirmation:
+After reviewing that output, run:
 
 ```text
 corepack pnpm preview:setup -- --execute --confirm=PROVISION_PREVIEW_ACTORS
 ```
 
-The command uses Firebase Admin only to create or update the four named
-accounts and mint short-lived tokens. It uses the application's authenticated
-mutations for profile onboarding, verification, assignment, buyer agreement,
-supply review, offers, funding reservation, inspection, collection planning,
-driver assignment, and readiness. The command stops if existing records do not
-match the exact programme, actors, quantities, terms, or evidence ownership.
+The script uses the normal self-onboarding mutations for the farmer, buyer, and
+transporter profiles. One admin-authenticated setup mutation then creates or
+updates the exact `MAIZE-PREVIEW-2026` programme, verifies those profiles,
+creates the zero-warehouse operations profile, grants a time-bounded pilot
+assignment, and prepares the three ready coordination jobs. The mutation fails
+if its programme code, seed keys, actors, or existing jobs point to unrelated
+data.
+
+The programme and every setup-created request carry server-side preview
+markers. The backend ignores funding and warehouse-profile requirements only
+when all of these conditions hold:
+
+- The programme is active with live provenance.
+- Its `previewCoordinationUntil` timestamp is still in the future.
+- The request is a coordination request marked by the server while that
+  programme is active. Browsers cannot submit this marker.
+
+An expired, unmarked, sample-only, or Kuapa-purchase request uses the normal
+production finance and warehouse checks.
 
 Save the `cleanupEnvironment` object printed by a successful run. It contains
-the four exact Convex user IDs expected by `preview:cleanup`:
+the exact programme, four public user IDs, and two background farmer user IDs
+required by `preview:cleanup`.
 
-```text
-PREVIEW_FARMER_USER_ID
-PREVIEW_BUYER_USER_ID
-PREVIEW_TRANSPORTER_USER_ID
-PREVIEW_OPERATIONS_USER_ID
-```
+## Open public access
 
-Running setup again with the same inputs reuses the same Firebase accounts,
-profiles, assignment, requests, declarations, accepted offers, inspections,
-funding reservations, and ready plans. Attached evidence is accepted on a
-rerun only when its inspection belongs to the exact paired request. Changing a
-UID, phone number, evidence ID, programme, cutoff, or cleanup window should be
-treated as a new reviewed setup.
-
-## Open and close public access
-
-Enable public access only after setup and a role-by-role rehearsal:
+Deploy the programme ID printed by setup:
 
 ```text
 PREVIEW_ACCESS_ENABLED=true
 NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED=true
-NEXT_PUBLIC_PREVIEW_PROGRAMME_ID=<the exact live programme ID>
+NEXT_PUBLIC_PREVIEW_PROGRAMME_ID=<programme ID printed by preview:setup>
 NEXT_PUBLIC_DEMO_PRESENTATION=false
 ```
 
-While access is open, keep the API at one replica because the temporary SMS
-segment counter is process-local. This branch pins the API deployment to one;
-confirm the live deployment has one ready API pod before opening access. Configure
-`PREVIEW_SMS_RECIPIENT_ALLOWLIST` with only the four team-owned phone numbers.
-The normal default is 12 segments per number per UTC hour. For Thursday,
-2026-09-17, the supplied production example raises that limit to 120 segments:
+The preview flag hides warehouse navigation and purchasing controls. The admin
+still sees read-only marketplace totals and per-request coordination balances.
+It does not authorize backend actions. Convex uses the expiring markers and
+authenticated identities for that decision.
+
+Keep `PREVIEW_SMS_RECIPIENT_ALLOWLIST` limited to team-owned numbers. The normal
+limit is 12 segments per phone number per UTC hour. The approved event date can
+use the higher limit:
 
 ```text
 PREVIEW_SMS_HOURLY_SEGMENT_LIMIT=12
@@ -148,39 +125,33 @@ PREVIEW_SMS_HIGH_CAPACITY_UTC_DATES=2026-09-17
 PREVIEW_SMS_HIGH_CAPACITY_HOURLY_SEGMENT_LIMIT=120
 ```
 
-Promotional SMS and messages to numbers outside the allowlist are blocked while
-shared access is enabled. Restore `deploy/k8s/base/workloads.yaml` to two API
-replicas after shutdown.
+Messages to other numbers and promotional SMS remain blocked.
 
-When the preview closes, first turn both flags off. Check the four Firebase
-accounts that will have their refresh tokens revoked:
+## Close access and remove records
+
+Turn off both access flags first. Preview the session revocation, then execute
+it with its separate confirmation:
 
 ```text
 corepack pnpm preview:revoke-sessions
-```
-
-Revoke those sessions with the separate exact confirmation. The command also
-requires `PREVIEW_ACCESS_ENABLED=false` in its environment:
-
-```text
 corepack pnpm preview:revoke-sessions -- --execute --confirm=REVOKE_PREVIEW_SESSIONS
 ```
 
-Revoking refresh tokens does not cancel an ID token that Firebase has already
-issued. Allow up to that token's normal one-hour lifetime before treating every
-open browser session as closed.
-
-Then preview the database cleanup:
+Allow up to one hour for an already-issued Firebase ID token to expire. Then
+preview database cleanup:
 
 ```text
 corepack pnpm preview:cleanup
 ```
 
-Review every matched count and warning before executing:
+Review every count and warning. Execute only after the operator confirms the
+programme ID, four public user IDs, two background farmer IDs, and time window:
 
 ```text
 corepack pnpm preview:cleanup -- --execute --confirm=DELETE_PREVIEW_WINDOW_DATA
 ```
 
-The cleanup command scopes removal to the exact programme, four actor user IDs,
-and time window. It does not delete the shared Firebase accounts or profiles.
+Cleanup accepts only the bounded preview programme, deletes matched transaction
+records and the two background-only farmer profiles/users, and closes the
+programme. It does not delete the shared Firebase accounts or the public farmer,
+buyer, transporter, and operations profiles.

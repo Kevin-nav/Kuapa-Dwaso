@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import {
   canTransitionPilotOffer,
+  isActivePreviewCoordination,
   pilotSettlementReservationCoversOffer,
 } from "@kuapa-dwaso/permissions/pilot";
 import {
@@ -652,9 +653,11 @@ export const decide = mutation({
     if (replay !== null)
       return offerSummary(ctx, await replayOffer(ctx, replay));
     assertExpectedVersion(args.expectedOfferVersion);
-    const revision = await ctx.db.get(args.revisionId);
-    const request = await ctx.db.get(offer.requestId);
-    const declaration = await ctx.db.get(offer.declarationId);
+    const [revision, request, declaration] = await Promise.all([
+      ctx.db.get(args.revisionId),
+      ctx.db.get(offer.requestId),
+      ctx.db.get(offer.declarationId),
+    ]);
     assertAllowed(
       revision !== null && request !== null && declaration !== null,
       "Offer terms, request, or declaration were not found.",
@@ -667,6 +670,8 @@ export const decide = mutation({
     );
     let agreement: Doc<"pilotBuyerAgreementRevisions"> | null = null;
     if (args.decision === "accepted") {
+      const programme = await ctx.db.get(request.programmeId);
+      assertAllowed(programme !== null, "Pilot programme was not found.");
       assertAllowed(
         revision.expiresAt > Date.now() &&
           declaration.status === "active" &&
@@ -683,7 +688,11 @@ export const decide = mutation({
         "Buyer terms are no longer acknowledged and current.",
       );
       assertAllowed(
-        await hasCurrentSettlementReservation(ctx, revision),
+        isActivePreviewCoordination({
+          programme,
+          request,
+          now: Date.now(),
+        }) || (await hasCurrentSettlementReservation(ctx, revision)),
         "Offer acceptance requires reserved farmer payment capacity.",
       );
     }

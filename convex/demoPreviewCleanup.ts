@@ -17,6 +17,7 @@ export const run = internalMutation({
     buyerUserId: v.id("users"),
     transporterUserId: v.id("users"),
     operationsUserId: v.id("users"),
+    backgroundFarmerUserIds: v.array(v.id("users")),
     startAt: v.number(),
     endAt: v.number(),
     execute: v.optional(v.boolean()),
@@ -43,10 +44,11 @@ export const run = internalMutation({
       args.buyerUserId,
       args.transporterUserId,
       args.operationsUserId,
+      ...args.backgroundFarmerUserIds,
     ]);
     assertAllowed(
-      actorIds.size === 4,
-      "Preview cleanup requires four distinct actor user IDs.",
+      args.backgroundFarmerUserIds.length === 2 && actorIds.size === 6,
+      "Preview cleanup requires the four public actors and two distinct background farmer user IDs.",
     );
 
     const programme = await ctx.db.get(args.programmeId);
@@ -54,46 +56,93 @@ export const run = internalMutation({
       programme !== null,
       "The exact pilot programme was not found.",
     );
+    assertAllowed(
+      programme.datasetId === "temporary-public-preview-2026-09" &&
+        programme.previewCoordinationUntil !== undefined,
+      "Programme is not the bounded public preview programme. Cleanup stopped.",
+    );
 
     await Promise.all([
       requireUserRole(ctx, args.farmerUserId, "farmer"),
       requireUserRole(ctx, args.buyerUserId, "buyer"),
       requireUserRole(ctx, args.transporterUserId, "transporter"),
       requireUserRole(ctx, args.operationsUserId, "warehouse_agent"),
+      ...args.backgroundFarmerUserIds.map((userId) =>
+        requireUserRole(ctx, userId, "farmer"),
+      ),
     ]);
-    const [farmers, buyers, transporters, operationsAgents] = await Promise.all(
-      [
-        ctx.db
-          .query("farmers")
-          .withIndex("by_user", (query) =>
-            query.eq("userId", args.farmerUserId),
-          )
-          .collect(),
-        ctx.db
-          .query("buyers")
-          .withIndex("by_user", (query) => query.eq("userId", args.buyerUserId))
-          .collect(),
-        ctx.db
-          .query("transporterProfiles")
-          .withIndex("by_user", (query) =>
-            query.eq("userId", args.transporterUserId),
-          )
-          .collect(),
-        ctx.db
-          .query("warehouseAgents")
-          .withIndex("by_user", (query) =>
-            query.eq("userId", args.operationsUserId),
-          )
-          .collect(),
-      ],
-    );
+    const [
+      farmers,
+      backgroundFarmerProfiles,
+      buyers,
+      transporters,
+      operationsAgents,
+    ] = await Promise.all([
+      ctx.db
+        .query("farmers")
+        .withIndex("by_user", (query) => query.eq("userId", args.farmerUserId))
+        .collect(),
+      Promise.all(
+        args.backgroundFarmerUserIds.map((userId) =>
+          ctx.db
+            .query("farmers")
+            .withIndex("by_user", (query) => query.eq("userId", userId))
+            .collect(),
+        ),
+      ),
+      ctx.db
+        .query("buyers")
+        .withIndex("by_user", (query) => query.eq("userId", args.buyerUserId))
+        .collect(),
+      ctx.db
+        .query("transporterProfiles")
+        .withIndex("by_user", (query) =>
+          query.eq("userId", args.transporterUserId),
+        )
+        .collect(),
+      ctx.db
+        .query("warehouseAgents")
+        .withIndex("by_user", (query) =>
+          query.eq("userId", args.operationsUserId),
+        )
+        .collect(),
+    ]);
     const farmer = requireExactlyOneProfile(farmers, "farmer");
+    const backgroundFarmers = backgroundFarmerProfiles.map((profiles, index) =>
+      requireExactlyOneProfile(profiles, `background farmer ${index + 1}`),
+    );
+    for (const backgroundFarmer of backgroundFarmers) {
+      assertAllowed(
+        backgroundFarmer.registrationSource === "admin" &&
+          backgroundFarmer.preferredWarehouseId === undefined &&
+          backgroundFarmer.phoneNumber === farmer.phoneNumber,
+        "A background farmer is not an isolated preview profile. Cleanup stopped.",
+      );
+    }
+    const previewFarmerIds = new Set([
+      farmer._id,
+      ...backgroundFarmers.map((profile) => profile._id),
+    ]);
+    for (const backgroundUserId of args.backgroundFarmerUserIds) {
+      const backgroundUser = await ctx.db.get(backgroundUserId);
+      assertAllowed(
+        backgroundUser !== null &&
+          backgroundUser.authProviderId === undefined &&
+          backgroundUser.phoneNumber === undefined,
+        "A background farmer is linked to public authentication or an unexpected phone. Cleanup stopped.",
+      );
+    }
+    const backgroundFarmerProfileIds = new Set(
+      backgroundFarmers.map((profile) => profile._id),
+    );
+    const backgroundFarmerUserIds = new Set(args.backgroundFarmerUserIds);
     const buyer = requireExactlyOneProfile(buyers, "buyer");
     const transporter = requireExactlyOneProfile(transporters, "transporter");
-    const operationsAgent = requireExactlyOneProfile(
-      operationsAgents,
-      "warehouse_agent",
+    assertAllowed(
+      operationsAgents.length <= 1,
+      "Operations user has conflicting warehouse-agent profiles. Cleanup stopped.",
     );
+    const operationsAgent = operationsAgents[0];
     const operationsAssignments = await ctx.db
       .query("pilotAssignments")
       .withIndex("by_programme_user", (query) =>
@@ -106,7 +155,8 @@ export const run = internalMutation({
       operationsAssignments.some(
         (assignment) =>
           assignment.identityKind === "warehouse_agent" &&
-          assignment.warehouseAgentId === operationsAgent._id,
+          (assignment.warehouseAgentId === undefined ||
+            assignment.warehouseAgentId === operationsAgent?._id),
       ),
       "Operations user has no matching assignment for the exact programme. Cleanup stopped.",
     );
@@ -179,7 +229,7 @@ export const run = internalMutation({
       )
       .collect()) {
       if (
-        declaration.farmerId === farmer._id &&
+        previewFarmerIds.has(declaration.farmerId) &&
         inWindow(declaration.createdAt, args.startAt, args.endAt)
       ) {
         pilotSupplyDeclarations.add(declaration._id);
@@ -204,7 +254,7 @@ export const run = internalMutation({
         .collect()) {
         assertScoped(offer, `Farmer offer ${offer._id}`);
         assertAllowed(
-          offer.farmerId === farmer._id &&
+          previewFarmerIds.has(offer.farmerId) &&
             pilotSupplyDeclarations.has(offer.declarationId),
           `Farmer offer ${offer._id} belongs to supply outside the exact preview farmer and time window. Cleanup stopped.`,
         );
@@ -232,7 +282,7 @@ export const run = internalMutation({
         .collect()) {
         assertScoped(allocation, `Allocation ${allocation._id}`);
         assertAllowed(
-          allocation.farmerId === farmer._id &&
+          previewFarmerIds.has(allocation.farmerId) &&
             pilotSupplyDeclarations.has(allocation.declarationId) &&
             pilotFarmerOffers.has(allocation.offerId),
           `Allocation ${allocation._id} belongs to supply outside the exact preview farmer and time window. Cleanup stopped.`,
@@ -247,7 +297,8 @@ export const run = internalMutation({
         .collect()) {
         assertScoped(lot, `Procurement lot ${lot._id}`);
         assertAllowed(
-          lot.farmerId === farmer._id && pilotAllocations.has(lot.allocationId),
+          previewFarmerIds.has(lot.farmerId) &&
+            pilotAllocations.has(lot.allocationId),
           `Procurement lot ${lot._id} belongs to supply outside the exact preview farmer and time window. Cleanup stopped.`,
         );
         pilotProcurementLots.add(lot._id);
@@ -383,7 +434,7 @@ export const run = internalMutation({
       assertAllowed(
         pilotBuyerRequests.has(offer.requestId) &&
           pilotSupplyDeclarations.has(offer.declarationId) &&
-          offer.farmerId === farmer._id,
+          previewFarmerIds.has(offer.farmerId),
         `Farmer offer ${offerId} leaves the exact actor or time-window closure. Cleanup stopped.`,
       );
     }
@@ -841,6 +892,8 @@ export const run = internalMutation({
       ["pilotBuyerRequests", pilotBuyerRequests],
       ["pilotSupplyDeclarations", pilotSupplyDeclarations],
       ["uploadAssets", uploadAssets],
+      ["farmers", backgroundFarmerProfileIds],
+      ["users", backgroundFarmerUserIds],
     ];
     const matched: CountMap = Object.fromEntries(
       sets.map(([table, ids]) => [table, ids.size]),
@@ -890,6 +943,12 @@ export const run = internalMutation({
           deleted[table] = (deleted[table] ?? 0) + 1;
         }
       }
+      await ctx.db.patch(programme._id, {
+        status: "closed",
+        previewCoordinationUntil: undefined,
+        version: programme.version + 1,
+        updatedAt: now,
+      });
     }
 
     return {
@@ -898,6 +957,7 @@ export const run = internalMutation({
         programmeId: args.programmeId,
         actorUserIds: {
           farmer: args.farmerUserId,
+          backgroundFarmers: args.backgroundFarmerUserIds,
           buyer: args.buyerUserId,
           transporter: args.transporterUserId,
           operations: args.operationsUserId,

@@ -81,6 +81,7 @@ export type AdminShellProps = {
   principalRoleLabel?: string;
   onSignOut?: () => Promise<void>;
   showStories?: boolean;
+  hideWarehouseSurfaces?: boolean;
 };
 
 export function AdminShell({
@@ -92,6 +93,7 @@ export function AdminShell({
   principalRoleLabel = "Administrator",
   onSignOut,
   showStories = false,
+  hideWarehouseSurfaces = false,
 }: AdminShellProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
@@ -194,7 +196,18 @@ export function AdminShell({
         { label: "Reports", href: "/reports", icon: BarChart3 },
       ],
     },
-  ];
+  ]
+    .map((group) =>
+      hideWarehouseSurfaces
+        ? {
+            ...group,
+            items: group.items.filter((item) =>
+              ["/pilot", "/buyers"].includes(item.href),
+            ),
+          }
+        : group,
+    )
+    .filter((group) => group.items.length > 0);
 
   return (
     <div
@@ -512,48 +525,54 @@ export function AdminShell({
           {/* Right actions: Warehouse Selector + User Menu */}
           <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
             {/* Warehouse Dropdown */}
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  color: gray[500],
-                  textTransform: "uppercase",
-                }}
+            {!hideWarehouseSurfaces ? (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
               >
-                Scope:
-              </span>
-              <select
-                value={selectedWarehouseId}
-                onChange={(e) => setSelectedWarehouseId(e.target.value)}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  color: gray[700],
-                  border: `1px solid ${gray[300]}`,
-                  borderRadius: "6px",
-                  backgroundColor: "white",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="all">All Warehouses</option>
-                {warehouses.map((wh) => (
-                  <option key={wh.id} value={wh.id}>
-                    {wh.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: gray[500],
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Scope:
+                </span>
+                <select
+                  value={selectedWarehouseId}
+                  onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: gray[700],
+                    border: `1px solid ${gray[300]}`,
+                    borderRadius: "6px",
+                    backgroundColor: "white",
+                    outline: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value="all">All Warehouses</option>
+                  {warehouses.map((wh) => (
+                    <option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
-            <div
-              style={{
-                height: "24px",
-                width: "1px",
-                backgroundColor: gray[100],
-              }}
-            />
+            {!hideWarehouseSurfaces ? (
+              <div
+                style={{
+                  height: "24px",
+                  width: "1px",
+                  backgroundColor: gray[100],
+                }}
+              />
+            ) : null}
 
             {/* User Profile */}
             <div

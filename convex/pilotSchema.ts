@@ -128,6 +128,7 @@ export const pilotTables = {
     ),
     datasetProvenance,
     datasetId: v.optional(v.string()),
+    previewCoordinationUntil: v.optional(v.number()),
     commercialConfigurationStatus: v.union(
       v.literal("missing"),
       v.literal("draft"),
@@ -237,6 +238,7 @@ export const pilotTables = {
     requestedSpecification: maizeSpecification,
     paymentExpectation: paymentTerm,
     commercialMode,
+    previewSeedKey: v.optional(v.string()),
     status: v.union(
       v.literal("draft"),
       v.literal("submitted"),
@@ -266,6 +268,7 @@ export const pilotTables = {
     .index("by_buyer_status", ["buyerId", "status"])
     .index("by_buyer_programme_status", ["buyerId", "programmeId", "status"])
     .index("by_programme_status", ["programmeId", "status"])
+    .index("by_preview_seed_key", ["previewSeedKey"])
     .index("by_programme_delivery_window", [
       "programmeId",
       "deliveryWindowStartAt",

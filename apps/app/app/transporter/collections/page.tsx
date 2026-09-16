@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { ArrowRight, CalendarClock, MapPin, Truck } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import { api } from "@convex/_generated/api";
+import { PreviewProfileImage } from "../../preview/PreviewProfileImage";
 
 type DriverJob = {
   planId: Id<"pilotFulfilmentPlans">;
@@ -43,6 +44,14 @@ export default function DriverCollectionsPage() {
         <h1>Collection jobs</h1>
         <p>Only routes assigned to your verified driver account appear here.</p>
       </header>
+      {previewAccessEnabled ? (
+        <PreviewProfileImage
+          asset="transportCollection"
+          alt="A maize collection team loading a delivery truck"
+          className="driver-collection-hero"
+          eager
+        />
+      ) : null}
       {visibleJobs === undefined ? (
         <div
           className="skeleton"

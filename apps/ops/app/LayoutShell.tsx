@@ -22,6 +22,7 @@ import { SampleDataBanner } from "@kuapa-dwaso/ui/pilot";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
 import { usePilotOperations } from "./context/PilotOperationsContext";
 import { useWarehouse } from "./context/WarehouseContext";
+import { PreviewOperationsPortrait } from "./preview/PreviewOperationsPortrait";
 
 const pilotNav = [
   { href: "/pilot", label: "Demand queue", icon: Sprout },
@@ -79,6 +80,8 @@ export default function LayoutShell({
       pathname.startsWith("/disputes"));
   const hasOperationsIdentity =
     firebaseUser !== null && principal?.role === "warehouse_agent";
+  const showPreviewPortrait =
+    previewAccessEnabled && activeAgent.fullName === "Akosua Boateng";
 
   useEffect(() => {
     if (isAuthRoute || isAuthLoading) return;
@@ -218,13 +221,17 @@ export default function LayoutShell({
             aria-expanded={showProfileMenu}
             aria-haspopup="true"
           >
-            <span className="profile-avatar">
-              {activeAgent.fullName
-                .split(" ")
-                .map((name) => name[0])
-                .join("")
-                .toUpperCase()}
-            </span>
+            {showPreviewPortrait ? (
+              <PreviewOperationsPortrait className="profile-avatar profile-avatar-image" />
+            ) : (
+              <span className="profile-avatar">
+                {activeAgent.fullName
+                  .split(" ")
+                  .map((name) => name[0])
+                  .join("")
+                  .toUpperCase()}
+              </span>
+            )}
             <span className="profile-name">{activeAgent.fullName}</span>
             <ChevronDown size={14} />
           </button>

@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import { Home, Inbox, User, WalletCards, Wheat } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { PreviewProfileImage } from "../preview/PreviewProfileImage";
 
 const ProfilePwaTools = dynamic(
   () =>
@@ -105,6 +106,8 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
     );
   }
   const activePrincipal = principal!;
+  const showPreviewPortrait =
+    previewAccessEnabled && activePrincipal.name === "Ama Mensah";
 
   const isActive = (path: string) => {
     if (path === "/farmer") {
@@ -174,7 +177,16 @@ export default function FarmerLayout({ children }: FarmerLayoutProps) {
             className="farmer-navbar-profile-button"
             aria-label="My Profile"
           >
-            <User size={20} />
+            {showPreviewPortrait ? (
+              <PreviewProfileImage
+                asset="farmer"
+                alt="Ama Mensah"
+                className="preview-navbar-portrait"
+                eager
+              />
+            ) : (
+              <User size={20} />
+            )}
           </Link>
         </div>
       </header>

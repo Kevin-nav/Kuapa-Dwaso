@@ -37,14 +37,22 @@ type RequestDetail = {
     status: string;
     version: number;
   };
-  commitmentSummary: { provisionalGrams: number; committedGrams: number; clearedGrams: number };
+  commitmentSummary: {
+    provisionalGrams: number;
+    committedGrams: number;
+    clearedGrams: number;
+  };
   agreement: null | {
     revisionId: Id<"pilotBuyerAgreementRevisions">;
     quantityGrams: number;
     specification: {
       moistureMaximumPermille?: number;
       contaminationCheckRequired: boolean;
-      additionalCriteria: Array<{ code: string; label: string; required: boolean }>;
+      additionalCriteria: Array<{
+        code: string;
+        label: string;
+        required: boolean;
+      }>;
     };
     expiresAt: number;
     state: string;
@@ -61,7 +69,12 @@ type SupplyCandidate = {
     collectionLocation: { label: string };
     version: number;
   };
-  farmer: { fullName: string; farmerCode: string; phoneNumber: string; community: string };
+  farmer: {
+    fullName: string;
+    farmerCode: string;
+    phoneNumber: string;
+    community: string;
+  };
 };
 
 type OfferRow = {
@@ -116,7 +129,12 @@ type PlanResult = null | {
     readinessBlockers: string[];
     version: number;
   };
-  stops: Array<{ stopId: string; location: { label: string }; plannedGrams: number; status: string }>;
+  stops: Array<{
+    stopId: string;
+    location: { label: string };
+    plannedGrams: number;
+    status: string;
+  }>;
 };
 
 type Readiness = {
@@ -127,8 +145,20 @@ type Readiness = {
   shortfallGrams: number;
   commercialMode: "coordination" | "kuapa_purchase";
   configurationStatus: string;
-  purchaseApproval: { required: boolean; status: "not_required" | "approved" | "missing"; reservedPesewas: number };
-  openIssues: Array<{ issueId: Id<"pilotIssues">; issueType: string; status: string; summary: string; nextStep: string; deadlineAt?: number; version: number }>;
+  purchaseApproval: {
+    required: boolean;
+    status: "not_required" | "approved" | "missing";
+    reservedPesewas: number;
+  };
+  openIssues: Array<{
+    issueId: Id<"pilotIssues">;
+    issueType: string;
+    status: string;
+    summary: string;
+    nextStep: string;
+    deadlineAt?: number;
+    version: number;
+  }>;
 };
 
 type DriverOption = {
@@ -142,14 +172,20 @@ type DriverOption = {
 };
 
 const kg = (grams: number) => `${(grams / 1_000).toLocaleString()} kg`;
-const money = (pesewas: number) => `GH₵${(pesewas / 100).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
+const money = (pesewas: number) =>
+  `GH₵${(pesewas / 100).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
 
 export default function PilotRequestWorkspacePage() {
+  const previewAccess =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
   const params = useParams<{ id: string }>();
   const requestId = params.id as Id<"pilotBuyerRequests">;
   const { activeProgrammeId } = usePilotOperations();
   const { firebaseUser } = useOpsAuth();
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string }>();
+  const [notice, setNotice] = useState<{
+    tone: "success" | "error";
+    message: string;
+  }>();
   const [busy, setBusy] = useState<string>();
   const [candidateId, setCandidateId] = useState("");
   const [offerKg, setOfferKg] = useState("1000");
@@ -162,29 +198,52 @@ export default function PilotRequestWorkspacePage() {
   const [moisturePercent, setMoisturePercent] = useState("13.5");
   const [lotCode, setLotCode] = useState("");
   const [inspectionReason, setInspectionReason] = useState("");
-  const [inspectionEvidenceIds, setInspectionEvidenceIds] = useState<Id<"uploadAssets">[]>([]);
+  const [inspectionEvidenceIds, setInspectionEvidenceIds] = useState<
+    Id<"uploadAssets">[]
+  >([]);
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [driverId, setDriverId] = useState("");
   const [vehicleRegistration, setVehicleRegistration] = useState("");
   const [vehicleCapacityKg, setVehicleCapacityKg] = useState("5000");
 
-  const requestDetail = useQuery(api.pilotRequests.get, { requestId }) as RequestDetail | null | undefined;
-  const readiness = useQuery(api.pilotRequests.getOperationsReadiness, { requestId }) as Readiness | undefined;
+  const requestDetail = useQuery(api.pilotRequests.get, { requestId }) as
+    | RequestDetail
+    | null
+    | undefined;
+  const readiness = useQuery(api.pilotRequests.getOperationsReadiness, {
+    requestId,
+  }) as Readiness | undefined;
   const candidates = useQuery(
     api.pilotSupply.listAvailable,
-    requestDetail === undefined || requestDetail === null || activeProgrammeId === undefined
+    requestDetail === undefined ||
+      requestDetail === null ||
+      activeProgrammeId === undefined
       ? "skip"
-      : { programmeId: activeProgrammeId, maizeType: requestDetail.request.maizeType, status: "active", limit: 50 },
+      : {
+          programmeId: activeProgrammeId,
+          maizeType: requestDetail.request.maizeType,
+          status: "active",
+          limit: 50,
+        },
   ) as { page: SupplyCandidate[] } | undefined;
-  const offers = useQuery(api.pilotSupply.listForRequest, { requestId, limit: 50 }) as { page: OfferRow[] } | undefined;
+  const offers = useQuery(api.pilotSupply.listForRequest, {
+    requestId,
+    limit: 50,
+  }) as { page: OfferRow[] } | undefined;
   const lots = useQuery(
     api.pilotLots.listForActor,
-    activeProgrammeId === undefined ? "skip" : { programmeId: activeProgrammeId, requestId, limit: 50 },
+    activeProgrammeId === undefined
+      ? "skip"
+      : { programmeId: activeProgrammeId, requestId, limit: 50 },
   ) as { page: LotRow[] } | undefined;
-  const plan = useQuery(api.pilotFulfilment.getForRequest, { requestId }) as PlanResult | undefined;
+  const plan = useQuery(api.pilotFulfilment.getForRequest, { requestId }) as
+    | PlanResult
+    | undefined;
   const drivers = useQuery(
     api.pilotFulfilment.listEligibleDrivers,
-    activeProgrammeId === undefined ? "skip" : { programmeId: activeProgrammeId, limit: 50 },
+    activeProgrammeId === undefined
+      ? "skip"
+      : { programmeId: activeProgrammeId, limit: 50 },
   ) as DriverOption[] | undefined;
 
   const createOffer = useMutation(api.pilotOffers.createRevision);
@@ -195,30 +254,59 @@ export default function PilotRequestWorkspacePage() {
   const markReady = useMutation(api.pilotFulfilment.markReady);
   const resolveIssue = useMutation(api.pilotIssues.resolve);
 
-  const selectedCandidate = candidates?.page.find((row) => row.declaration.declarationId === candidateId);
-  const acceptedOffers = offers?.page.filter((row) => row.offer.status === "accepted" && row.offer.quantity !== null) ?? [];
-  const selectedInspectionOffer = acceptedOffers.find((row) => row.offer.offerId === inspectionOfferId);
+  const selectedCandidate = candidates?.page.find(
+    (row) => row.declaration.declarationId === candidateId,
+  );
+  const acceptedOffers =
+    offers?.page.filter(
+      (row) => row.offer.status === "accepted" && row.offer.quantity !== null,
+    ) ?? [];
+  const selectedInspectionOffer = acceptedOffers.find(
+    (row) => row.offer.offerId === inspectionOfferId,
+  );
   const availableLots = useMemo(
-    () => (lots?.page ?? []).filter((lot) => lot.dispositionStatus === "available_for_plan" && lot.clearedGrams > 0),
+    () =>
+      (lots?.page ?? []).filter(
+        (lot) =>
+          lot.dispositionStatus === "available_for_plan" &&
+          lot.clearedGrams > 0,
+      ),
     [lots],
   );
-  const availableLotGrams = availableLots.reduce((sum, lot) => sum + lot.clearedGrams, 0);
+  const availableLotGrams = availableLots.reduce(
+    (sum, lot) => sum + lot.clearedGrams,
+    0,
+  );
 
   function requireOnline(): boolean {
     if (navigator.onLine) return true;
-    setNotice({ tone: "error", message: "Connect before saving this material operation. Nothing was changed." });
+    setNotice({
+      tone: "error",
+      message:
+        "Connect before saving this material operation. Nothing was changed.",
+    });
     return false;
   }
 
   async function prepareOffer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!requireOnline() || requestDetail === undefined || requestDetail === null || requestDetail.agreement === null || selectedCandidate === undefined) return;
+    if (
+      !requireOnline() ||
+      requestDetail === undefined ||
+      requestDetail === null ||
+      requestDetail.agreement === null ||
+      selectedCandidate === undefined
+    )
+      return;
     setBusy("offer");
     setNotice(undefined);
     try {
       const pricePesewas = Math.round(Number(priceGhs) * 100);
       const chargePesewas = Math.round(Number(farmerChargeGhs) * 100);
-      const expiry = Math.min(Date.now() + 48 * 60 * 60 * 1_000, requestDetail.agreement.expiresAt - 60_000);
+      const expiry = Math.min(
+        Date.now() + 48 * 60 * 60 * 1_000,
+        requestDetail.agreement.expiresAt - 60_000,
+      );
       const created = await createOffer({
         requestId,
         declarationId: selectedCandidate.declaration.declarationId,
@@ -227,22 +315,86 @@ export default function PilotRequestWorkspacePage() {
         offeredGrams: Math.round(Number(offerKg) * 1_000),
         priceBasis: "per_kg",
         priceRate: { numerator: pricePesewas, scale: 1, unit: "per_kg" },
-        chargeTerms: chargePesewas <= 0 ? [] : [{ code: "farmer_coordination", label: "Coordination charge", payer: "farmer", calculation: "per_kg", rate: { numerator: chargePesewas, scale: 1, unit: "per_kg" } }],
-        inspectionTerms: [{ code: "field_sampling", label: "Inspection before collection", detail: "Operations records weight, moisture and contamination results. Only cleared quantity proceeds." }],
-        paymentTerms: [{ trigger: requestDetail.request.commercialMode === "kuapa_purchase" ? "purchase_collection_acceptance" : "buyer_acceptance", offsetCalendarDays: 2, timezone: "Africa/Accra" }],
-        titleTransferTerms: [{ code: "accepted_quantity_only", label: "Accepted quantity only", detail: requestDetail.request.commercialMode === "kuapa_purchase" ? "Kuapa Dwaso takes title only when funded purchase collection is accepted." : "Title follows the acknowledged coordination agreement and buyer acceptance." }],
-        custodyTransferTerms: [{ code: "recorded_handover", label: "Recorded handover", detail: "Custody changes only through a confirmed collection event with evidence." }],
-        cancellationTerms: [{ code: "before_collection", label: "Before collection", detail: "Cancellation requires a reason and releases uncollected allocation." }],
+        chargeTerms:
+          chargePesewas <= 0
+            ? []
+            : [
+                {
+                  code: "farmer_coordination",
+                  label: "Coordination charge",
+                  payer: "farmer",
+                  calculation: "per_kg",
+                  rate: { numerator: chargePesewas, scale: 1, unit: "per_kg" },
+                },
+              ],
+        inspectionTerms: [
+          {
+            code: "field_sampling",
+            label: "Inspection before collection",
+            detail:
+              "Operations records weight, moisture and contamination results. Only cleared quantity proceeds.",
+          },
+        ],
+        paymentTerms: [
+          {
+            trigger:
+              requestDetail.request.commercialMode === "kuapa_purchase"
+                ? "purchase_collection_acceptance"
+                : "buyer_acceptance",
+            offsetCalendarDays: 2,
+            timezone: "Africa/Accra",
+          },
+        ],
+        titleTransferTerms: [
+          {
+            code: "accepted_quantity_only",
+            label: "Accepted quantity only",
+            detail:
+              requestDetail.request.commercialMode === "kuapa_purchase"
+                ? "Kuapa Dwaso takes title only when funded purchase collection is accepted."
+                : "Title follows the acknowledged coordination agreement and buyer acceptance.",
+          },
+        ],
+        custodyTransferTerms: [
+          {
+            code: "recorded_handover",
+            label: "Recorded handover",
+            detail:
+              "Custody changes only through a confirmed collection event with evidence.",
+          },
+        ],
+        cancellationTerms: [
+          {
+            code: "before_collection",
+            label: "Before collection",
+            detail:
+              "Cancellation requires a reason and releases uncollected allocation.",
+          },
+        ],
         expiresAt: expiry,
         expectedRequestVersion: requestDetail.request.version,
         expectedDeclarationVersion: selectedCandidate.declaration.version,
         idempotencyKey: crypto.randomUUID(),
       });
-      await sendOffer({ offerId: created.offerId, revisionId: created.revisionId, expectedOfferVersion: created.version, idempotencyKey: crypto.randomUUID() });
-      setNotice({ tone: "success", message: `Offer sent to ${selectedCandidate.farmer.fullName}. Only that farmer can accept it.` });
+      await sendOffer({
+        offerId: created.offerId,
+        revisionId: created.revisionId,
+        expectedOfferVersion: created.version,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice({
+        tone: "success",
+        message: `Offer sent to ${selectedCandidate.farmer.fullName}. Only that farmer can accept it.`,
+      });
       setCandidateId("");
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Offer could not be prepared." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Offer could not be prepared.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -250,7 +402,15 @@ export default function PilotRequestWorkspacePage() {
 
   async function inspect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!requireOnline() || requestDetail === undefined || requestDetail === null || requestDetail.agreement === null || selectedInspectionOffer === undefined || selectedInspectionOffer.offer.quantity === null) return;
+    if (
+      !requireOnline() ||
+      requestDetail === undefined ||
+      requestDetail === null ||
+      requestDetail.agreement === null ||
+      selectedInspectionOffer === undefined ||
+      selectedInspectionOffer.offer.quantity === null
+    )
+      return;
     setBusy("inspection");
     setNotice(undefined);
     try {
@@ -262,29 +422,64 @@ export default function PilotRequestWorkspacePage() {
         buyerAgreementRevisionId: requestDetail.agreement.revisionId,
         lotCode: lotCode.trim(),
         location: selectedInspectionOffer.declaration.collectionLocation,
-        expectedAllocationVersion: selectedInspectionOffer.offer.quantity.version,
+        expectedAllocationVersion:
+          selectedInspectionOffer.offer.quantity.version,
         samplingMethod: "Representative bag sample",
         testMethod: "Calibrated moisture meter and visual contamination check",
         sampleCount: 3,
         moisturePermille: Math.round(Number(moisturePercent) * 10),
         contaminationResult: "passed",
-        additionalReadings: requestDetail.agreement.specification.additionalCriteria.map((criterion) => ({ code: criterion.code, label: criterion.label, value: "passed", passed: true })),
+        additionalReadings:
+          requestDetail.agreement.specification.additionalCriteria.map(
+            (criterion) => ({
+              code: criterion.code,
+              label: criterion.label,
+              value: "passed",
+              passed: true,
+            }),
+          ),
         grossWeightGrams: acceptedGrams + rejectedGrams + tareWeightGrams,
         tareWeightGrams,
         acceptedGrams,
         rejectedGrams,
-        ...(rejectedGrams > 0 ? { reasonCode: inspectionReason.trim() || "quality_shortfall", notes: inspectionReason.trim() || "Quantity excluded by recorded inspection." } : {}),
+        ...(rejectedGrams > 0
+          ? {
+              reasonCode: inspectionReason.trim() || "quality_shortfall",
+              notes:
+                inspectionReason.trim() ||
+                "Quantity excluded by recorded inspection.",
+            }
+          : {}),
         evidenceUploadAssetIds: inspectionEvidenceIds,
         inspectedAt: Date.now(),
-        ...(acceptedGrams > 0 && rejectedGrams > 0 ? { partialSublots: { acceptedLotCode: `${lotCode.trim()}-PASS`, rejectedLotCode: `${lotCode.trim()}-HOLD` } } : {}),
+        ...(acceptedGrams > 0 && rejectedGrams > 0
+          ? {
+              partialSublots: {
+                acceptedLotCode: `${lotCode.trim()}-PASS`,
+                rejectedLotCode: `${lotCode.trim()}-HOLD`,
+              },
+            }
+          : {}),
         idempotencyKey: crypto.randomUUID(),
       });
-      setNotice({ tone: "success", message: rejectedGrams > 0 ? `${kg(acceptedGrams)} cleared; ${kg(rejectedGrams)} is held and a quality-shortfall issue was opened.` : `${kg(acceptedGrams)} cleared for collection planning.` });
+      setNotice({
+        tone: "success",
+        message:
+          rejectedGrams > 0
+            ? `${kg(acceptedGrams)} cleared; ${kg(rejectedGrams)} is held and a quality-shortfall issue was opened.`
+            : `${kg(acceptedGrams)} cleared for collection planning.`,
+      });
       setInspectionOfferId("");
       setLotCode("");
       setInspectionEvidenceIds([]);
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Inspection could not be recorded." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Inspection could not be recorded.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -300,36 +495,83 @@ export default function PilotRequestWorkspacePage() {
         purpose: "pilot_inspection_evidence",
         accessLevel: "private",
       });
-      setInspectionEvidenceIds((current) => [...current, assetId as Id<"uploadAssets">]);
-      setNotice({ tone: "success", message: "Inspection evidence uploaded. Submit the inspection to attach it to the new lot." });
+      setInspectionEvidenceIds((current) => [
+        ...current,
+        assetId as Id<"uploadAssets">,
+      ]);
+      setNotice({
+        tone: "success",
+        message:
+          "Inspection evidence uploaded. Submit the inspection to attach it to the new lot.",
+      });
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Evidence upload failed." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "Evidence upload failed.",
+      });
     } finally {
       setIsUploadingEvidence(false);
     }
   }
 
   async function buildPlan() {
-    if (!requireOnline() || requestDetail === undefined || requestDetail === null || requestDetail.agreement === null) return;
+    if (
+      !requireOnline() ||
+      requestDetail === undefined ||
+      requestDetail === null ||
+      requestDetail.agreement === null
+    )
+      return;
     setBusy("plan");
     try {
       await createPlan({
         requestId,
         buyerAgreementRevisionId: requestDetail.agreement.revisionId,
-        collectionWindowStartAt: requestDetail.request.deliveryWindowStartAt - 24 * 60 * 60 * 1_000,
+        collectionWindowStartAt:
+          requestDetail.request.deliveryWindowStartAt - 24 * 60 * 60 * 1_000,
         collectionWindowEndAt: requestDetail.request.deliveryWindowStartAt,
         deliveryWindowStartAt: requestDetail.request.deliveryWindowStartAt,
         deliveryWindowEndAt: requestDetail.request.deliveryWindowEndAt,
         destination: requestDetail.request.destination,
         stops: [
-          ...availableLots.map((lot, index) => ({ sequence: index + 1, stopType: "collection" as const, location: lot.currentLocation, packagingNotes: "Bagged maize; confirm bag count and condition before loading.", lotIds: [lot.lotId], windowStartAt: requestDetail.request.deliveryWindowStartAt - 24 * 60 * 60 * 1_000, windowEndAt: requestDetail.request.deliveryWindowStartAt })),
-          { sequence: availableLots.length + 1, stopType: "destination" as const, location: requestDetail.request.destination, packagingNotes: "Keep each inspected lot identifiable through buyer handover.", lotIds: [], windowStartAt: requestDetail.request.deliveryWindowStartAt, windowEndAt: requestDetail.request.deliveryWindowEndAt },
+          ...availableLots.map((lot, index) => ({
+            sequence: index + 1,
+            stopType: "collection" as const,
+            location: lot.currentLocation,
+            packagingNotes:
+              "Bagged maize; confirm bag count and condition before loading.",
+            lotIds: [lot.lotId],
+            windowStartAt:
+              requestDetail.request.deliveryWindowStartAt -
+              24 * 60 * 60 * 1_000,
+            windowEndAt: requestDetail.request.deliveryWindowStartAt,
+          })),
+          {
+            sequence: availableLots.length + 1,
+            stopType: "destination" as const,
+            location: requestDetail.request.destination,
+            packagingNotes:
+              "Keep each inspected lot identifiable through buyer handover.",
+            lotIds: [],
+            windowStartAt: requestDetail.request.deliveryWindowStartAt,
+            windowEndAt: requestDetail.request.deliveryWindowEndAt,
+          },
         ],
         idempotencyKey: crypto.randomUUID(),
       });
-      setNotice({ tone: "success", message: `Collection plan created for exactly ${kg(availableLotGrams)}.` });
+      setNotice({
+        tone: "success",
+        message: `Collection plan created for exactly ${kg(availableLotGrams)}.`,
+      });
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Collection plan could not be created." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Collection plan could not be created.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -337,14 +579,41 @@ export default function PilotRequestWorkspacePage() {
 
   async function setDriver(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const selected = drivers?.find((driver) => driver.transporterId === driverId);
-    if (!requireOnline() || plan === null || plan === undefined || selected === undefined) return;
+    const selected = drivers?.find(
+      (driver) => driver.transporterId === driverId,
+    );
+    if (
+      !requireOnline() ||
+      plan === null ||
+      plan === undefined ||
+      selected === undefined
+    )
+      return;
     setBusy("driver");
     try {
-      await assignDriver({ planId: plan.plan.planId, transporterId: selected.transporterId, driverUserId: selected.driverUserId, vehicleRegistration, vehicleCapacityGrams: Math.round(Number(vehicleCapacityKg) * 1_000), expectedVersion: plan.plan.version, idempotencyKey: crypto.randomUUID() });
-      setNotice({ tone: "success", message: `${selected.fullName} assigned. Readiness will still enforce vehicle capacity, funding and exact cleared quantity.` });
+      await assignDriver({
+        planId: plan.plan.planId,
+        transporterId: selected.transporterId,
+        driverUserId: selected.driverUserId,
+        vehicleRegistration,
+        vehicleCapacityGrams: Math.round(Number(vehicleCapacityKg) * 1_000),
+        expectedVersion: plan.plan.version,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice({
+        tone: "success",
+        message: previewAccess
+          ? `${selected.fullName} assigned. Readiness will still enforce vehicle capacity and exact cleared quantity.`
+          : `${selected.fullName} assigned. Readiness will still enforce vehicle capacity, funding and exact cleared quantity.`,
+      });
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Driver could not be assigned." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Driver could not be assigned.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -354,10 +623,22 @@ export default function PilotRequestWorkspacePage() {
     if (!requireOnline() || plan === null || plan === undefined) return;
     setBusy("ready");
     try {
-      await markReady({ planId: plan.plan.planId, expectedVersion: plan.plan.version, idempotencyKey: crypto.randomUUID() });
-      setNotice({ tone: "success", message: "The plan passed server readiness checks. It is ready for transporter collection." });
+      await markReady({
+        planId: plan.plan.planId,
+        expectedVersion: plan.plan.version,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice({
+        tone: "success",
+        message:
+          "The plan passed server readiness checks. It is ready for transporter collection.",
+      });
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "The plan is still blocked." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error ? error.message : "The plan is still blocked.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -367,10 +648,25 @@ export default function PilotRequestWorkspacePage() {
     if (!requireOnline()) return;
     setBusy(issue.issueId);
     try {
-      await resolveIssue({ issueId: issue.issueId, expectedVersion: issue.version, resolution: "Operations reviewed the exception, recorded the replacement or disposition, and confirmed the request totals are current.", evidenceUploadAssetIds: [] });
-      setNotice({ tone: "success", message: "Blocker resolved with an audit entry." });
+      await resolveIssue({
+        issueId: issue.issueId,
+        expectedVersion: issue.version,
+        resolution:
+          "Operations reviewed the exception, recorded the replacement or disposition, and confirmed the request totals are current.",
+        evidenceUploadAssetIds: [],
+      });
+      setNotice({
+        tone: "success",
+        message: "Blocker resolved with an audit entry.",
+      });
     } catch (error) {
-      setNotice({ tone: "error", message: error instanceof Error ? error.message : "Issue could not be resolved." });
+      setNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Issue could not be resolved.",
+      });
     } finally {
       setBusy(undefined);
     }
@@ -379,71 +675,598 @@ export default function PilotRequestWorkspacePage() {
   if (requestDetail === undefined || readiness === undefined)
     return <div className="ops-empty-state">Loading request workspace…</div>;
   if (requestDetail === null)
-    return <div className="ops-empty-state"><ShieldAlert size={30} /><h1>Request unavailable</h1><p>It does not exist or is outside your programme assignment.</p><Link href="/pilot" className="btn btn-outline">Back to demand queue</Link></div>;
+    return (
+      <div className="ops-empty-state">
+        <ShieldAlert size={30} />
+        <h1>Request unavailable</h1>
+        <p>It does not exist or is outside your programme assignment.</p>
+        <Link href="/pilot" className="btn btn-outline">
+          Back to demand queue
+        </Link>
+      </div>
+    );
 
-  const targetGrams = requestDetail.agreement?.quantityGrams ?? readiness.targetGrams;
-  const canBuildPlan = plan === null && availableLotGrams === targetGrams && targetGrams > 0;
+  const targetGrams =
+    requestDetail.agreement?.quantityGrams ?? readiness.targetGrams;
+  const canBuildPlan =
+    plan === null && availableLotGrams === targetGrams && targetGrams > 0;
 
   return (
     <div className="ops-page-stack">
-      <Link href="/pilot" className="ops-back-link"><ArrowLeft size={16} /> Demand queue</Link>
+      <Link href="/pilot" className="ops-back-link">
+        <ArrowLeft size={16} /> Demand queue
+      </Link>
       <header className="ops-page-header ops-request-header">
-        <div><p className="ops-eyebrow">{readiness.buyerName}</p><h1>{kg(targetGrams)} {requestDetail.request.maizeType}</h1><p><MapPin size={15} /> {requestDetail.request.destination.label} · {requestDetail.request.commercialMode === "kuapa_purchase" ? "Kuapa Dwaso purchase" : "Coordination"}</p></div>
-        <span className="badge badge-info">{requestDetail.request.status.replaceAll("_", " ")}</span>
+        <div>
+          <p className="ops-eyebrow">{readiness.buyerName}</p>
+          <h1>
+            {kg(targetGrams)} {requestDetail.request.maizeType}
+          </h1>
+          <p>
+            <MapPin size={15} /> {requestDetail.request.destination.label} ·{" "}
+            {requestDetail.request.commercialMode === "kuapa_purchase"
+              ? "Kuapa Dwaso purchase"
+              : "Coordination"}
+          </p>
+        </div>
+        <span className="badge badge-info">
+          {requestDetail.request.status.replaceAll("_", " ")}
+        </span>
       </header>
-      {notice === undefined ? null : <div className={`ops-form-status ${notice.tone}`} role="status">{notice.message}</div>}
+      {notice === undefined ? null : (
+        <div className={`ops-form-status ${notice.tone}`} role="status">
+          {notice.message}
+        </div>
+      )}
 
       <section className="ops-progress-card">
-        <div className="ops-progress-head"><div><p className="ops-eyebrow">Supply coverage</p><strong>{kg(readiness.clearedGrams)} of {kg(targetGrams)} cleared</strong></div><span>{readiness.shortfallGrams === 0 ? "Covered" : `${kg(readiness.shortfallGrams)} short`}</span></div>
-        <div className="ops-progress-track"><span style={{ width: `${Math.min(100, targetGrams === 0 ? 0 : readiness.clearedGrams / targetGrams * 100)}%` }} /></div>
-        <div className="ops-progress-legend"><span>Committed {kg(readiness.committedGrams)}</span><span>Cleared {kg(readiness.clearedGrams)}</span><span>Planned {kg(plan?.plan.plannedGrams ?? 0)}</span></div>
+        <div className="ops-progress-head">
+          <div>
+            <p className="ops-eyebrow">Supply coverage</p>
+            <strong>
+              {kg(readiness.clearedGrams)} of {kg(targetGrams)} cleared
+            </strong>
+          </div>
+          <span>
+            {readiness.shortfallGrams === 0
+              ? "Covered"
+              : `${kg(readiness.shortfallGrams)} short`}
+          </span>
+        </div>
+        <div className="ops-progress-track">
+          <span
+            style={{
+              width: `${Math.min(100, targetGrams === 0 ? 0 : (readiness.clearedGrams / targetGrams) * 100)}%`,
+            }}
+          />
+        </div>
+        <div className="ops-progress-legend">
+          <span>Committed {kg(readiness.committedGrams)}</span>
+          <span>Cleared {kg(readiness.clearedGrams)}</span>
+          <span>Planned {kg(plan?.plan.plannedGrams ?? 0)}</span>
+        </div>
       </section>
 
       <section className="ops-stage-card">
-        <div className="ops-stage-heading"><span>1</span><div><h2>Source and offer</h2><p>Operations prepares terms; the farmer accepts from their own account.</p></div></div>
-        {requestDetail.agreement === null || requestDetail.agreement.state !== "acknowledged" ? <div className="ops-callout"><AlertTriangle size={19} /> Current buyer terms must be acknowledged before farmer offers can be prepared.</div> : (
-          <form className="ops-inline-form" onSubmit={(event) => void prepareOffer(event)}>
-            <label className="ops-form-wide"><span>Verified declaration</span><select required value={candidateId} onChange={(event) => { setCandidateId(event.target.value); const row = candidates?.page.find((item) => item.declaration.declarationId === event.target.value); if (row !== undefined) setOfferKg(String(row.declaration.unallocatedGrams / 1_000)); }}><option value="">Select available supply</option>{(candidates?.page ?? []).filter((row) => row.declaration.verificationStatus === "reviewed" && row.declaration.unallocatedGrams > 0).map((row) => <option key={row.declaration.declarationId} value={row.declaration.declarationId}>{row.farmer.fullName} · {kg(row.declaration.unallocatedGrams)} free · {row.declaration.collectionLocation.label}</option>)}</select></label>
-            <label><span>Offer quantity (kg)</span><input required type="number" min="1" step="0.1" value={offerKg} onChange={(event) => setOfferKg(event.target.value)} /></label>
-            <label><span>Price to farmer (GH₵/kg)</span><input required type="number" min="0.01" step="0.01" value={priceGhs} onChange={(event) => setPriceGhs(event.target.value)} /></label>
-            <label><span>Farmer charge (GH₵/kg)</span><input required type="number" min="0" step="0.01" value={farmerChargeGhs} onChange={(event) => setFarmerChargeGhs(event.target.value)} /></label>
-            <button type="submit" className="btn btn-primary" disabled={busy === "offer"}><Send size={17} /> {busy === "offer" ? "Sending…" : "Prepare and send offer"}</button>
+        <div className="ops-stage-heading">
+          <span>1</span>
+          <div>
+            <h2>Source and offer</h2>
+            <p>
+              Operations prepares terms; the farmer accepts from their own
+              account.
+            </p>
+          </div>
+        </div>
+        {requestDetail.agreement === null ||
+        requestDetail.agreement.state !== "acknowledged" ? (
+          <div className="ops-callout">
+            <AlertTriangle size={19} /> Current buyer terms must be acknowledged
+            before farmer offers can be prepared.
+          </div>
+        ) : (
+          <form
+            className="ops-inline-form"
+            onSubmit={(event) => void prepareOffer(event)}
+          >
+            <label className="ops-form-wide">
+              <span>Verified declaration</span>
+              <select
+                required
+                value={candidateId}
+                onChange={(event) => {
+                  setCandidateId(event.target.value);
+                  const row = candidates?.page.find(
+                    (item) =>
+                      item.declaration.declarationId === event.target.value,
+                  );
+                  if (row !== undefined)
+                    setOfferKg(
+                      String(row.declaration.unallocatedGrams / 1_000),
+                    );
+                }}
+              >
+                <option value="">Select available supply</option>
+                {(candidates?.page ?? [])
+                  .filter(
+                    (row) =>
+                      row.declaration.verificationStatus === "reviewed" &&
+                      row.declaration.unallocatedGrams > 0,
+                  )
+                  .map((row) => (
+                    <option
+                      key={row.declaration.declarationId}
+                      value={row.declaration.declarationId}
+                    >
+                      {row.farmer.fullName} ·{" "}
+                      {kg(row.declaration.unallocatedGrams)} free ·{" "}
+                      {row.declaration.collectionLocation.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              <span>Offer quantity (kg)</span>
+              <input
+                required
+                type="number"
+                min="1"
+                step="0.1"
+                value={offerKg}
+                onChange={(event) => setOfferKg(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Price to farmer (GH₵/kg)</span>
+              <input
+                required
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={priceGhs}
+                onChange={(event) => setPriceGhs(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Farmer charge (GH₵/kg)</span>
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={farmerChargeGhs}
+                onChange={(event) => setFarmerChargeGhs(event.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={busy === "offer"}
+            >
+              <Send size={17} />{" "}
+              {busy === "offer" ? "Sending…" : "Prepare and send offer"}
+            </button>
           </form>
         )}
         <div className="ops-offer-list">
-          {(offers?.page ?? []).map((row) => <article key={row.offer.offerId}><div><strong>{row.farmer.fullName}</strong><span>{row.farmer.farmerCode} · {row.declaration.collectionLocation.label}</span></div><div><strong>{kg(row.offer.terms?.offeredGrams ?? 0)}</strong><span>{row.offer.terms === null ? "Terms pending" : `${money(row.offer.terms.expectedNetPesewas)} net`}</span></div><span className={`badge ${row.offer.status === "accepted" ? "badge-success" : row.offer.status === "sent" ? "badge-warning" : "badge-neutral"}`}>{row.offer.status}</span></article>)}
+          {(offers?.page ?? []).map((row) => (
+            <article key={row.offer.offerId}>
+              <div>
+                <strong>{row.farmer.fullName}</strong>
+                <span>
+                  {row.farmer.farmerCode} ·{" "}
+                  {row.declaration.collectionLocation.label}
+                </span>
+              </div>
+              <div>
+                <strong>{kg(row.offer.terms?.offeredGrams ?? 0)}</strong>
+                <span>
+                  {row.offer.terms === null
+                    ? "Terms pending"
+                    : `${money(row.offer.terms.expectedNetPesewas)} net`}
+                </span>
+              </div>
+              <span
+                className={`badge ${row.offer.status === "accepted" ? "badge-success" : row.offer.status === "sent" ? "badge-warning" : "badge-neutral"}`}
+              >
+                {row.offer.status}
+              </span>
+            </article>
+          ))}
         </div>
       </section>
 
       <section className="ops-stage-card">
-        <div className="ops-stage-heading"><span>2</span><div><h2>Inspect accepted supply</h2><p>Record measured quantity. Failed weight is held and excluded from collection.</p></div></div>
-        <form className="ops-inline-form" onSubmit={(event) => void inspect(event)}>
-          <label className="ops-form-wide"><span>Accepted farmer allocation</span><select required value={inspectionOfferId} onChange={(event) => { setInspectionOfferId(event.target.value); const row = acceptedOffers.find((item) => item.offer.offerId === event.target.value); if (row?.offer.quantity !== null && row !== undefined) setAcceptedKg(String((row.offer.quantity.committedGrams - row.offer.quantity.clearedGrams) / 1_000)); }}><option value="">Select an accepted offer</option>{acceptedOffers.map((row) => <option key={row.offer.offerId} value={row.offer.offerId}>{row.farmer.fullName} · committed {kg(row.offer.quantity?.committedGrams ?? 0)} · cleared {kg(row.offer.quantity?.clearedGrams ?? 0)}</option>)}</select></label>
-          <label><span>Lot code</span><input required minLength={3} maxLength={32} value={lotCode} onChange={(event) => setLotCode(event.target.value.toUpperCase())} placeholder="KD-C-01" /></label>
-          <label><span>Accepted (kg)</span><input required type="number" min="0" step="0.1" value={acceptedKg} onChange={(event) => setAcceptedKg(event.target.value)} /></label>
-          <label><span>Rejected (kg)</span><input required type="number" min="0" step="0.1" value={rejectedKg} onChange={(event) => setRejectedKg(event.target.value)} /></label>
-          <label><span>Tare (kg)</span><input required type="number" min="0" step="0.1" value={tareKg} onChange={(event) => setTareKg(event.target.value)} /></label>
-          <label><span>Moisture (%)</span><input required type="number" min="0" max="100" step="0.1" value={moisturePercent} onChange={(event) => setMoisturePercent(event.target.value)} /></label>
-          <label className="ops-form-wide"><span>Failure reason (required when any quantity is rejected)</span><input value={inspectionReason} onChange={(event) => setInspectionReason(event.target.value)} placeholder="For example: damaged or contaminated bags" /></label>
-          <label><span>Private inspection evidence</span><input required={inspectionEvidenceIds.length === 0} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={isUploadingEvidence} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; void uploadInspectionEvidence(file); }} /></label>
-          <button type="submit" className="btn btn-primary" disabled={busy === "inspection" || isUploadingEvidence || inspectionEvidenceIds.length === 0}><ClipboardCheck size={17} /> {busy === "inspection" ? "Recording…" : isUploadingEvidence ? "Uploading evidence…" : inspectionEvidenceIds.length === 0 ? "Add evidence first" : `Record inspection · ${inspectionEvidenceIds.length} file`}</button>
+        <div className="ops-stage-heading">
+          <span>2</span>
+          <div>
+            <h2>Inspect accepted supply</h2>
+            <p>
+              Record measured quantity. Failed weight is held and excluded from
+              collection.
+            </p>
+          </div>
+        </div>
+        <form
+          className="ops-inline-form"
+          onSubmit={(event) => void inspect(event)}
+        >
+          <label className="ops-form-wide">
+            <span>Accepted farmer allocation</span>
+            <select
+              required
+              value={inspectionOfferId}
+              onChange={(event) => {
+                setInspectionOfferId(event.target.value);
+                const row = acceptedOffers.find(
+                  (item) => item.offer.offerId === event.target.value,
+                );
+                if (row?.offer.quantity !== null && row !== undefined)
+                  setAcceptedKg(
+                    String(
+                      (row.offer.quantity.committedGrams -
+                        row.offer.quantity.clearedGrams) /
+                        1_000,
+                    ),
+                  );
+              }}
+            >
+              <option value="">Select an accepted offer</option>
+              {acceptedOffers.map((row) => (
+                <option key={row.offer.offerId} value={row.offer.offerId}>
+                  {row.farmer.fullName} · committed{" "}
+                  {kg(row.offer.quantity?.committedGrams ?? 0)} · cleared{" "}
+                  {kg(row.offer.quantity?.clearedGrams ?? 0)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Lot code</span>
+            <input
+              required
+              minLength={3}
+              maxLength={32}
+              value={lotCode}
+              onChange={(event) => setLotCode(event.target.value.toUpperCase())}
+              placeholder="KD-C-01"
+            />
+          </label>
+          <label>
+            <span>Accepted (kg)</span>
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.1"
+              value={acceptedKg}
+              onChange={(event) => setAcceptedKg(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Rejected (kg)</span>
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.1"
+              value={rejectedKg}
+              onChange={(event) => setRejectedKg(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Tare (kg)</span>
+            <input
+              required
+              type="number"
+              min="0"
+              step="0.1"
+              value={tareKg}
+              onChange={(event) => setTareKg(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Moisture (%)</span>
+            <input
+              required
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              value={moisturePercent}
+              onChange={(event) => setMoisturePercent(event.target.value)}
+            />
+          </label>
+          <label className="ops-form-wide">
+            <span>Failure reason (required when any quantity is rejected)</span>
+            <input
+              value={inspectionReason}
+              onChange={(event) => setInspectionReason(event.target.value)}
+              placeholder="For example: damaged or contaminated bags"
+            />
+          </label>
+          <label>
+            <span>Private inspection evidence</span>
+            <input
+              required={inspectionEvidenceIds.length === 0}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              disabled={isUploadingEvidence}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                void uploadInspectionEvidence(file);
+              }}
+            />
+          </label>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={
+              busy === "inspection" ||
+              isUploadingEvidence ||
+              inspectionEvidenceIds.length === 0
+            }
+          >
+            <ClipboardCheck size={17} />{" "}
+            {busy === "inspection"
+              ? "Recording…"
+              : isUploadingEvidence
+                ? "Uploading evidence…"
+                : inspectionEvidenceIds.length === 0
+                  ? "Add evidence first"
+                  : `Record inspection · ${inspectionEvidenceIds.length} file`}
+          </button>
         </form>
         <div className="ops-lot-grid">
-          {(lots?.page ?? []).map((lot) => <article key={lot.lotId}><div><strong>{lot.lotCode}</strong><span className={`badge ${lot.qualityStatus === "passed" ? "badge-success" : lot.qualityStatus === "failed" ? "badge-danger" : "badge-warning"}`}>{lot.qualityStatus}</span></div><p>{kg(lot.clearedGrams)} cleared · {kg(lot.rejectedGrams)} rejected</p><small>{lot.dispositionStatus.replaceAll("_", " ")} · {lot.currentLocation.label}</small></article>)}
+          {(lots?.page ?? []).map((lot) => (
+            <article key={lot.lotId}>
+              <div>
+                <strong>{lot.lotCode}</strong>
+                <span
+                  className={`badge ${lot.qualityStatus === "passed" ? "badge-success" : lot.qualityStatus === "failed" ? "badge-danger" : "badge-warning"}`}
+                >
+                  {lot.qualityStatus}
+                </span>
+              </div>
+              <p>
+                {kg(lot.clearedGrams)} cleared · {kg(lot.rejectedGrams)}{" "}
+                rejected
+              </p>
+              <small>
+                {lot.dispositionStatus.replaceAll("_", " ")} ·{" "}
+                {lot.currentLocation.label}
+              </small>
+            </article>
+          ))}
         </div>
       </section>
 
       <section className="ops-stage-card">
-        <div className="ops-stage-heading"><span>3</span><div><h2>Fund and plan collection</h2><p>The plan must equal the buyer quantity. Purchase funding is visible here but approved only by finance.</p></div></div>
-        <div className={`ops-funding-card ${readiness.purchaseApproval.status === "missing" ? "blocked" : ""}`}><CircleDollarSign size={22} /><div><strong>{readiness.purchaseApproval.required ? "Purchase funding" : "Coordination mode"}</strong><span>{readiness.purchaseApproval.status === "approved" ? `${money(readiness.purchaseApproval.reservedPesewas)} reserved by finance` : readiness.purchaseApproval.status === "missing" ? "Finance approval missing — operations cannot approve it" : "No purchase reservation required"}</span></div><span className={`badge ${readiness.purchaseApproval.status === "missing" ? "badge-danger" : "badge-success"}`}>{readiness.purchaseApproval.status.replaceAll("_", " ")}</span></div>
-        {plan === null ? <div className="ops-plan-builder"><div><strong>{kg(availableLotGrams)} available for plan</strong><span>Required exactly {kg(targetGrams)}</span></div><button type="button" className="btn btn-primary" disabled={!canBuildPlan || busy === "plan"} onClick={() => void buildPlan()}><Truck size={17} /> {busy === "plan" ? "Creating…" : "Create exact collection plan"}</button>{availableLotGrams !== targetGrams ? <p><AlertTriangle size={16} /> Dispatch cannot claim {kg(targetGrams)} while only {kg(availableLotGrams)} is cleared.</p> : null}</div> : plan === undefined ? <div className="ops-empty-state">Loading collection plan…</div> : (
-          <div className="ops-plan-panel"><div className="ops-plan-summary"><div><strong>{kg(plan.plan.plannedGrams)}</strong><span>{plan.stops.length} collection stop{plan.stops.length === 1 ? "" : "s"}</span></div><span className={`badge ${plan.plan.status === "ready" ? "badge-success" : "badge-warning"}`}>{plan.plan.status}</span></div>{plan.stops.map((stop, index) => <div key={stop.stopId} className="ops-stop-row"><span>{index + 1}</span><div><strong>{stop.location.label}</strong><small>{kg(stop.plannedGrams)} · {stop.status}</small></div></div>)}{plan.plan.driverUserId === undefined ? <form className="ops-inline-form ops-driver-form" onSubmit={(event) => void setDriver(event)}><label className="ops-form-wide"><span>Verified driver</span><select required value={driverId} onChange={(event) => setDriverId(event.target.value)}><option value="">Select driver</option>{(drivers ?? []).map((driver) => <option key={driver.transporterId} value={driver.transporterId}>{driver.fullName} · {driver.vehicleType}</option>)}</select></label><label><span>Vehicle registration</span><input required value={vehicleRegistration} onChange={(event) => setVehicleRegistration(event.target.value.toUpperCase())} /></label><label><span>Capacity (kg)</span><input required type="number" min="1" value={vehicleCapacityKg} onChange={(event) => setVehicleCapacityKg(event.target.value)} /></label><button type="submit" className="btn btn-primary" disabled={busy === "driver"}>Assign driver</button></form> : <div className="ops-driver-assigned"><Truck size={18} /><span><strong>{plan.plan.vehicleRegistration}</strong> · capacity {kg(plan.plan.vehicleCapacityGrams ?? 0)}</span></div>}<div className="ops-readiness-row"><div>{plan.plan.readinessBlockers.length === 0 ? <><CheckCircle2 size={18} /> Server checks show no blockers.</> : <><AlertTriangle size={18} /> {plan.plan.readinessBlockers.map((item) => item.replaceAll("_", " ")).join(", ")}</>}</div>{plan.plan.status === "ready" ? null : <button type="button" className="btn btn-primary" disabled={busy === "ready"} onClick={() => void makeReady()}>Run readiness check</button>}</div></div>
+        <div className="ops-stage-heading">
+          <span>3</span>
+          <div>
+            <h2>
+              {previewAccess ? "Plan collection" : "Fund and plan collection"}
+            </h2>
+            <p>
+              {previewAccess
+                ? "The plan must equal the quality-cleared buyer quantity."
+                : "The plan must equal the buyer quantity. Purchase funding is visible here but approved only by finance."}
+            </p>
+          </div>
+        </div>
+        {!previewAccess ? (
+          <div
+            className={`ops-funding-card ${readiness.purchaseApproval.status === "missing" ? "blocked" : ""}`}
+          >
+            <CircleDollarSign size={22} />
+            <div>
+              <strong>
+                {readiness.purchaseApproval.required
+                  ? "Purchase funding"
+                  : "Coordination mode"}
+              </strong>
+              <span>
+                {readiness.purchaseApproval.status === "approved"
+                  ? `${money(readiness.purchaseApproval.reservedPesewas)} reserved by finance`
+                  : readiness.purchaseApproval.status === "missing"
+                    ? "Finance approval missing — operations cannot approve it"
+                    : "No purchase reservation required"}
+              </span>
+            </div>
+            <span
+              className={`badge ${readiness.purchaseApproval.status === "missing" ? "badge-danger" : "badge-success"}`}
+            >
+              {readiness.purchaseApproval.status.replaceAll("_", " ")}
+            </span>
+          </div>
+        ) : null}
+        {plan === null ? (
+          <div className="ops-plan-builder">
+            <div>
+              <strong>{kg(availableLotGrams)} available for plan</strong>
+              <span>Required exactly {kg(targetGrams)}</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!canBuildPlan || busy === "plan"}
+              onClick={() => void buildPlan()}
+            >
+              <Truck size={17} />{" "}
+              {busy === "plan" ? "Creating…" : "Create exact collection plan"}
+            </button>
+            {availableLotGrams !== targetGrams ? (
+              <p>
+                <AlertTriangle size={16} /> Dispatch cannot claim{" "}
+                {kg(targetGrams)} while only {kg(availableLotGrams)} is cleared.
+              </p>
+            ) : null}
+          </div>
+        ) : plan === undefined ? (
+          <div className="ops-empty-state">Loading collection plan…</div>
+        ) : (
+          <div className="ops-plan-panel">
+            <div className="ops-plan-summary">
+              <div>
+                <strong>{kg(plan.plan.plannedGrams)}</strong>
+                <span>
+                  {plan.stops.length} collection stop
+                  {plan.stops.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <span
+                className={`badge ${plan.plan.status === "ready" ? "badge-success" : "badge-warning"}`}
+              >
+                {plan.plan.status}
+              </span>
+            </div>
+            {plan.stops.map((stop, index) => (
+              <div key={stop.stopId} className="ops-stop-row">
+                <span>{index + 1}</span>
+                <div>
+                  <strong>{stop.location.label}</strong>
+                  <small>
+                    {kg(stop.plannedGrams)} · {stop.status}
+                  </small>
+                </div>
+              </div>
+            ))}
+            {plan.plan.driverUserId === undefined ? (
+              <form
+                className="ops-inline-form ops-driver-form"
+                onSubmit={(event) => void setDriver(event)}
+              >
+                <label className="ops-form-wide">
+                  <span>Verified driver</span>
+                  <select
+                    required
+                    value={driverId}
+                    onChange={(event) => setDriverId(event.target.value)}
+                  >
+                    <option value="">Select driver</option>
+                    {(drivers ?? []).map((driver) => (
+                      <option
+                        key={driver.transporterId}
+                        value={driver.transporterId}
+                      >
+                        {driver.fullName} · {driver.vehicleType}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Vehicle registration</span>
+                  <input
+                    required
+                    value={vehicleRegistration}
+                    onChange={(event) =>
+                      setVehicleRegistration(event.target.value.toUpperCase())
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Capacity (kg)</span>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={vehicleCapacityKg}
+                    onChange={(event) =>
+                      setVehicleCapacityKg(event.target.value)
+                    }
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={busy === "driver"}
+                >
+                  Assign driver
+                </button>
+              </form>
+            ) : (
+              <div className="ops-driver-assigned">
+                <Truck size={18} />
+                <span>
+                  <strong>{plan.plan.vehicleRegistration}</strong> · capacity{" "}
+                  {kg(plan.plan.vehicleCapacityGrams ?? 0)}
+                </span>
+              </div>
+            )}
+            <div className="ops-readiness-row">
+              <div>
+                {plan.plan.readinessBlockers.length === 0 ? (
+                  <>
+                    <CheckCircle2 size={18} /> Server checks show no blockers.
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={18} />{" "}
+                    {plan.plan.readinessBlockers
+                      .map((item) => item.replaceAll("_", " "))
+                      .join(", ")}
+                  </>
+                )}
+              </div>
+              {plan.plan.status === "ready" ? null : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={busy === "ready"}
+                  onClick={() => void makeReady()}
+                >
+                  Run readiness check
+                </button>
+              )}
+            </div>
+          </div>
         )}
       </section>
 
       <section className="ops-stage-card">
-        <div className="ops-stage-heading"><span>!</span><div><h2>Blockers and next actions</h2><p>Quality failures and operational exceptions stay visible until resolved.</p></div></div>
-        {readiness.openIssues.length === 0 ? <div className="ops-clear-state"><CheckCircle2 size={20} /> No unresolved issue for this request.</div> : <div className="ops-issue-list">{readiness.openIssues.map((issue) => <article key={issue.issueId} className="ops-issue-card"><div className="ops-issue-icon overdue"><AlertTriangle size={20} /></div><div><div className="ops-issue-heading"><strong>{issue.summary}</strong><span className="badge badge-warning">{issue.status}</span></div><p>{issue.nextStep}</p><small>{issue.issueType.replaceAll("_", " ")}</small></div><button type="button" className="btn btn-outline" disabled={busy === issue.issueId} onClick={() => void resolve(issue)}>Resolve</button></article>)}</div>}
+        <div className="ops-stage-heading">
+          <span>!</span>
+          <div>
+            <h2>Blockers and next actions</h2>
+            <p>
+              Quality failures and operational exceptions stay visible until
+              resolved.
+            </p>
+          </div>
+        </div>
+        {readiness.openIssues.length === 0 ? (
+          <div className="ops-clear-state">
+            <CheckCircle2 size={20} /> No unresolved issue for this request.
+          </div>
+        ) : (
+          <div className="ops-issue-list">
+            {readiness.openIssues.map((issue) => (
+              <article key={issue.issueId} className="ops-issue-card">
+                <div className="ops-issue-icon overdue">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <div className="ops-issue-heading">
+                    <strong>{issue.summary}</strong>
+                    <span className="badge badge-warning">{issue.status}</span>
+                  </div>
+                  <p>{issue.nextStep}</p>
+                  <small>{issue.issueType.replaceAll("_", " ")}</small>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={busy === issue.issueId}
+                  onClick={() => void resolve(issue)}
+                >
+                  Resolve
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

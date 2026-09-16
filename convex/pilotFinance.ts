@@ -1,4 +1,10 @@
 import {
+  isActivePreviewCoordination,
+  isActivePreviewProgramme,
+  pilotFinancialPartyForAudience,
+} from "@kuapa-dwaso/permissions/pilot";
+import type { MarketplaceRole } from "@kuapa-dwaso/types";
+import {
   calculatePilotAmountPesewas,
   calculatePilotOfferAmounts,
   pilotPurchasingBudgetAvailablePesewas,
@@ -74,6 +80,25 @@ const partyRef = v.object({
 
 type FinancialEntryId = Id<"pilotFinancialEntries">;
 type FinancialEntry = Doc<"pilotFinancialEntries">;
+
+function participantFinancialEntryProjection(
+  entry: FinancialEntry,
+  audience: MarketplaceRole,
+) {
+  return {
+    id: entry._id,
+    postingKind: entry.postingKind,
+    purpose: entry.purpose,
+    basis: entry.basis,
+    payer: pilotFinancialPartyForAudience(entry.payer, audience),
+    payee: pilotFinancialPartyForAudience(entry.payee, audience),
+    amountPesewas: entry.amountPesewas,
+    currency: entry.currency,
+    dueAt: entry.dueAt,
+    provenance: entry.provenance,
+    createdAt: entry.createdAt,
+  };
+}
 
 function cleanText(value: string, label: string): string {
   const cleaned = value.trim();
@@ -912,6 +937,11 @@ export async function postBuyerAcceptanceFinancialEntries(
       input.triggerAt <= Date.now(),
     "Buyer acceptance financial trigger time must be server controlled.",
   );
+  const previewCoordination = isActivePreviewCoordination({
+    programme,
+    request,
+    now: input.triggerAt,
+  });
   const acceptedLines = input.lines.filter((line) => line.acceptedGrams > 0);
   if (acceptedLines.length === 0)
     return {
@@ -960,6 +990,38 @@ export async function postBuyerAcceptanceFinancialEntries(
       acceptedGrams: line.acceptedGrams,
     });
   }
+  if (previewCoordination) {
+    const prepared = (
+      await ctx.db
+        .query("pilotFinancialEntries")
+        .withIndex("by_request_created_at", (query) =>
+          query.eq("requestId", request._id),
+        )
+        .collect()
+    ).filter((entry) => entry.reasonCode.startsWith("preview_"));
+    if (prepared.length > 0) {
+      const produce = prepared
+        .filter(
+          (entry) =>
+            entry.postingKind === "obligation" &&
+            entry.purpose === "buyer_produce",
+        )
+        .map((entry) => entry._id);
+      return {
+        buyerObligationEntryIds: prepared
+          .filter((entry) => entry.postingKind === "obligation")
+          .map((entry) => entry._id),
+        farmerPayableEntryIds: produce,
+        revenueEntryIds: prepared
+          .filter(
+            (entry) =>
+              entry.postingKind === "revenue" &&
+              entry.purpose === "coordination_fee",
+          )
+          .map((entry) => entry._id),
+      };
+    }
+  }
   const acceptedGrams = detail.reduce(
     (sum, line) => sum + line.acceptedGrams,
     0,
@@ -988,8 +1050,9 @@ export async function postBuyerAcceptanceFinancialEntries(
     )!.amountPesewas;
     const postingKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:buyer-produce`;
     await assertPostingKeyAvailable(ctx, postingKey);
-    buyerObligationEntryIds.push(
-      await ctx.db.insert("pilotFinancialEntries", {
+    const buyerObligationEntryId = await ctx.db.insert(
+      "pilotFinancialEntries",
+      {
         programmeId: request.programmeId,
         requestId: request._id,
         lotId: line.lot._id,
@@ -1003,10 +1066,16 @@ export async function postBuyerAcceptanceFinancialEntries(
           id: String(request.buyerId),
           displayNameSnapshot: "Buyer",
         },
-        payee: {
-          kind: "kuapa_dwaso",
-          displayNameSnapshot: "Kuapa Dwaso",
-        },
+        payee: previewCoordination
+          ? {
+              kind: "farmer",
+              id: String(line.lot.farmerId),
+              displayNameSnapshot: "Farmer",
+            }
+          : {
+              kind: "kuapa_dwaso",
+              displayNameSnapshot: "Kuapa Dwaso",
+            },
         amountPesewas,
         currency: "GHS",
         dueAt: buyerDueAt,
@@ -1016,10 +1085,87 @@ export async function postBuyerAcceptanceFinancialEntries(
         reasonCode: "buyer_acceptance",
         recordedByUserId: input.actorUserId,
         createdAt: now,
-      }),
+      },
     );
+    buyerObligationEntryIds.push(buyerObligationEntryId);
+    if (previewCoordination) farmerPayableEntryIds.push(buyerObligationEntryId);
   }
-  if (request.commercialMode === "coordination") {
+  if (request.commercialMode === "coordination" && previewCoordination) {
+    const byRevision = new Map<
+      string,
+      { revision: Doc<"pilotFarmerOfferRevisions">; lines: typeof detail }
+    >();
+    for (const line of detail) {
+      const key = String(line.revision._id);
+      const group = byRevision.get(key) ?? {
+        revision: line.revision,
+        lines: [],
+      };
+      group.lines.push(line);
+      byRevision.set(key, group);
+    }
+    for (const group of byRevision.values()) {
+      const groupGrams = group.lines.reduce(
+        (sum, line) => sum + line.acceptedGrams,
+        0,
+      );
+      const amounts = calculatePilotOfferAmounts({
+        offeredGrams: groupGrams,
+        priceRate: group.revision.priceRate,
+        chargeTerms: group.revision.chargeTerms,
+      });
+      const revenueAmounts = reconcilePilotLineAmounts(
+        group.lines.map((line) => ({
+          id: line.key,
+          exact: {
+            numerator:
+              BigInt(amounts.expectedChargesPesewas) *
+              BigInt(line.acceptedGrams),
+            denominator: BigInt(groupGrams),
+          },
+        })),
+      );
+      for (const line of group.lines) {
+        const revenue = revenueAmounts.find(
+          (amount) => amount.id === line.key,
+        )!;
+        if (revenue.amountPesewas > 0) {
+          const revenueKey = `acceptance:${acceptance._id}:lot:${line.lot._id}:coordination-fee`;
+          await assertPostingKeyAvailable(ctx, revenueKey);
+          revenueEntryIds.push(
+            await ctx.db.insert("pilotFinancialEntries", {
+              programmeId: request.programmeId,
+              requestId: request._id,
+              lotId: line.lot._id,
+              offerRevisionId: group.revision._id,
+              acceptanceId: acceptance._id,
+              postingKind: "revenue",
+              purpose: "coordination_fee",
+              basis: "actual",
+              payer: {
+                kind: "farmer",
+                id: String(line.lot.farmerId),
+                displayNameSnapshot: "Farmer",
+              },
+              payee: {
+                kind: "kuapa_dwaso",
+                displayNameSnapshot: "Kuapa Dwaso",
+              },
+              amountPesewas: revenue.amountPesewas,
+              currency: "GHS",
+              postingKey: revenueKey,
+              evidenceUploadAssetIds: [],
+              provenance: programme.datasetProvenance,
+              reasonCode: "seller_coordination_fee",
+              recordedByUserId: input.actorUserId,
+              createdAt: now,
+            }),
+          );
+        }
+      }
+    }
+  }
+  if (request.commercialMode === "coordination" && !previewCoordination) {
     const byRevision = new Map<
       string,
       { revision: Doc<"pilotFarmerOfferRevisions">; lines: typeof detail }
@@ -2580,12 +2726,20 @@ export const getFinancialEntry = query({
     const entry = await ctx.db.get(args.entryId);
     if (entry === null) return null;
     await requirePilotFinancialEntryRead(ctx, principal, entry);
+    const obligation =
+      entry.postingKind === "obligation"
+        ? await financialEntryState(ctx, entry, Date.now())
+        : undefined;
+    if (principal.role === "admin") {
+      return {
+        ...entry,
+        id: entry._id,
+        ...(obligation === undefined ? {} : { obligation }),
+      };
+    }
     return {
-      ...entry,
-      id: entry._id,
-      ...(entry.postingKind === "obligation"
-        ? { obligation: await financialEntryState(ctx, entry, Date.now()) }
-        : {}),
+      ...participantFinancialEntryProjection(entry, principal.role),
+      ...(obligation === undefined ? {} : { obligation }),
     };
   },
 });
@@ -2656,9 +2810,20 @@ export const getRequestStatement = query({
         obligationPesewas += entry.amountPesewas;
         settledPesewas += entry.amountPesewas - obligation.outstandingPesewas;
         outstandingPesewas += obligation.outstandingPesewas;
-        projected.push({ ...entry, id: entry._id, obligation });
+        projected.push(
+          includeInternalTotals
+            ? { ...entry, id: entry._id, obligation }
+            : {
+                ...participantFinancialEntryProjection(entry, principal.role),
+                obligation,
+              },
+        );
       } else {
-        projected.push({ ...entry, id: entry._id });
+        projected.push(
+          includeInternalTotals
+            ? { ...entry, id: entry._id }
+            : participantFinancialEntryProjection(entry, principal.role),
+        );
       }
     }
     const actualOperatingCosts = entries
@@ -2739,17 +2904,24 @@ async function getProgrammeSummaryHandler(
   args: { programmeId: Id<"pilotProgrammes"> },
 ) {
   await requireFinance(ctx, args.programmeId, "pilotFinance:read");
+  const programme = await ctx.db.get(args.programmeId);
+  assertAllowed(programme !== null, "Pilot programme was not found.");
+  const previewProgramme = isActivePreviewProgramme(programme, Date.now());
   const [budgets, reservations, entries] = await Promise.all([
-    ctx.db
-      .query("pilotPurchasingBudgets")
-      .withIndex("by_programme_status", (q) =>
-        q.eq("programmeId", args.programmeId),
-      )
-      .collect(),
-    ctx.db
-      .query("pilotFundingReservations")
-      .withIndex("by_request_status")
-      .collect(),
+    previewProgramme
+      ? Promise.resolve([])
+      : ctx.db
+          .query("pilotPurchasingBudgets")
+          .withIndex("by_programme_status", (q) =>
+            q.eq("programmeId", args.programmeId),
+          )
+          .collect(),
+    previewProgramme
+      ? Promise.resolve([])
+      : ctx.db
+          .query("pilotFundingReservations")
+          .withIndex("by_request_status")
+          .collect(),
     ctx.db.query("pilotFinancialEntries").collect(),
   ]);
   const scoped = entries.filter(
@@ -2797,10 +2969,13 @@ async function getProgrammeSummaryHandler(
         entry.purpose,
       ),
   );
-  const farmerPayablesPesewas = sum(
-    (entry) =>
-      entry.postingKind === "obligation" && entry.purpose === "farmer_proceeds",
-  );
+  const farmerPayablesPesewas = previewProgramme
+    ? Math.max(0, buyerProducePesewas - coordinationRevenuePesewas)
+    : sum(
+        (entry) =>
+          entry.postingKind === "obligation" &&
+          entry.purpose === "farmer_proceeds",
+      );
   const missingEstimatedActualCosts = active.some(
     (entry) =>
       entry.basis === "estimate" &&

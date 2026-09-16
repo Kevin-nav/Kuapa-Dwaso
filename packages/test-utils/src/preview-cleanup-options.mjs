@@ -7,6 +7,7 @@ const envNames = {
   buyerUserId: "PREVIEW_BUYER_USER_ID",
   transporterUserId: "PREVIEW_TRANSPORTER_USER_ID",
   operationsUserId: "PREVIEW_OPERATIONS_USER_ID",
+  backgroundFarmerUserIds: "PREVIEW_BACKGROUND_FARMER_USER_IDS",
   start: "PREVIEW_CLEANUP_START_AT",
   end: "PREVIEW_CLEANUP_END_AT",
 };
@@ -18,6 +19,7 @@ const argumentNames = new Map([
   ["buyer-user-id", "buyerUserId"],
   ["transporter-user-id", "transporterUserId"],
   ["operations-user-id", "operationsUserId"],
+  ["background-farmer-user-ids", "backgroundFarmerUserIds"],
   ["start", "start"],
   ["end", "end"],
   ["confirm", "confirm"],
@@ -76,11 +78,22 @@ export function parsePreviewCleanupOptions(argv, env = process.env) {
     value("operationsUserId"),
     "operations user ID",
   );
+  const backgroundFarmerUserIds = value("backgroundFarmerUserIds")
+    .split(",")
+    .map((id) => parseId(id.trim(), "background farmer user ID"));
   if (
-    new Set([farmerUserId, buyerUserId, transporterUserId, operationsUserId])
-      .size !== 4
+    backgroundFarmerUserIds.length !== 2 ||
+    new Set([
+      farmerUserId,
+      buyerUserId,
+      transporterUserId,
+      operationsUserId,
+      ...backgroundFarmerUserIds,
+    ]).size !== 6
   ) {
-    throw new Error("Cleanup requires four distinct actor user IDs.");
+    throw new Error(
+      "Cleanup requires four public actors and two distinct background farmer user IDs.",
+    );
   }
 
   const startAt = parseTimestamp(value("start"), "start");
@@ -110,6 +123,7 @@ export function parsePreviewCleanupOptions(argv, env = process.env) {
       buyerUserId,
       transporterUserId,
       operationsUserId,
+      backgroundFarmerUserIds,
       startAt,
       endAt,
       execute,

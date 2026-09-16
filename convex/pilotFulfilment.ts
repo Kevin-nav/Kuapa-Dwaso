@@ -1,5 +1,9 @@
 import { v } from "convex/values";
 import {
+  isActivePreviewCoordination,
+  pilotCollectionStopForBuyer,
+} from "@kuapa-dwaso/permissions/pilot";
+import {
   calculatePilotAmountPesewas,
   calculatePilotOfferAmounts,
   getPilotReadinessBlockers,
@@ -218,6 +222,12 @@ async function financialReleaseSatisfied(
   agreement: Doc<"pilotBuyerAgreementRevisions">,
   lots: Doc<"pilotProcurementLots">[],
 ) {
+  const programme = await ctx.db.get(request.programmeId);
+  if (
+    programme !== null &&
+    isActivePreviewCoordination({ programme, request, now: Date.now() })
+  )
+    return true;
   const requiredByRevision = new Map<Id<"pilotFarmerOfferRevisions">, number>();
   for (const lot of lots) {
     if (lot.titleOwnerKind === "kuapa_dwaso") continue;
@@ -1533,21 +1543,35 @@ export const getPlan = query({
           (ownFarmerId !== undefined && lot.farmerId !== ownFarmerId)
         )
           continue;
+        const projectedLot = projectPilotLotForPrincipal(
+          principal,
+          lot,
+          lot.farmerId === ownFarmerId,
+        );
         lots.push(
-          projectPilotLotForPrincipal(
-            principal,
-            lot,
-            lot.farmerId === ownFarmerId,
-          ),
+          principal.role === "buyer" && stop.stopType === "collection"
+            ? {
+                ...projectedLot,
+                currentLocation: pilotCollectionStopForBuyer(stop.sequence)
+                  .currentLocation,
+              }
+            : projectedLot,
         );
       }
-      if (ownFarmerId === undefined || lots.length > 0)
+      if (ownFarmerId === undefined || lots.length > 0) {
+        const buyerCollectionStop =
+          principal.role === "buyer" && stop.stopType === "collection"
+            ? pilotCollectionStopForBuyer(stop.sequence)
+            : undefined;
         visibleStops.push({
           stopId: stop._id,
           sequence: stop.sequence,
           stopType: stop.stopType,
-          location: stop.location,
-          packagingNotes: stop.packagingNotes,
+          location: buyerCollectionStop?.location ?? stop.location,
+          ...(buyerCollectionStop === undefined &&
+          stop.packagingNotes !== undefined
+            ? { packagingNotes: stop.packagingNotes }
+            : {}),
           plannedGrams: stop.plannedGrams,
           collectedGrams: stop.collectedGrams,
           windowStartAt: stop.windowStartAt,
@@ -1555,6 +1579,7 @@ export const getPlan = query({
           status: stop.status,
           lots,
         });
+      }
     }
     assertAllowed(
       ownFarmerId === undefined || visibleStops.length > 0,
@@ -1596,22 +1621,37 @@ export const getForRequest = query({
         if (
           lot !== null &&
           (ownFarmerId === undefined || lot.farmerId === ownFarmerId)
-        )
-          lots.push(
-            projectPilotLotForPrincipal(
-              principal,
-              lot,
-              lot.farmerId === ownFarmerId,
-            ),
+        ) {
+          const projectedLot = projectPilotLotForPrincipal(
+            principal,
+            lot,
+            lot.farmerId === ownFarmerId,
           );
+          lots.push(
+            principal.role === "buyer" && stop.stopType === "collection"
+              ? {
+                  ...projectedLot,
+                  currentLocation: pilotCollectionStopForBuyer(stop.sequence)
+                    .currentLocation,
+                }
+              : projectedLot,
+          );
+        }
       }
-      if (ownFarmerId === undefined || lots.length > 0)
+      if (ownFarmerId === undefined || lots.length > 0) {
+        const buyerCollectionStop =
+          principal.role === "buyer" && stop.stopType === "collection"
+            ? pilotCollectionStopForBuyer(stop.sequence)
+            : undefined;
         visibleStops.push({
           stopId: stop._id,
           sequence: stop.sequence,
           stopType: stop.stopType,
-          location: stop.location,
-          packagingNotes: stop.packagingNotes,
+          location: buyerCollectionStop?.location ?? stop.location,
+          ...(buyerCollectionStop === undefined &&
+          stop.packagingNotes !== undefined
+            ? { packagingNotes: stop.packagingNotes }
+            : {}),
           plannedGrams: stop.plannedGrams,
           collectedGrams: stop.collectedGrams,
           windowStartAt: stop.windowStartAt,
@@ -1619,6 +1659,7 @@ export const getForRequest = query({
           status: stop.status,
           lots,
         });
+      }
     }
     assertAllowed(
       ownFarmerId === undefined || visibleStops.length > 0,
@@ -1699,6 +1740,11 @@ export const getDriverJob = query({
       programme !== null && request !== null,
       "Collection programme or destination was not found.",
     );
+    const previewCoordination = isActivePreviewCoordination({
+      programme,
+      request,
+      now: Date.now(),
+    });
     const projectedStops = [];
     for (const stop of stops) {
       const projectedLots = [];
@@ -1716,12 +1762,14 @@ export const getDriverJob = query({
             .withIndex("by_lot_created_at", (q) => q.eq("lotId", lot._id))
             .order("desc")
             .collect(),
-          ctx.db
-            .query("pilotFundingReservations")
-            .withIndex("by_offer_revision", (q) =>
-              q.eq("farmerOfferRevisionId", lot.offerRevisionId),
-            )
-            .collect(),
+          previewCoordination
+            ? Promise.resolve([])
+            : ctx.db
+                .query("pilotFundingReservations")
+                .withIndex("by_offer_revision", (q) =>
+                  q.eq("farmerOfferRevisionId", lot.offerRevisionId),
+                )
+                .collect(),
         ]);
         assertAllowed(farmer !== null, "Collection farmer was not found.");
         const inspection = inspections.find(

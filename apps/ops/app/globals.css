@@ -1904,6 +1904,12 @@ textarea:focus-visible {
   font-weight: 700;
 }
 
+.profile-avatar-image {
+  display: block;
+  border: 1px solid var(--gray-200);
+  object-fit: cover;
+}
+
 .profile-name {
   font-size: 13px;
   font-weight: 600;

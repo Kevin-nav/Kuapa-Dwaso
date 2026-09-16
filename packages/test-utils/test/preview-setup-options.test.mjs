@@ -7,24 +7,18 @@ import {
   previewActorDefinitions,
 } from "../src/preview-setup-options.mjs";
 
-const hourMs = 60 * 60 * 1_000;
+const hour = 60 * 60 * 1_000;
 const now = Date.now();
-const start = new Date(now - hourMs).toISOString();
-const end = new Date(now + 7 * 24 * hourMs).toISOString();
-const cutoff = new Date(now + 6 * 24 * hourMs).toISOString();
+const start = new Date(now - hour).toISOString();
+const end = new Date(now + 7 * 24 * hour).toISOString();
+const cutoff = new Date(now + 6 * 24 * hour).toISOString();
 const phones = Array.from(
   { length: 4 },
   (_, index) => `+${"9".repeat(10)}${index + 1}`,
 );
-const inspectionEvidenceIds = [
-  "evidenceasset0001",
-  "evidenceasset0002",
-  "evidenceasset0003",
-];
 const base = [
   "--deployment=example",
   "--convex-url=https://example.convex.cloud",
-  "--programme-id=program123456",
   "--admin-uid=admin-uid",
   "--farmer-uid=farmer-uid",
   "--buyer-uid=buyer-uid",
@@ -34,7 +28,6 @@ const base = [
   `--buyer-phone=${phones[1]}`,
   `--transporter-phone=${phones[2]}`,
   `--operations-phone=${phones[3]}`,
-  `--inspection-evidence-ids=${inspectionEvidenceIds.join(",")}`,
   `--start=${start}`,
   `--end=${end}`,
   `--cutoff=${cutoff}`,
@@ -45,10 +38,8 @@ test("setup defaults to a dry run with four distinct actors", () => {
   assert.equal(options.mode, "dry-run");
   assert.equal(options.execute, false);
   assert.equal(options.actors.buyer.phoneNumber, phones[1]);
-  assert.deepEqual(
-    options.inspectionEvidenceUploadAssetIds,
-    inspectionEvidenceIds,
-  );
+  assert.equal("programmeId" in options, false);
+  assert.equal("inspectionEvidenceUploadAssetIds" in options, false);
   assert.deepEqual(
     previewActorDefinitions.map(({ role, name }) => ({ role, name })),
     [
@@ -85,6 +76,31 @@ test("dry run rejects a confirmation token", () => {
   );
 });
 
+test("setup rejects former programme and evidence inputs", () => {
+  assert.throws(
+    () =>
+      parsePreviewSetupOptions(
+        [...base, "--programme-id=old-programme"],
+        {},
+        now,
+      ),
+    /Unknown setup argument/,
+  );
+  assert.throws(
+    () =>
+      parsePreviewSetupOptions(
+        [...base, "--inspection-evidence-ids=asset1"],
+        {},
+        now,
+      ),
+    /Unknown setup argument/,
+  );
+  assert.throws(
+    () => parsePreviewSetupOptions([...base, "--profiles-only"], {}, now),
+    /Unknown setup argument/,
+  );
+});
+
 test("setup rejects duplicate UIDs and phone numbers", () => {
   assert.throws(
     () =>
@@ -112,50 +128,7 @@ test("setup rejects duplicate UIDs and phone numbers", () => {
   );
 });
 
-test("setup requires three distinct inspection evidence assets", () => {
-  const withoutEvidence = base.filter(
-    (item) => !item.startsWith("--inspection-evidence-ids="),
-  );
-  assert.throws(
-    () => parsePreviewSetupOptions(withoutEvidence, {}, now),
-    /Full setup requires exactly three distinct/,
-  );
-  const bootstrap = parsePreviewSetupOptions(
-    ["--profiles-only", ...withoutEvidence],
-    {},
-    now,
-  );
-  assert.equal(bootstrap.profilesOnly, true);
-  assert.deepEqual(bootstrap.inspectionEvidenceUploadAssetIds, []);
-  assert.throws(
-    () =>
-      parsePreviewSetupOptions(
-        base.map((item) =>
-          item.startsWith("--inspection-evidence-ids=")
-            ? "--inspection-evidence-ids=evidenceasset0001,evidenceasset0002"
-            : item,
-        ),
-        {},
-        now,
-      ),
-    /exactly three distinct/,
-  );
-  assert.throws(
-    () =>
-      parsePreviewSetupOptions(
-        base.map((item) =>
-          item.startsWith("--inspection-evidence-ids=")
-            ? "--inspection-evidence-ids=evidenceasset0001,evidenceasset0001,evidenceasset0003"
-            : item,
-        ),
-        {},
-        now,
-      ),
-    /exactly three distinct/,
-  );
-});
-
-test("setup requires E.164 phones and an explicit bounded active window", () => {
+test("setup requires E.164 phones and a bounded route window", () => {
   assert.throws(
     () =>
       parsePreviewSetupOptions(
@@ -172,7 +145,7 @@ test("setup requires E.164 phones and an explicit bounded active window", () => 
       parsePreviewSetupOptions(
         base.map((item) =>
           item.startsWith("--start=")
-            ? `--start=${new Date(now + hourMs).toISOString()}`
+            ? `--start=${new Date(now + hour).toISOString()}`
             : item,
         ),
         {},
@@ -185,7 +158,7 @@ test("setup requires E.164 phones and an explicit bounded active window", () => 
       parsePreviewSetupOptions(
         base.map((item) =>
           item.startsWith("--cutoff=")
-            ? `--cutoff=${new Date(now + 8 * 24 * hourMs).toISOString()}`
+            ? `--cutoff=${new Date(now + 8 * 24 * hour).toISOString()}`
             : item,
         ),
         {},
@@ -198,36 +171,22 @@ test("setup requires E.164 phones and an explicit bounded active window", () => 
       parsePreviewSetupOptions(
         base.map((item) =>
           item.startsWith("--cutoff=")
-            ? `--cutoff=${new Date(now + 2 * 24 * hourMs).toISOString()}`
+            ? `--cutoff=${new Date(now + 8 * hour).toISOString()}`
             : item,
         ),
         {},
         now,
       ),
-    /include every starter request and supply window/,
-  );
-  assert.throws(
-    () =>
-      parsePreviewSetupOptions(
-        base.map((item) =>
-          item.startsWith("--start=")
-            ? `--start=${new Date(now - 4 * 24 * hourMs).toISOString()}`
-            : item,
-        ),
-        {},
-        now,
-      ),
-    /before the first prepared collection window starts/,
+    /at least ten hours/,
   );
 });
 
-test("environment variables use the access and cleanup contracts", () => {
+test("environment variables no longer require prebuilt programme or evidence", () => {
   const options = parsePreviewSetupOptions(
     [],
     {
       PREVIEW_CLEANUP_DEPLOYMENT: "example",
       PREVIEW_SETUP_CONVEX_URL: "https://example.convex.cloud",
-      PREVIEW_CLEANUP_PROGRAMME_ID: "program123456",
       PREVIEW_SETUP_ADMIN_FIREBASE_UID: "admin-uid",
       PREVIEW_ACCESS_FARMER_FIREBASE_UID: "farmer-uid",
       PREVIEW_ACCESS_BUYER_FIREBASE_UID: "buyer-uid",
@@ -237,20 +196,13 @@ test("environment variables use the access and cleanup contracts", () => {
       PREVIEW_BUYER_PHONE_NUMBER: phones[1],
       PREVIEW_TRANSPORTER_PHONE_NUMBER: phones[2],
       PREVIEW_OPERATIONS_PHONE_NUMBER: phones[3],
-      PREVIEW_INSPECTION_EVIDENCE_UPLOAD_ASSET_IDS:
-        inspectionEvidenceIds.join(","),
       PREVIEW_CLEANUP_START_AT: start,
       PREVIEW_CLEANUP_END_AT: end,
       PREVIEW_ACCESS_CUTOFF_UTC: cutoff,
     },
     now,
   );
-  assert.equal(options.programmeId, "program123456");
   assert.equal(options.cutoffAt, Date.parse(cutoff));
-  assert.deepEqual(
-    options.inspectionEvidenceUploadAssetIds,
-    inspectionEvidenceIds,
-  );
 });
 
 test("setup rejects a Convex URL from a different cleanup deployment", () => {
@@ -258,9 +210,7 @@ test("setup rejects a Convex URL from a different cleanup deployment", () => {
     () =>
       parsePreviewSetupOptions(
         base.map((item) =>
-          item === "--deployment=example"
-            ? "--deployment=another-deployment"
-            : item,
+          item === "--deployment=example" ? "--deployment=another" : item,
         ),
         {},
         now,
@@ -269,7 +219,7 @@ test("setup rejects a Convex URL from a different cleanup deployment", () => {
   );
 });
 
-test("starter records use exact 50 kg bags in the hundreds", () => {
+test("starter records use three exact 50 kg bag routes", () => {
   const records = buildPreviewStarterRecords(now);
   assert.deepEqual(
     records.map((record) => record.bags),
@@ -282,14 +232,14 @@ test("starter records use exact 50 kg bags in the hundreds", () => {
   assert.ok(
     records.every((record) => record.grams === record.bags * 50 * 1_000),
   );
-  assert.equal(
-    new Set(records.map((record) => record.requestCreateKey)).size,
-    3,
-  );
-  assert.equal(new Set(records.map((record) => record.planReadyKey)).size, 3);
+  assert.equal(new Set(records.map((record) => record.previewSeedKey)).size, 3);
+  assert.deepEqual(records[0].sourceLotBags, [40, 30, 30]);
   assert.ok(
     records.every(
-      (record) => record.requestDeliveryStartAt >= now + 72 * hourMs,
+      (record) =>
+        record.sourceLotBags.reduce((sum, bags) => sum + bags, 0) ===
+          record.bags && record.sellerCoordinationFeePercent === 3,
     ),
   );
+  assert.ok(records.every((record) => record.collectionWindowStartAt > now));
 });

@@ -14,6 +14,7 @@ Required:
   --buyer-user-id=<convex-id>
   --transporter-user-id=<convex-id>
   --operations-user-id=<convex-id>
+  --background-farmer-user-ids=<convex-id>,<convex-id>
   --start=<ISO timestamp with UTC offset>
   --end=<ISO timestamp with UTC offset>
 

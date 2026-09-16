@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
@@ -22,9 +22,13 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
     principal?.role === "admin" && principal.status === "active"
       ? (principal.userId as Id<"users">)
       : undefined;
+  const previewAccess =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
   const warehouses = useQuery(
     api.warehouses.list,
-    actorUserId === undefined ? "skip" : { actorUserId, limit: 100 },
+    actorUserId === undefined || previewAccess
+      ? "skip"
+      : { actorUserId, limit: 100 },
   ) as { _id: Id<"warehouses">; name: string }[] | undefined;
   const effectiveAccess = useQuery(
     api.adminAccess.getEffectiveAccess,
@@ -35,15 +39,38 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
   const pilotProgrammes = useQuery(
     api.pilotProgrammes.listAvailable,
     actorUserId === undefined ? "skip" : { limit: 20 },
-  ) as { page: Array<{ demoContext: { programmeId: string; programmeName: string; dataMode: "live" | "sample_only"; datasetId?: string } }> } | undefined;
-  const sampleProgrammes = pilotProgrammes?.page
-    .map((programme) => programme.demoContext)
-    .filter((context) => context.dataMode === "sample_only") ?? [];
+  ) as
+    | {
+        page: Array<{
+          demoContext: {
+            programmeId: string;
+            programmeName: string;
+            dataMode: "live" | "sample_only";
+            datasetId?: string;
+          };
+        }>;
+      }
+    | undefined;
+  const sampleProgrammes =
+    pilotProgrammes?.page
+      .map((programme) => programme.demoContext)
+      .filter((context) => context.dataMode === "sample_only") ?? [];
   const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const previewPathAllowed =
+    pathname === "/pilot" ||
+    pathname.startsWith("/pilot/requests/") ||
+    pathname === "/buyers" ||
+    pathname.startsWith("/buyers/") ||
+    pathname.startsWith("/auth");
+
+  useEffect(() => {
+    if (previewAccess && !previewPathAllowed) router.replace("/pilot");
+  }, [previewAccess, previewPathAllowed, router]);
 
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;
   }
+  if (previewAccess && !previewPathAllowed) return null;
 
   return (
     <AdminShell
@@ -62,8 +89,11 @@ export function AdminShellClient({ children }: AdminShellClientProps) {
         router.replace("/auth");
       }}
       showStories={effectiveAccess?.permissions.includes("blog:read") === true}
+      hideWarehouseSurfaces={previewAccess}
     >
-      {demoPresentation ? <SampleDataBanner programmes={sampleProgrammes} /> : null}
+      {demoPresentation ? (
+        <SampleDataBanner programmes={sampleProgrammes} />
+      ) : null}
       {children}
     </AdminShell>
   );

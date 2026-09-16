@@ -12,6 +12,7 @@ const base = [
   "--buyer-user-id=buyer1234567",
   "--transporter-user-id=transport12345",
   "--operations-user-id=operations123",
+  "--background-farmer-user-ids=backgroundkofi1,backgroundabena2",
   "--start=2026-09-14T00:00:00Z",
   "--end=2026-09-18T00:00:00Z",
 ];
@@ -25,6 +26,7 @@ test("preview is the default and does not send a confirmation token", () => {
     buyerUserId: "buyer1234567",
     transporterUserId: "transport12345",
     operationsUserId: "operations123",
+    backgroundFarmerUserIds: ["backgroundkofi1", "backgroundabena2"],
     startAt: Date.parse("2026-09-14T00:00:00Z"),
     endAt: Date.parse("2026-09-18T00:00:00Z"),
     execute: false,
@@ -78,7 +80,7 @@ test("timestamps require explicit offsets and a bounded ordered window", () => {
   );
 });
 
-test("four distinct actor IDs are required", () => {
+test("all public and background actor IDs must be distinct", () => {
   assert.throws(
     () =>
       parsePreviewCleanupOptions(
@@ -89,7 +91,7 @@ test("four distinct actor IDs are required", () => {
         ),
         {},
       ),
-    /four distinct actor user IDs/,
+    /four public actors and two distinct background farmer user IDs/,
   );
 });
 
@@ -101,6 +103,7 @@ test("environment variables provide the same exact contract", () => {
     PREVIEW_BUYER_USER_ID: "buyer1234567",
     PREVIEW_TRANSPORTER_USER_ID: "transport12345",
     PREVIEW_OPERATIONS_USER_ID: "operations123",
+    PREVIEW_BACKGROUND_FARMER_USER_IDS: "backgroundkofi1,backgroundabena2",
     PREVIEW_CLEANUP_START_AT: "2026-09-14T00:00:00+00:00",
     PREVIEW_CLEANUP_END_AT: "2026-09-18T00:00:00+00:00",
   });

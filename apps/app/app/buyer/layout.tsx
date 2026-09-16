@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import { ClipboardList, PackageSearch, Sprout, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { PreviewProfileImage } from "../preview/PreviewProfileImage";
 
 const ProfilePwaTools = dynamic(
   () =>
@@ -107,6 +108,8 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
     );
   }
   const activePrincipal = principal;
+  const showPreviewPortrait =
+    previewAccessEnabled && activePrincipal?.name === "Adwoa Owusu";
 
   const isActive = (path: string) => {
     if (path === "/buyer") {
@@ -178,7 +181,16 @@ export default function BuyerLayout({ children }: BuyerLayoutProps) {
             className="buyer-navbar-profile-button"
             aria-label="My Profile"
           >
-            <User size={20} />
+            {showPreviewPortrait ? (
+              <PreviewProfileImage
+                asset="buyer"
+                alt="Adwoa Owusu"
+                className="preview-navbar-portrait"
+                eager
+              />
+            ) : (
+              <User size={20} />
+            )}
           </Link>
         </div>
       </header>

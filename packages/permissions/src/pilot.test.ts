@@ -8,6 +8,10 @@ import {
   pilotSettlementReservationCoversOffer,
   pilotAssignmentAllows,
   canTransitionPilotRequest,
+  isActivePreviewCoordination,
+  isActivePreviewProgramme,
+  pilotCollectionStopForBuyer,
+  pilotFinancialPartyForAudience,
 } from "./pilot.ts";
 
 const activeAssignment = {
@@ -155,6 +159,97 @@ test("both commercial modes require complete settlement capacity before acceptan
     }),
     false,
   );
+});
+
+test("only an active, unexpired live preview programme enables the temporary path", () => {
+  const programme = {
+    status: "active" as const,
+    datasetProvenance: "live" as const,
+    previewCoordinationUntil: 2_000,
+  };
+  assert.equal(isActivePreviewProgramme(programme, 1_999), true);
+  assert.equal(isActivePreviewProgramme(programme, 2_000), false);
+  assert.equal(
+    isActivePreviewProgramme({ ...programme, status: "suspended" }, 1_000),
+    false,
+  );
+  assert.equal(
+    isActivePreviewProgramme(
+      { ...programme, datasetProvenance: "sample_only" },
+      1_000,
+    ),
+    false,
+  );
+});
+
+test("finance relief is limited to server-marked preview coordination requests", () => {
+  const input = {
+    programme: {
+      status: "active" as const,
+      datasetProvenance: "live" as const,
+      previewCoordinationUntil: 2_000,
+    },
+    request: {
+      commercialMode: "coordination" as const,
+      previewSeedKey: "preview-route-1",
+    },
+    now: 1_000,
+  };
+  assert.equal(isActivePreviewCoordination(input), true);
+  assert.equal(
+    isActivePreviewCoordination({
+      ...input,
+      request: { commercialMode: "coordination" },
+    }),
+    false,
+  );
+  assert.equal(
+    isActivePreviewCoordination({
+      ...input,
+      request: { ...input.request, commercialMode: "kuapa_purchase" },
+    }),
+    false,
+  );
+  assert.equal(isActivePreviewCoordination({ ...input, now: 2_000 }), false);
+});
+
+test("buyer collection projections contain no source farmer details", () => {
+  const projected = pilotCollectionStopForBuyer(2);
+  const serialized = JSON.stringify(projected);
+  assert.deepEqual(projected, {
+    location: { label: "Verified collection point 2" },
+    currentLocation: { label: "Verified collection point 2" },
+  });
+  for (const privateValue of [
+    "Kofi Antwi",
+    "+233240000000",
+    "farmer-profile-id",
+    "Kofi Antwi farm gate",
+  ])
+    assert.equal(serialized.includes(privateValue), false);
+});
+
+test("participant finance projections hide counterparty identities", () => {
+  const farmer = {
+    kind: "farmer" as const,
+    id: "farmer-profile-id",
+    displayNameSnapshot: "Kofi Antwi",
+  };
+  const buyer = {
+    kind: "buyer" as const,
+    id: "buyer-profile-id",
+    displayNameSnapshot: "Adwoa Owusu",
+  };
+
+  assert.deepEqual(pilotFinancialPartyForAudience(farmer, "buyer"), {
+    kind: "farmer",
+    displayNameSnapshot: "Farmer",
+  });
+  assert.deepEqual(pilotFinancialPartyForAudience(buyer, "farmer"), {
+    kind: "buyer",
+    displayNameSnapshot: "Buyer",
+  });
+  assert.equal(pilotFinancialPartyForAudience(farmer, "admin"), farmer);
 });
 
 test("buyer, farmer, and driver reads remain owner or assignment scoped", () => {

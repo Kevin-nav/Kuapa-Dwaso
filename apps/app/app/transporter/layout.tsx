@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Home, IdCard, Route, Truck, User } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { AppConnectivity, WorkspaceSwitcher } from "../pwa/AppPwaTools";
+import { PreviewProfileImage } from "../preview/PreviewProfileImage";
 
 const ProfilePwaTools = dynamic(
   () =>
@@ -97,6 +98,8 @@ export default function TransporterLayout({
     );
   }
   const activePrincipal = principal!;
+  const showPreviewPortrait =
+    previewAccessEnabled && activePrincipal.name === "Kwame Asare";
 
   const isActive = (path: string) => {
     if (path === "/transporter") {
@@ -168,7 +171,16 @@ export default function TransporterLayout({
             className="transporter-navbar-profile-button"
             aria-label="My Profile"
           >
-            <User size={20} />
+            {showPreviewPortrait ? (
+              <PreviewProfileImage
+                asset="transporter"
+                alt="Kwame Asare"
+                className="preview-navbar-portrait"
+                eager
+              />
+            ) : (
+              <User size={20} />
+            )}
           </Link>
         </div>
       </header>

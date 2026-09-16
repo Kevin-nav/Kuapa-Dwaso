@@ -1,5 +1,6 @@
 import type { MarketplaceRole } from "@kuapa-dwaso/types";
 import type { PilotCapability } from "@kuapa-dwaso/types/pilot";
+import type { PilotPartyRef } from "@kuapa-dwaso/types/pilot";
 import type { PilotRequestStatus } from "@kuapa-dwaso/types/pilot";
 import type { PilotOfferStatus } from "@kuapa-dwaso/types/pilot";
 
@@ -10,6 +11,72 @@ export type PilotAssignmentGrant = {
   status: "active" | "revoked" | "expired";
   expiresAt?: number;
 };
+
+type PreviewProgrammeInput = {
+  status: "draft" | "active" | "suspended" | "closed";
+  datasetProvenance: "live" | "sample_only";
+  previewCoordinationUntil?: number;
+};
+
+/**
+ * The temporary public preview is deliberately narrow and expires in data.
+ * Environment flags never grant backend access or relax financial rules.
+ */
+export function isActivePreviewProgramme(
+  programme: PreviewProgrammeInput,
+  now: number,
+): boolean {
+  return (
+    programme.status === "active" &&
+    programme.datasetProvenance === "live" &&
+    programme.previewCoordinationUntil !== undefined &&
+    programme.previewCoordinationUntil > now
+  );
+}
+
+export function isActivePreviewCoordination(input: {
+  programme: PreviewProgrammeInput;
+  request: {
+    commercialMode: "coordination" | "kuapa_purchase";
+    previewSeedKey?: string;
+  };
+  now: number;
+}): boolean {
+  return (
+    isActivePreviewProgramme(input.programme, input.now) &&
+    input.request.commercialMode === "coordination" &&
+    input.request.previewSeedKey !== undefined &&
+    input.request.previewSeedKey.trim().length > 0
+  );
+}
+
+export function pilotCollectionStopForBuyer(sequence: number): {
+  location: { label: string };
+  currentLocation: { label: string };
+} {
+  const location = { label: `Verified collection point ${sequence}` };
+  return {
+    location,
+    currentLocation: location,
+  };
+}
+
+/**
+ * Keep trading counterparties anonymous on participant-facing finance reads.
+ * Admin finance retains the stored identity references for reconciliation.
+ */
+export function pilotFinancialPartyForAudience(
+  party: PilotPartyRef,
+  audience: MarketplaceRole,
+): PilotPartyRef {
+  if (audience === "buyer" && party.kind === "farmer") {
+    return { kind: "farmer", displayNameSnapshot: "Farmer" };
+  }
+  if (audience === "farmer" && party.kind === "buyer") {
+    return { kind: "buyer", displayNameSnapshot: "Buyer" };
+  }
+  return party;
+}
 
 export function pilotAssignmentAllows(
   assignment: PilotAssignmentGrant,

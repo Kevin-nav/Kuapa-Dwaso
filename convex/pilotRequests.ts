@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import {
   canTransitionPilotRequest,
   getPilotConfirmationBlockers,
+  isActivePreviewCoordination,
+  isActivePreviewProgramme,
 } from "@kuapa-dwaso/permissions/pilot";
 import {
   assertExpectedVersion,
@@ -536,6 +538,12 @@ export const createDraft = mutation({
       },
       paymentExpectation: args.paymentExpectation,
       commercialMode: args.commercialMode,
+      ...(args.commercialMode === "coordination" &&
+      isActivePreviewProgramme(programme, now)
+        ? {
+            previewSeedKey: `interactive:${principal._id}:${args.idempotencyKey}`,
+          }
+        : {}),
       status: "draft",
       cancellationState: "none",
       version: 0,
@@ -1442,6 +1450,11 @@ export const getOperationsReadiness = query({
           .collect(),
       ]);
     assertAllowed(programme !== null, "Pilot programme was not found.");
+    const previewCoordination = isActivePreviewCoordination({
+      programme,
+      request,
+      now: Date.now(),
+    });
     const committedGrams = allocations
       .filter((allocation) =>
         ["committed", "quality_cleared"].includes(allocation.status),
@@ -1505,9 +1518,10 @@ export const getOperationsReadiness = query({
         ),
       },
       settlementFunding: {
-        required: true,
-        status:
-          activeReservations.length > 0
+        required: !previewCoordination,
+        status: previewCoordination
+          ? ("not_required" as const)
+          : activeReservations.length > 0
             ? ("reserved" as const)
             : ("missing" as const),
         reservedPesewas: activeReservations.reduce(

@@ -71,6 +71,8 @@ export default function PilotAdminPage() {
     actorUserId === undefined ? "skip" : { limit: 50 },
   ) as { page: Programme[] } | undefined;
   const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const previewAccess =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
   const visibleProgrammes = useMemo(
     () =>
       (programmes?.page ?? []).filter((programme) =>
@@ -148,7 +150,7 @@ export default function PilotAdminPage() {
   ) as FinanceSummary | undefined;
   const queue = useQuery(
     api.pilotFinance.listPurchaseApprovalQueue,
-    selected === undefined || !canReadFinance
+    selected === undefined || !canReadFinance || previewAccess
       ? "skip"
       : { programmeId: selected.id },
   ) as ApprovalRow[] | undefined;
@@ -199,7 +201,11 @@ export default function PilotAdminPage() {
         <div>
           <span className="pilot-admin__eyebrow">Maize control room</span>
           <h1>Act on the next operational risk.</h1>
-          <p>Track supply, collections, funding and payments.</p>
+          <p>
+            {previewAccess
+              ? "Track maize requests, matched supply and collections."
+              : "Track supply, collections, funding and payments."}
+          </p>
         </div>
         <div className="pilot-admin__selector">
           <label htmlFor="programme">Programme</label>
@@ -218,10 +224,17 @@ export default function PilotAdminPage() {
       </header>
 
       {selected === undefined ? (
-        <CreateProgramme
-          canManage={canManageProgrammes}
-          demoPresentation={demoPresentation}
-        />
+        previewAccess ? (
+          <StateCard
+            title="Maize connection programme unavailable"
+            detail="Run the temporary preview setup before opening this page."
+          />
+        ) : (
+          <CreateProgramme
+            canManage={canManageProgrammes}
+            demoPresentation={demoPresentation}
+          />
+        )
       ) : (
         <>
           {demoPresentation ? (
@@ -249,12 +262,40 @@ export default function PilotAdminPage() {
               detail="Past delivery window"
               danger={atRiskCollections.length > 0}
             />
-            <Metric
-              label="Unpaid obligations"
-              value={money(outstanding)}
-              detail="Actual outstanding ledger"
-              danger={outstanding > 0}
-            />
+            {previewAccess ? (
+              <>
+                <Metric
+                  label="Maize value"
+                  value={money(finance?.actuals.buyerProducePesewas ?? 0)}
+                  detail="Buyer-to-farmer value"
+                />
+                <Metric
+                  label="Farmer net payable"
+                  value={money(finance?.actuals.farmerPayablesPesewas ?? 0)}
+                  detail="After coordination fee"
+                />
+                <Metric
+                  label="Coordination fee"
+                  value={money(
+                    finance?.actuals.coordinationRevenuePesewas ?? 0,
+                  )}
+                  detail="Kuapa Dwaso revenue"
+                />
+                <Metric
+                  label="Buyer outstanding"
+                  value={money(outstanding)}
+                  detail="Produce and service charges"
+                  danger={outstanding > 0}
+                />
+              </>
+            ) : (
+              <Metric
+                label="Unpaid obligations"
+                value={money(outstanding)}
+                detail="Actual outstanding ledger"
+                danger={outstanding > 0}
+              />
+            )}
           </section>
 
           <div className="pilot-admin__grid">
@@ -284,7 +325,9 @@ export default function PilotAdminPage() {
                         {request.status.replaceAll("_", " ")}
                       </span>
                     </div>
-                    <span>Statement →</span>
+                    <span>
+                      {previewAccess ? "Coordination summary" : "Statement"} →
+                    </span>
                   </Link>
                 ))}
                 {requestRows.length === 0 ? (
@@ -313,29 +356,37 @@ export default function PilotAdminPage() {
               ) : null}
             </section>
 
-            <ProgrammeConfiguration
-              programme={selected}
-              canManage={canManageProgrammes}
-            />
-            <AssignmentManager
-              programme={selected}
-              assignments={assignments?.page ?? []}
-              candidates={candidates ?? []}
-              canManage={canManageAssignments}
-            />
-            <FinancePanel
-              programme={selected}
-              summary={finance}
-              queue={queue ?? []}
-              canRead={canReadFinance}
-              canManage={canManageFinance}
-            />
+            {!previewAccess ? (
+              <ProgrammeConfiguration
+                programme={selected}
+                canManage={canManageProgrammes}
+              />
+            ) : null}
+            {!previewAccess ? (
+              <AssignmentManager
+                programme={selected}
+                assignments={assignments?.page ?? []}
+                candidates={candidates ?? []}
+                canManage={canManageAssignments}
+              />
+            ) : null}
+            {!previewAccess ? (
+              <FinancePanel
+                programme={selected}
+                summary={finance}
+                queue={queue ?? []}
+                canRead={canReadFinance}
+                canManage={canManageFinance}
+              />
+            ) : null}
           </div>
-          <CreateProgramme
-            canManage={canManageProgrammes}
-            compact
-            demoPresentation={demoPresentation}
-          />
+          {!previewAccess ? (
+            <CreateProgramme
+              canManage={canManageProgrammes}
+              compact
+              demoPresentation={demoPresentation}
+            />
+          ) : null}
         </>
       )}
     </main>
