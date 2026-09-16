@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { insertNotificationRecord } from "./notifications";
+import { assertAuthenticatedActor, requirePilotPrincipal } from "./pilotAccess";
 import {
   adminScopeTarget,
   assertAllowed,
@@ -27,6 +28,7 @@ const invitationType = v.union(
   v.literal("warehouse_manager_invite"),
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite"),
+  v.literal("pilot_operations_invite"),
 );
 const invitationChannel = v.union(v.literal("email"), v.literal("manual_link"));
 const invitationStatus = v.union(
@@ -52,6 +54,7 @@ const adminScopeType = v.union(
   v.literal("district"),
   v.literal("warehouse"),
   v.literal("destination_market"),
+  v.literal("pilot_programme"),
 );
 const mfaRequirement = v.union(
   v.literal("not_required"),
@@ -109,8 +112,8 @@ function mfaMethodsSatisfyRequirement(
   return true;
 }
 
-function intendedRoleForType(type: "admin_invite" | "warehouse_manager_invite" | "warehouse_agent_invite" | "transporter_invite") {
-  if (type === "warehouse_agent_invite") {
+function intendedRoleForType(type: "admin_invite" | "warehouse_manager_invite" | "warehouse_agent_invite" | "transporter_invite" | "pilot_operations_invite") {
+  if (type === "warehouse_agent_invite" || type === "pilot_operations_invite") {
     return "warehouse_agent" as const;
   }
   if (type === "transporter_invite") {
@@ -119,8 +122,8 @@ function intendedRoleForType(type: "admin_invite" | "warehouse_manager_invite" |
   return "admin" as const;
 }
 
-function intendedProfileTypeForType(type: "admin_invite" | "warehouse_manager_invite" | "warehouse_agent_invite" | "transporter_invite") {
-  if (type === "warehouse_agent_invite") {
+function intendedProfileTypeForType(type: "admin_invite" | "warehouse_manager_invite" | "warehouse_agent_invite" | "transporter_invite" | "pilot_operations_invite") {
+  if (type === "warehouse_agent_invite" || type === "pilot_operations_invite") {
     return "warehouse_agent" as const;
   }
   if (type === "transporter_invite") {
@@ -235,6 +238,7 @@ export const create = mutation({
     targetEmail: v.optional(v.string()),
     targetPhoneNumber: v.optional(v.string()),
     linkedProfileId: v.optional(v.string()),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     pendingAdminRoleAssignment: v.optional(pendingAdminRoleAssignment),
     expiresAt: v.number(),
     mfaRequirement: v.optional(mfaRequirement),
@@ -242,7 +246,8 @@ export const create = mutation({
   },
   returns: v.id("platformInvitations"),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
+    const actor = await requirePilotPrincipal(ctx);
+    assertAuthenticatedActor(actor, args.actorUserId);
     assertAllowed(actor.role === "admin", "Only admins can create platform invitations.");
     assertAllowed(args.expiresAt > Date.now(), "Invitation expiry must be in the future.");
     assertAllowed(args.tokenHash.length >= 32, "Invitation token hash is required.");
@@ -252,7 +257,7 @@ export const create = mutation({
     const targetPhoneNumber =
       args.targetPhoneNumber === undefined ? undefined : normalizePhoneNumber(args.targetPhoneNumber);
     assertInvitationDeliveryAllowed(args.type, args.channel);
-    const phonePrimary = args.type === "warehouse_agent_invite" || args.type === "transporter_invite";
+    const phonePrimary = args.type === "warehouse_agent_invite" || args.type === "pilot_operations_invite" || args.type === "transporter_invite";
     assertAllowed(args.channel !== "email" || targetEmail !== undefined, "Email invitation requires a target email address.");
     assertAllowed(!phonePrimary || targetPhoneNumber !== undefined, "Warehouse-agent and transporter invitations require the phone number that will be verified at acceptance.");
     assertAllowed(args.channel !== "manual_link" || targetPhoneNumber !== undefined, "Manual-link invitations require a target phone number.");
@@ -274,6 +279,13 @@ export const create = mutation({
         "Privileged invitations require MFA.",
       );
     }
+    if (args.type === "pilot_operations_invite") {
+      assertAllowed(args.pilotProgrammeId !== undefined, "Pilot operations invitations require a programme.");
+      assertAllowed(await ctx.db.get(args.pilotProgrammeId) !== null, "Pilot programme was not found.");
+      assertAllowed(args.linkedProfileId !== undefined, "Pilot operations invitations require an existing approved operations profile.");
+      const linkedAgent = await ctx.db.get(args.linkedProfileId as Id<"warehouseAgents">);
+      assertAllowed(linkedAgent !== null && linkedAgent.status === "approved", "Pilot operations invitations require an approved operations profile.");
+    }
 
     await requireAdminPermission(ctx, args.actorUserId, "invitations:manage", adminScopeTarget({
       warehouseId:
@@ -292,6 +304,7 @@ export const create = mutation({
         args.pendingAdminRoleAssignment?.scopeType === "destination_market"
           ? args.pendingAdminRoleAssignment.scopeValue ?? args.pendingAdminRoleAssignment.scopeId
           : undefined,
+      pilotProgrammeId: args.type === "pilot_operations_invite" ? args.pilotProgrammeId : undefined,
     }));
 
     const now = Date.now();
@@ -309,10 +322,11 @@ export const create = mutation({
       intendedRole: intendedRoleForType(args.type),
       intendedProfileType: intendedProfileTypeForType(args.type),
       linkedProfileId: cleanOptionalText(args.linkedProfileId),
+      pilotProgrammeId: args.pilotProgrammeId,
       pendingAdminRoleAssignment: pendingAssignment,
       mfaRequirement:
         args.mfaRequirement ??
-        (args.type === "warehouse_agent_invite" || args.type === "transporter_invite"
+        (args.type === "warehouse_agent_invite" || args.type === "pilot_operations_invite" || args.type === "transporter_invite"
           ? "not_required"
           : "totp_required"),
       invitedByUserId: args.actorUserId,
@@ -361,6 +375,22 @@ export const accept = mutation({
     mfaRequired: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    const authenticatedIdentity = await ctx.auth.getUserIdentity();
+    assertAllowed(authenticatedIdentity !== null, "Authentication is required to accept an invitation.");
+    assertAllowed(authenticatedIdentity.subject === args.identity.authProviderId, "Invite identity does not match the authenticated identity.");
+    if (args.identity.email !== undefined) {
+      assertAllowed(authenticatedIdentity.email !== undefined && normalizeEmailAddress(authenticatedIdentity.email) === normalizeEmailAddress(args.identity.email), "Invite email does not match the authenticated identity.");
+    }
+    if (args.identity.phoneNumber !== undefined) {
+      assertAllowed(authenticatedIdentity.phoneNumber !== undefined && phoneNumbersMatch(authenticatedIdentity.phoneNumber, args.identity.phoneNumber), "Invite phone does not match the authenticated identity.");
+    }
+    assertAllowed(args.identity.emailVerified !== true || authenticatedIdentity.emailVerified === true, "Verified email claim is missing from the authenticated identity.");
+    assertAllowed(args.identity.phoneVerified !== true || authenticatedIdentity.phoneNumber !== undefined, "Verified phone claim is missing from the authenticated identity.");
+    const firebaseClaims = authenticatedIdentity.firebase;
+    const firebaseSecondFactor = typeof firebaseClaims === "object" && firebaseClaims !== null && !Array.isArray(firebaseClaims)
+      ? (firebaseClaims as { sign_in_second_factor?: unknown }).sign_in_second_factor
+      : undefined;
+    assertAllowed(args.identity.mfaSatisfied !== true || typeof firebaseSecondFactor === "string", "MFA evidence is missing from the authenticated identity.");
     const invitation = await ctx.db
       .query("platformInvitations")
       .withIndex("by_token_hash", (q) => q.eq("tokenHash", args.tokenHash))
@@ -370,6 +400,16 @@ export const accept = mutation({
       status: invitation.status,
       expiresAt: invitation.expiresAt,
     });
+
+    if (invitation.type === "pilot_operations_invite") {
+      assertAllowed(invitation.pilotProgrammeId !== undefined && await ctx.db.get(invitation.pilotProgrammeId) !== null, "Pilot programme was not found.");
+      assertAllowed(invitation.linkedProfileId !== undefined, "Pilot operations profile was not linked.");
+      const linkedAgent = await ctx.db.get(invitation.linkedProfileId as Id<"warehouseAgents">);
+      assertAllowed(linkedAgent !== null && linkedAgent.status === "approved", "Linked operations profile must be approved.");
+      const existingIdentity = await ctx.db.query("users").withIndex("by_auth_provider_id", (q) => q.eq("authProviderId", args.identity.authProviderId)).unique();
+      assertAllowed(existingIdentity === null || existingIdentity.role === "warehouse_agent", "This identity already belongs to another platform role.");
+      assertAllowed(linkedAgent.userId === undefined || existingIdentity === null || linkedAgent.userId === existingIdentity._id, "This operations profile is already linked to another identity.");
+    }
 
     if (invitation.type === "admin_invite" || invitation.type === "warehouse_manager_invite") {
       assertInviteTargetMatchesIdentity(omitUndefinedValues({
@@ -389,7 +429,7 @@ export const accept = mutation({
     // even when the invite was delivered via email. Skip email verification when a verified
     // phone identity is present for these types.
     const isPhonePrimaryInvite =
-      invitation.type === "warehouse_agent_invite" || invitation.type === "transporter_invite";
+      invitation.type === "warehouse_agent_invite" || invitation.type === "pilot_operations_invite" || invitation.type === "transporter_invite";
     if (isPhonePrimaryInvite) {
       assertInviteTargetMatchesIdentity(omitUndefinedValues({
         targetPhoneNumber: invitation.targetPhoneNumber,
@@ -423,10 +463,11 @@ export const accept = mutation({
     const now = Date.now();
 
     let profileId = invitation.linkedProfileId;
-    if (invitation.type === "warehouse_agent_invite" && invitation.linkedProfileId !== undefined) {
+    if ((invitation.type === "warehouse_agent_invite" || invitation.type === "pilot_operations_invite") && invitation.linkedProfileId !== undefined) {
       const warehouseAgentId = invitation.linkedProfileId as Id<"warehouseAgents">;
       const warehouseAgent = await ctx.db.get(warehouseAgentId);
       assertAllowed(warehouseAgent !== null, "Linked warehouse agent profile was not found.");
+      assertAllowed(invitation.type !== "pilot_operations_invite" || warehouseAgent.status === "approved", "Linked operations profile must be approved.");
       assertAllowed(
         phoneNumbersMatch(warehouseAgent.phoneNumber, args.identity.phoneNumber ?? ""),
         "Warehouse agent invite phone does not match the linked profile.",
@@ -566,10 +607,18 @@ export const revoke = mutation({
   },
   returns: v.id("platformInvitations"),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const invitation = await ctx.db.get(args.invitationId);
     assertAllowed(invitation !== null, "Invitation was not found.");
-    await requireAdminPermission(ctx, args.actorUserId, "invitations:manage", {});
+    const actor = await requirePilotPrincipal(ctx);
+    assertAuthenticatedActor(actor, args.actorUserId);
+    await requireAdminPermission(
+      ctx,
+      args.actorUserId,
+      "invitations:manage",
+      invitation.pilotProgrammeId === undefined
+        ? {}
+        : adminScopeTarget({ pilotProgrammeId: invitation.pilotProgrammeId }),
+    );
     assertAllowed(invitation.status === "pending", "Only pending invitations can be revoked.");
     const now = Date.now();
     await ctx.db.patch(args.invitationId, {
@@ -623,6 +672,8 @@ export const list = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    assertAuthenticatedActor(principal, args.actorUserId);
     await requireAdminPermission(ctx, args.actorUserId, "invitations:read", {});
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =

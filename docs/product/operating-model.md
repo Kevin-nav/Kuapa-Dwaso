@@ -2,9 +2,16 @@
 
 ## Detailed Business Direction and Phased Operating Plan
 
-**Status:** Current business source of truth
+**Status:** Current business model for the first maize transactions
 
-**Last updated:** 10 August 2026
+This document governs the commercial meaning of the implementation backlog,
+[ADR-0005](../decisions/ADR-0005-demand-led-maize-pilot-boundary.md), and the
+[maize contracts](../technical/maize-pilot-contracts.md). Persisted
+`commercialMode` values remain `coordination` and `kuapa_purchase` for backward
+compatibility. In product language, `coordination` means guaranteed
+coordination.
+
+**Last updated:** 14 September 2026
 
 **Project:** Kuapa Dwaso
 **Meaning:** “Farmer’s Market” in Akan
@@ -30,11 +37,16 @@ Where an older product document describes Kuapa Dwaso as beginning with an owned
 
 ## 2. Executive Summary
 
-Kuapa Dwaso is a demand-led agricultural market-linkage, aggregation and fulfilment service.
+Kuapa Dwaso is a demand-led maize supplier and fulfilment service for business buyers. Farmers supply Kuapa Dwaso under clear offers, and buyers place requirements with Kuapa Dwaso. Kuapa Dwaso manages the relationship between the two sides.
 
-The business connects farmers who need dependable access to markets with buyers who need dependable access to agricultural produce. Kuapa Dwaso verifies requirements and supply, communicates transaction terms, coordinates quality control, aggregates commercially viable quantities, arranges logistics and records the transaction through to farmer settlement.
+Kuapa Dwaso verifies demand and supply, communicates separate terms to each party, coordinates quality control, assembles commercially viable quantities, arranges logistics and records each transaction through farmer settlement.
 
-Kuapa Dwaso does **not** generally buy produce from farmers and resell it as its own stock. The farmer remains the owner until a sale is accepted under the agreed transaction terms. Ownership then passes directly from the farmer to the buyer. Kuapa Dwaso acts as the trusted coordinator between them.
+Each farmer lot uses one commercial mode before the farmer accepts the offer:
+
+- **Guaranteed coordination:** the farmer remains the legal seller until title passes to the buyer under the accepted terms. Kuapa Dwaso manages the buyer relationship and guarantees the farmer's agreed net payment.
+- **Kuapa purchase:** Kuapa Dwaso buys the accepted quantity, takes title and inventory risk, then resells it.
+
+In both modes, Kuapa Dwaso owes the farmer the agreed net amount on the agreed date even when the buyer pays late. The business reserves enough settlement capacity before the farmer accepts an offer.
 
 The initial business will be asset-light and partnership-led:
 
@@ -44,9 +56,9 @@ The initial business will be asset-light and partnership-led:
 - orders are aggregated to commercially viable quantities;
 - transport is coordinated using logistics partners;
 - existing facilities are used only when temporary storage is necessary; and
-- Kuapa Dwaso earns an initial commission of 10% on completed produce sales.
+- Kuapa Dwaso earns a disclosed coordination fee or a purchase and resale margin, according to the lot's commercial mode.
 
-Transportation and storage are not included automatically in the 10% commission. They are negotiated separately for each transaction and disclosed before the farmer accepts the sale.
+Transportation and storage charges are assigned and disclosed before the farmer accepts the offer.
 
 Kuapa Dwaso does not plan to operate its own warehouse initially. Owned warehouse infrastructure is a longer-term ambition, currently projected at approximately three years, and will proceed only where actual demand, transaction volume, storage utilisation and financial performance justify it.
 
@@ -104,8 +116,8 @@ Kuapa Dwaso helps farmers:
 
 - reach dependable buyers;
 - understand demand before moving produce;
-- retain ownership until they knowingly accept a sale;
-- see the price, commission, payment period and applicable charges in advance;
+- know whether Kuapa Dwaso is guaranteeing a coordinated sale or buying the accepted maize;
+- see the quantity, price, deductions, net amount and Kuapa Dwaso payment date in advance;
 - avoid being forced into an unknown credit arrangement after reaching the market;
 - combine their quantities with other farmers where aggregation is required;
 - access coordinated transportation; and
@@ -118,11 +130,11 @@ Farmer empowerment means giving farmers better information, stronger choices and
 Kuapa Dwaso helps buyers:
 
 - communicate exact produce requirements;
-- reach verified farmers and supply networks;
+- place one requirement with Kuapa Dwaso instead of coordinating individual farmers;
 - obtain commercially viable aggregated quantities;
 - receive produce checked against agreed specifications;
 - coordinate collection and delivery; and
-- build repeatable supply relationships.
+- receive one accountable Kuapa Dwaso fulfilment relationship.
 
 ### To the wider supply network
 
@@ -134,8 +146,8 @@ Kuapa Dwaso provides a structured way for farmers, buyers, transporters, agricul
 
 ### Kuapa Dwaso is
 
-- a farmer-to-buyer market-linkage service;
-- a demand and supply coordinator;
+- a managed maize procurement and fulfilment service;
+- a guaranteed coordinator or produce buyer, according to the accepted lot terms;
 - an agricultural aggregation and fulfilment coordinator;
 - a quality-verification and transaction-evidence layer;
 - a logistics coordinator; and
@@ -143,8 +155,8 @@ Kuapa Dwaso provides a structured way for farmers, buyers, transporters, agricul
 
 ### Kuapa Dwaso is not initially
 
-- a speculative produce trader;
-- the owner of farmers’ produce;
+- an open directory of farmers for buyers to contact;
+- a speculative buyer without identified demand or a documented disposition plan;
 - a business that collects produce before identifying demand;
 - an owner or operator of warehouses;
 - a lender to farmers or buyers;
@@ -169,7 +181,7 @@ The farmer:
 - decides whether to accept the proposed sale; and
 - supplies the quantity and quality accepted.
 
-The farmer owns the produce until ownership passes directly to the buyer under the accepted transaction terms.
+The offer states when ownership transfers. Under guaranteed coordination, the farmer owns the produce until the agreed transfer to the buyer. Under Kuapa purchase, Kuapa Dwaso takes title only at the documented purchase acceptance event.
 
 ### 6.2 Buyer
 
@@ -185,6 +197,8 @@ The buyer:
 - accepts or rejects produce only according to the pre-agreed criteria; and
 - releases payment according to the accepted terms.
 
+The buyer's commercial counterparty and support contact is Kuapa Dwaso. Ordinary buyer views and documents use Kuapa Dwaso lot references and do not expose farmer identities, phone numbers, individual farmer prices or direct negotiation details. Internal operations retain farmer-to-lot traceability.
+
 ### 6.3 Kuapa Dwaso
 
 Kuapa Dwaso:
@@ -192,6 +206,7 @@ Kuapa Dwaso:
 - verifies the buyer and captures the order requirements;
 - identifies farmers capable of fulfilling the order;
 - communicates the complete commercial terms to each farmer;
+- reserves settlement capacity before sending a farmer offer;
 - obtains farmer acceptance before confirming supply;
 - performs or coordinates quality checks before produce moves;
 - records photographs, quantities, weights and other required evidence;
@@ -200,9 +215,9 @@ Kuapa Dwaso:
 - manages delivery and acceptance records;
 - follows up on buyer payment;
 - records the commission and other agreed charges; and
-- coordinates settlement to the farmers.
+- owes and pays each farmer's accepted net amount on the agreed date, independent of buyer payment timing.
 
-Kuapa Dwaso may hold physical custody temporarily during collection, aggregation, transit coordination or partner storage without becoming the owner of the produce.
+Kuapa Dwaso may hold physical custody during collection, aggregation, transit or partner storage. Custody does not transfer title. Title changes only at the event stated by the lot's commercial mode and accepted terms.
 
 ### 6.4 Transport and logistics providers
 
@@ -249,7 +264,7 @@ Kuapa Dwaso obtains the buyer’s:
 - payment period; and
 - rejection conditions.
 
-The buyer must demonstrate meaningful commitment before Kuapa Dwaso begins costly aggregation. During the pilot, Kuapa Dwaso should avoid financing buyer orders with its own funds.
+The buyer must demonstrate meaningful commitment before Kuapa Dwaso begins costly aggregation. Finance approves the buyer exposure and reserves the farmer settlement capacity before any farmer offer can become binding.
 
 ### Step 2: Assess buyer reliability
 
@@ -284,17 +299,17 @@ The business will build a verified farmer network over time rather than source r
 
 Before the farmer agrees, Kuapa Dwaso communicates:
 
-- the buyer’s price;
-- the quantity requested;
+- the commercial mode for this lot;
+- the quantity Kuapa Dwaso proposes to accept;
 - the quality specification;
-- the 10% Kuapa Dwaso commission;
+- the price and every deduction;
 - separately negotiated transport or storage charges, if applicable;
 - who is responsible for each charge;
-- the expected collection and delivery dates;
-- the buyer’s payment period; and
-- the farmer’s expected net settlement.
+- the expected collection date;
+- the farmer's net amount; and
+- the date Kuapa Dwaso will pay the farmer.
 
-The farmer can accept or reject the terms. Kuapa Dwaso does not move the produce until the farmer has accepted them.
+The farmer can accept or reject the terms. The farmer cannot accept until the full expected payment has reserved backing, and Kuapa Dwaso does not move the produce until the farmer accepts.
 
 ### Step 5: Confirm supply with the buyer
 
@@ -370,20 +385,20 @@ The acceptance record should contain:
 
 A buyer should not introduce new rejection criteria after the produce has already moved.
 
-### Step 10: Receive buyer funds
+### Step 10: Pay the farmer by Kuapa Dwaso's deadline
 
-Payment periods may differ by crop and buyer. Some maize transactions may settle immediately, while another buyer or crop may have an agreed delay such as one week.
+The farmer offer has one payment deadline. That deadline does not depend on buyer acceptance or cleared buyer funds. Kuapa Dwaso pays the accepted net amount on time and records the evidence against the farmer obligation.
 
-Kuapa Dwaso communicates this period before the farmer accepts the sale. If the farmer does not accept the payment period, Kuapa Dwaso does not commit that farmer’s produce.
+For guaranteed coordination, the offer uses a fixed farmer payment date. For Kuapa purchase, the offer may use a fixed date or a stated number of calendar days after Kuapa Dwaso accepts the inspected quantity at collection.
 
-The farmer is paid when the buyer releases the funds. Kuapa Dwaso will not initially promise to advance payment from its own working capital.
+Buyer lateness creates a buyer receivable and collection problem for Kuapa Dwaso. It does not change the farmer's deadline.
 
-### Step 11: Settle the farmer and close the transaction
+### Step 11: Receive buyer funds, reconcile and close
 
 Kuapa Dwaso records:
 
 - gross produce sale value;
-- the 10% commission;
+- the coordination fee or purchase margin basis;
 - separately agreed charges assigned to the farmer;
 - separately agreed charges assigned to the buyer;
 - total funds received;
@@ -412,8 +427,9 @@ Ownership and custody are different.
 - The farmer owns the produce before the sale.
 - Kuapa Dwaso may coordinate or temporarily hold custody without buying it.
 - A transport provider may hold custody while the farmer still owns the produce.
-- Ownership passes directly from the farmer to the buyer at the point defined in the accepted transaction terms.
-- Kuapa Dwaso does not become the owner between those two parties.
+- In guaranteed coordination, title passes from the farmer to the buyer at buyer acceptance. Kuapa Dwaso remains responsible for the farmer payment it promised.
+- In Kuapa purchase, title passes to Kuapa Dwaso when it accepts the inspected quantity at collection. Kuapa Dwaso then carries inventory, quality-disposition and resale-price risk.
+- A lot cannot change commercial mode after the farmer accepts it. Any change requires a new offer and renewed consent before acceptance.
 
 Every transaction should identify responsibility during:
 
@@ -457,20 +473,23 @@ Rejected produce must not be left without an owner, destination or recorded reso
 
 ## 10. Commercial Model
 
-### 10.1 Sales commission
+### 10.1 Guaranteed coordination
 
-Kuapa Dwaso’s current revenue assumption is a 10% commission on the gross produce value of every sale completed through the service.
+The persisted software value `coordination` means guaranteed coordination. The farmer remains the seller, while Kuapa Dwaso controls the buyer relationship, fulfilment and settlement. Kuapa Dwaso earns the disclosed coordination fee and remains obligated to pay the farmer on the agreed date.
 
-The commission:
+The fee must cover the work and risk carried by Kuapa Dwaso, including settlement funding, buyer lateness, collection effort and dispute handling. No fixed percentage is an approved default until transaction evidence supports it.
 
-- applies only when a sale is completed;
-- is shown to the farmer before acceptance;
-- is recorded separately from the value belonging to the farmer; and
-- will be adjusted if pilot evidence shows that another percentage produces a fairer and more sustainable result.
+### 10.2 Kuapa purchase
 
-The 10% figure is the current operating hypothesis, not a claim that the final percentage has already been validated across all crops and transaction sizes.
+Kuapa Dwaso may buy an inspected, accepted lot when finance has approved the exposure and a resale or disposition plan exists. Title transfers to Kuapa Dwaso at purchase collection acceptance. The business records farmer purchase cost, inventory risk, handling, logistics, storage where used, losses and resale revenue separately.
 
-### 10.2 Transportation
+### 10.3 Settlement capacity
+
+Both commercial modes require reserved capacity for the farmer's full expected net amount before the farmer accepts the offer. Purchase mode may also reserve known costs. Accepted offers keep their backing until the farmer obligation is posted or a controlled cancellation resolves the commitment.
+
+Buyer deposits may support that capacity only when the agreement and funding evidence allow it. Expected buyer payment is not reserved cash.
+
+### 10.4 Transportation
 
 Transportation is negotiated separately because its cost depends on:
 
@@ -484,36 +503,28 @@ Transportation is negotiated separately because its cost depends on:
 
 The buyer, farmer or both may bear the cost according to the transaction agreement. The responsibility must be disclosed before acceptance.
 
-### 10.3 Storage
+### 10.5 Storage
 
 Storage is not included automatically in the commission and is not part of every transaction.
 
 During the early phase, temporary storage will be arranged only where required and will rely on an assessed partner facility. The storage price, duration, responsibility and payment method will be agreed separately.
 
-### 10.4 No initial buyer financing
+### 10.6 Buyer credit
 
-Kuapa Dwaso will not initially finance buyers or purchase farmers’ produce with its own money. Deferred buyer terms are permitted only when:
+Deferred buyer terms are permitted only when:
 
 - the buyer is considered sufficiently reliable;
 - the payment period is explicit;
-- the farmer knowingly accepts the delay; and
-- the transaction does not expose Kuapa Dwaso to an unapproved working-capital obligation.
+- cumulative buyer exposure remains within an approved limit; and
+- reserved settlement capacity covers farmer obligations due before buyer funds clear.
 
 ---
 
 ## 11. Crop and Corridor Selection
 
-Kuapa Dwaso has crop candidates but has not made a final selection.
+Maize is the first crop. The narrow crop scope reduces handling and quality variation while Kuapa Dwaso tests demand, sourcing, delivery, payment discipline and unit economics.
 
-Candidates discussed so far include:
-
-- maize;
-- pepper;
-- cabbage;
-- rice; and
-- other produce supported by verified demand and supply.
-
-The initial crop or tightly limited crop set will be selected only after comparing:
+Any later crop will be added only after comparing:
 
 - confirmed buyer demand;
 - buyer reliability and purchasing frequency;
@@ -675,7 +686,7 @@ The following principles apply only when Kuapa Dwaso begins operating its own wa
 
 ### 16.1 Farmer ownership
 
-Storing produce does not transfer ownership to Kuapa Dwaso. The farmer continues to own it until an accepted sale transfers ownership directly to a buyer.
+Storing produce does not transfer ownership. Title follows the accepted commercial mode: directly to the buyer under guaranteed coordination, or to Kuapa Dwaso at the documented purchase acceptance event.
 
 ### 16.2 Storage payment
 
@@ -800,18 +811,18 @@ The admin and financial reporting process should make it possible to determine w
 
 The following decisions define the current direction:
 
-1. Kuapa Dwaso connects farmers and buyers; it does not generally purchase produce itself.
-2. Farmers retain ownership until an accepted sale transfers it directly to the buyer.
+1. Kuapa Dwaso uses guaranteed coordination and Kuapa purchase. Each lot has one mode before farmer acceptance.
+2. Buyers transact with Kuapa Dwaso. Buyer-facing records do not expose farmer identity or direct negotiation details.
 3. Demand is confirmed before produce is aggregated or transported.
-4. Farmers see and accept price, commission, payment period and applicable charges before committing.
+4. Farmers see and accept quantity, quality terms, price, deductions, net payment, payment date and title terms before committing.
 5. Kuapa Dwaso performs or coordinates quality control before delivery.
-6. The initial commission is 10% of completed produce sales.
+6. Kuapa Dwaso owes the farmer on the agreed date in both modes, even when the buyer pays late.
 7. Transportation and storage are negotiated separately.
 8. The initial model does not depend on a Kuapa Dwaso-operated warehouse.
 9. Partnerships are the preferred entry strategy.
 10. Extech Agricultural Services is willing to explore early support involving farmer access, pilots and larger-volume opportunities.
 11. The pilot will begin with a controlled buyer group and commercially viable aggregated orders.
-12. No final crop will be selected until demand and supply evidence support it.
+12. Maize is the first crop. Its demand, corridor economics and repeatability remain to be proven.
 13. Smartphone-first and assisted access will be used initially; USSD is not required for the pilot.
 14. Owned warehouse infrastructure is a later ambition, currently projected at approximately three years and conditional on evidence.
 
@@ -821,7 +832,6 @@ The following decisions define the current direction:
 
 The following are not yet final:
 
-- the first crop or crop set;
 - the first production communities;
 - the first complete farmer-to-buyer corridor;
 - the pilot quantity;
@@ -831,7 +841,7 @@ The following are not yet final:
 - crop-specific quality standards;
 - buyer deposit requirements;
 - the final payment-risk policy;
-- the final commission percentage after operating evidence;
+- the coordination fee and purchase-margin rules after operating evidence;
 - responsibility for transport cost in each buyer arrangement;
 - Extech’s precise commercial role in each opportunity;
 - whether and when formal partner storage is required; and
@@ -853,6 +863,8 @@ Kuapa Dwaso’s operating sequence is:
 >
 > → agree on quality, price and payment terms
 >
+> → reserve farmer settlement capacity
+>
 > → obtain farmer consent
 >
 > → aggregate a commercially viable quantity
@@ -861,13 +873,13 @@ Kuapa Dwaso’s operating sequence is:
 >
 > → deliver and document acceptance
 >
-> → receive buyer funds
+> → pay farmers by the agreed date
 >
-> → settle farmers and record the result
+> → collect buyer funds and reconcile the result
 >
 > → repeat what works
 
-The immediate goal is to prove that Kuapa Dwaso can repeatedly coordinate dependable sales between farmers and buyers while protecting farmer choice and producing sustainable transaction economics.
+The immediate goal is to prove that Kuapa Dwaso can supply maize reliably, protect farmer choice, pay farmers on time and produce sustainable transaction economics under both commercial modes.
 
 The long-term goal is to become a trusted Farmer’s Market: a network through which farmers gain stronger access to markets, buyers gain dependable supply, and storage and other infrastructure are introduced only where actual operations prove they are needed.
 

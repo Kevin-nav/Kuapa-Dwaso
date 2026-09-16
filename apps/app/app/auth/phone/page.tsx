@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import type { BuyerType, MarketplaceRole } from "@kuapa-dwaso/types";
 import { buyerTypes } from "@kuapa-dwaso/types";
+import type { OnboardingIntent } from "@kuapa-dwaso/utils";
+import { onboardingIntentDestination, onboardingIntentRole } from "@kuapa-dwaso/utils";
 import { api } from "../../../../../convex/_generated/api";
 import { identityFromFirebaseUser } from "../identity";
 import { PhoneAuthPanel } from "../PhoneAuthPanel";
@@ -51,14 +53,18 @@ const ROLES: {
   desc: string;
   icon: ReactNode;
 }[] = [
-  { id: "farmer", label: "Store and track my produce", desc: "For farmers using warehouse receipts", icon: <Sprout size={20} /> },
-  { id: "buyer", label: "Buy produce", desc: "For traders, processors, and bulk buyers", icon: <ShoppingCart size={20} /> },
+  { id: "farmer", label: "I have maize to sell", desc: "Declare supply and review terms before collection", icon: <Sprout size={20} /> },
+  { id: "buyer", label: "Request maize supply", desc: "For commercial buyers with a defined requirement", icon: <ShoppingCart size={20} /> },
   { id: "transporter", label: "Transport produce", desc: "For drivers and transport providers", icon: <Truck size={20} /> },
 ];
 
-export default function PhoneAuthPage() {
+export default function PhoneAuthRoute() { return <PhoneOnboarding initialIntent={undefined} />; }
+
+export function PhoneAuthPage({ initialIntent }: { initialIntent: OnboardingIntent | undefined }) { return <PhoneOnboarding initialIntent={initialIntent} />; }
+
+function PhoneOnboarding({ initialIntent }: { initialIntent: OnboardingIntent | undefined }) {
   const [step, setStep] = useState<OnboardingStep>("role");
-  const [role, setRole] = useState<PhoneRole>("farmer");
+  const [role, setRole] = useState<PhoneRole>(() => onboardingIntentRole(initialIntent) ?? "farmer");
   const [verifiedUser, setVerifiedUser] = useState<User | null>(null);
   const [fullName, setFullName] = useState("");
   const [community, setCommunity] = useState("");
@@ -94,14 +100,14 @@ export default function PhoneAuthPage() {
       const transporterProfile = principal.profiles?.find((p) => p.profileType === "transporter");
 
       if (principal.role === "farmer" || farmerProfile !== undefined) {
-        router.push("/farmer");
+        router.push(onboardingIntentRole(initialIntent) === "farmer" ? onboardingIntentDestination(initialIntent)! : "/farmer");
       } else if (principal.role === "buyer" || buyerProfile !== undefined) {
-        router.push("/buyer");
+        router.push(onboardingIntentRole(initialIntent) === "buyer" ? onboardingIntentDestination(initialIntent)! : "/buyer");
       } else if (principal.role === "transporter" || transporterProfile !== undefined) {
         router.push("/");
       }
     }
-  }, [authLoading, firebaseUser, principal, router]);
+  }, [authLoading, firebaseUser, initialIntent, principal, router]);
 
   const saveProfile = async (event: FormEvent) => {
     event.preventDefault();
@@ -124,7 +130,7 @@ export default function PhoneAuthPage() {
               region,
             });
         setResult(`Farmer profile ready: ${saved.farmerId}`);
-        router.push("/farmer");
+        router.push(initialIntent === "sell_maize" ? "/farmer/supply" : "/farmer");
       } else if (role === "buyer") {
         const createBuyerArgs: Parameters<typeof createBuyer>[0] = {
           identity,
@@ -151,7 +157,7 @@ export default function PhoneAuthPage() {
           await sendInstitutionWelcomeEmail(verifiedUser, saved.buyerId);
           router.push("/buyer/verification");
         } else {
-          router.push("/buyer");
+          router.push(initialIntent === "request_maize_supply" ? "/buyer/requests/new" : "/buyer");
         }
       } else if (role === "transporter") {
         const saved = await createTransporter({
@@ -226,14 +232,14 @@ export default function PhoneAuthPage() {
         <div className="auth-hero-body">
           <h2>One platform for the whole harvest chain.</h2>
           <p>
-            Farmers, buyers, and transporters connect,
-            trade, and move produce — all verified and secure.
+            Maize sourcing begins with a buyer requirement, lets farmers review
+            the terms, then records quality, delivery and settlement.
           </p>
 
           <ul className="auth-trust">
             <li>
               <ShieldCheck size={20} />
-              Bank-grade phone verification
+              Verified phone sign-in
             </li>
             <li>
               <KeyRound size={20} />
@@ -409,7 +415,7 @@ export default function PhoneAuthPage() {
                             <option value="">Choose your region</option>
                             {GHANA_REGIONS.map((item) => <option key={item} value={item}>{item}</option>)}
                           </select>
-                          <span className="field-help">Onboarding is available where KuapaDwaso has an active warehouse.</span>
+                          <span className="field-help">Use the farmer&apos;s actual region. A warehouse is not required for the maize programme.</span>
                         </div>
                         <div className="field-stack">
                           <label htmlFor="community">Community</label>
@@ -548,9 +554,6 @@ export default function PhoneAuthPage() {
 
 function getOnboardingErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "Could not save your profile.";
-  if (message.includes("Restricted Region")) {
-    return "KuapaDwaso onboarding is not open in that region yet. Choose a region with an active warehouse or contact support for help.";
-  }
   return message
     .replace(/\[CONVEX[^\]]*\]\s*/g, "")
     .replace(/(?:Uncaught Error|ConvexError):\s*/g, "")

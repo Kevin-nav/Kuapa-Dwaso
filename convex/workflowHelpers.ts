@@ -51,6 +51,7 @@ export type AdminScopeTarget = {
   region?: string;
   district?: string;
   destinationMarket?: string;
+  pilotProgrammeId?: Id<"pilotProgrammes"> | string;
 };
 
 export function assertAllowed(
@@ -86,6 +87,7 @@ export function adminScopeTarget(target: {
   region?: string | undefined;
   district?: string | undefined;
   destinationMarket?: string | undefined;
+  pilotProgrammeId?: Id<"pilotProgrammes"> | string | undefined;
 }): AdminScopeTarget {
   return omitUndefinedValues(target) as AdminScopeTarget;
 }
@@ -149,6 +151,9 @@ function scopeGrantMatchesTarget(
     ...(target.destinationMarket === undefined
       ? {}
       : { destinationMarket: target.destinationMarket }),
+    ...(target.pilotProgrammeId === undefined
+      ? {}
+      : { pilotProgrammeId: String(target.pilotProgrammeId) }),
   });
 }
 

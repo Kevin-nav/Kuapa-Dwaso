@@ -10,6 +10,16 @@ This is the entry point for the project documentation. It separates the current 
 - [Technical overview](technical/architecture.md) — the current system architecture, application boundaries, data ownership, integrations, and security posture.
 - [Root README](../README.md) — project summary and local quick start.
 
+## Planned maize pilot
+
+- [Implementation backlog](product/maize-pilot-software-tickets.md) - the ordered, unimplemented ticket plan and verification gates.
+- [Frozen implementation contracts](technical/maize-pilot-contracts.md) - planned persistence, API, access, event, finance, and compatibility names for downstream tickets.
+- [ADR-0005](decisions/ADR-0005-demand-led-maize-pilot-boundary.md) - the accepted boundary between demand-led pilot work and existing warehouse workflows.
+
+These documents authorize implementation work. They do not claim a live pilot,
+signed commercial partnership, owned warehouse, real payment, or completed
+trade.
+
 ## Build and operate
 
 - [Environment and Infisical mapping](deployment/env-and-infisical.md)
@@ -29,7 +39,7 @@ This is the entry point for the project documentation. It separates the current 
 
 ## Historical material
 
-The contents of `intent-and-initial-plans/`, `plans/`, and `ui-plans/` are retained as project history. Some documents describe the earlier marketplace and two-way-SMS direction; they are not the source of truth for the current warehouse product. Use the product guide, technical overview, architecture notes, and accepted ADRs for current direction.
+The contents of `intent-and-initial-plans/`, `plans/`, and `ui-plans/` are retained as project history. Some documents describe the earlier marketplace and two-way-SMS direction; they are not the source of truth for the current warehouse product. The older operating model is also historical wherever it conflicts with the maize pilot backlog, ADR-0005, or the frozen pilot contracts. Use the product guide, technical overview, architecture notes, and accepted ADRs for current direction.
 
 ## Documentation principles
 

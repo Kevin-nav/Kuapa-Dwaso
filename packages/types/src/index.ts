@@ -99,6 +99,7 @@ export const adminScopeTypes = [
   "district",
   "warehouse",
   "destination_market",
+  "pilot_programme",
 ] as const;
 export type AdminScopeType = (typeof adminScopeTypes)[number];
 
@@ -1179,6 +1180,7 @@ export const platformInvitationTypes = [
   "admin_invite",
   "warehouse_manager_invite",
   "warehouse_agent_invite",
+  "pilot_operations_invite",
   "transporter_invite",
 ] as const;
 export type PlatformInvitationType = (typeof platformInvitationTypes)[number];
@@ -1211,6 +1213,7 @@ export type PlatformInvitation = TimestampFields & {
   intendedRole: MarketplaceRole;
   intendedProfileType: ProfileType;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
   mfaRequirement: MfaRequirement;
   invitedByUserId: string;
@@ -1230,6 +1233,7 @@ export type CreatePlatformInvitationInput = {
   targetEmail?: string;
   targetPhoneNumber?: string;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: PendingAdminRoleAssignmentInput;
   expiresAt: number;
   mfaRequirement?: MfaRequirement;
@@ -1258,6 +1262,13 @@ export const uploadAssetPurposes = [
   "profile_evidence",
   "blog_hero_image",
   "blog_content_image",
+  "pilot_inspection_evidence",
+  "pilot_collection_evidence",
+  "pilot_custody_evidence",
+  "pilot_acceptance_evidence",
+  "pilot_financial_evidence",
+  "pilot_issue_evidence",
+  "pilot_facility_assessment",
 ] as const;
 export type UploadAssetPurpose = (typeof uploadAssetPurposes)[number];
 
@@ -1284,6 +1295,15 @@ export const uploadRelatedEntityTypes = [
   "dispatch",
   "dispute",
   "blog_post",
+  "pilotProgrammes",
+  "pilotBuyerRequests",
+  "pilotFacilities",
+  "pilotInspections",
+  "pilotProcurementLots",
+  "pilotCustodyEvents",
+  "pilotBuyerAcceptances",
+  "pilotFinancialEntries",
+  "pilotIssues",
 ] as const;
 export type UploadRelatedEntityType = (typeof uploadRelatedEntityTypes)[number];
 
@@ -1292,6 +1312,7 @@ export type UploadAsset = TimestampFields & {
   ownerUserId: string;
   ownerProfileType?: ProfileType;
   ownerProfileId?: string;
+  pilotProgrammeId?: string;
   purpose: UploadAssetPurpose;
   status: UploadAssetStatus;
   accessLevel: UploadAccessLevel;

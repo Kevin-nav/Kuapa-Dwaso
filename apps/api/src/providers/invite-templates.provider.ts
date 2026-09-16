@@ -225,6 +225,8 @@ export function roleLabelForInviteType(type: PlatformInvitationType): string {
       return "warehouse manager";
     case "warehouse_agent_invite":
       return "warehouse agent";
+    case "pilot_operations_invite":
+      return "pilot operator";
     case "transporter_invite":
       return "transporter";
   }

@@ -110,7 +110,7 @@ export default function BuyerOnboarding() {
         <p className="eyebrow">Setup Profile</p>
         <h1>Buyer Onboarding</h1>
         <p style={{ marginBottom: "10px" }}>
-          Provide your business details to start browsing warehouse inventory and placing produce orders.
+          Provide your business details so Kuapa Dwaso can source and deliver for you.
         </p>
       </div>
 

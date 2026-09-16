@@ -30,6 +30,7 @@ Admin role assignments may be scoped to:
 - `district`
 - `warehouse`
 - `destination_market`
+- `pilot_programme`
 
 Backend checks must evaluate both permission and scope. If a query or mutation
 cannot safely evaluate a scope, it must fail closed or require a global grant.
@@ -52,6 +53,20 @@ and queries must use the reusable admin access helpers in `convex/workflowHelper
 Warehouse-agent operational checks remain separate from admin RBAC. A warehouse
 agent can still operate only assigned warehouses through the existing warehouse
 agent checks.
+
+Pilot operations access is also separate from both admin RBAC and warehouse
+assignment. A non-admin operations user needs an active `pilotAssignments` row
+for the programme and the capability required by the action. Admin pilot access
+requires the named permission and a matching global or `pilot_programme` scope.
+An existing marketplace role or warehouse grant never implies pilot access.
+
+The pilot permissions are `pilotProgrammes:read`, `pilotProgrammes:manage`,
+`pilotAssignments:read`, `pilotAssignments:manage`, `pilotRequests:read`,
+`pilotRequests:manage`, `pilotSupply:read`, `pilotSupply:manage`,
+`pilotQuality:read`, `pilotQuality:manage`, `pilotFulfilment:read`,
+`pilotFulfilment:manage`, `pilotFinance:read`, `pilotFinance:manage`,
+`pilotIssues:read`, and `pilotIssues:manage`. Role mappings remain centralized
+in `packages/permissions`.
 
 `warehouse_manager` remains an administrative role, not a marketplace role. It
 uses `apps/admin` for warehouse-scoped oversight of agents, inventory, buyer

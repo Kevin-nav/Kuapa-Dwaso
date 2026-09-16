@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { getIdToken } from "firebase/auth";
@@ -38,11 +38,12 @@ const roleKeys: AdminRoleKey[] = [
   "admin_viewer",
 ];
 
-const scopeTypes: AdminScopeType[] = ["global", "region", "district", "warehouse", "destination_market"];
+const scopeTypes: AdminScopeType[] = ["global", "region", "district", "warehouse", "destination_market", "pilot_programme"];
 const inviteTypes: PlatformInvitationType[] = [
   "admin_invite",
   "warehouse_manager_invite",
   "warehouse_agent_invite",
+  "pilot_operations_invite",
   "transporter_invite",
 ];
 const tabs = ["Invites", "Admin Users", "Groups", "Permission Preview"] as const;
@@ -412,12 +413,27 @@ function InvitesPanel({
   const [channel, setChannel] = useState<InvitationChannel>("email");
   const [targetEmail, setTargetEmail] = useState("");
   const [targetPhoneNumber, setTargetPhoneNumber] = useState("");
+  const [pilotProgrammeId, setPilotProgrammeId] = useState("");
+  const [linkedProfileId, setLinkedProfileId] = useState("");
   const [roleKey, setRoleKey] = useState<AdminRoleKey>("admin_viewer");
   const [scopeType, setScopeType] = useState<AdminScopeType>("global");
   const [scopeValue, setScopeValue] = useState("");
   const [mfaRequirement, setMfaRequirement] = useState<MfaRequirement>("totp_required");
   const [isWorking, setIsWorking] = useState(false);
   const [manualInviteUrl, setManualInviteUrl] = useState<string>();
+  const pilotProgrammes = useQuery(api.pilotProgrammes.listAvailable, { limit: 50 }) as { page: Array<{ id: Id<"pilotProgrammes">; name: string; datasetProvenance: "live" | "sample_only" }> } | undefined;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("type") !== "pilot_operations_invite") return;
+    const timeout = window.setTimeout(() => {
+      setType("pilot_operations_invite");
+      setChannel("manual_link");
+      setMfaRequirement("not_required");
+      setPilotProgrammeId(params.get("pilotProgrammeId") ?? "");
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   const allowedChannels = useMemo<InvitationChannel[]>(() => {
     if (type === "admin_invite" || type === "warehouse_manager_invite") {
@@ -440,9 +456,13 @@ function InvitesPanel({
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         mfaRequirement,
       };
-      const phonePrimary = type === "warehouse_agent_invite" || type === "transporter_invite";
+      const phonePrimary = type === "warehouse_agent_invite" || type === "pilot_operations_invite" || type === "transporter_invite";
       if (channel === "email") body.targetEmail = targetEmail.trim();
       if (phonePrimary) body.targetPhoneNumber = normalizeGhanaPhoneNumber(targetPhoneNumber);
+      if (type === "pilot_operations_invite") {
+        body.pilotProgrammeId = pilotProgrammeId.trim();
+        body.linkedProfileId = linkedProfileId.trim();
+      }
       if (type === "admin_invite" || type === "warehouse_manager_invite") {
         body.pendingAdminRoleAssignment = {
           roleKey: type === "warehouse_manager_invite" ? "warehouse_manager" : roleKey,
@@ -509,8 +529,14 @@ function InvitesPanel({
           </select>
         </Field>
         {channel === "email" && <Field label="Delivery email"><input type="email" value={targetEmail} onChange={(event) => setTargetEmail(event.target.value)} required style={inputStyle} /></Field>}
-        {(type === "warehouse_agent_invite" || type === "transporter_invite") && (
+        {(type === "warehouse_agent_invite" || type === "pilot_operations_invite" || type === "transporter_invite") && (
           <Field label="Verified sign-in phone"><input type="tel" inputMode="tel" autoComplete="tel" value={targetPhoneNumber} onChange={(event) => setTargetPhoneNumber(event.target.value)} required placeholder="054 123 4567 or +233 54 123 4567" style={inputStyle} /></Field>
+        )}
+        {type === "pilot_operations_invite" && (
+          <>
+            <Field label="Maize programme"><select value={pilotProgrammeId} onChange={(event) => setPilotProgrammeId(event.target.value)} required style={inputStyle}><option value="">Select programme</option>{(pilotProgrammes?.page ?? []).filter((programme) => process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" ? programme.datasetProvenance === "sample_only" : programme.datasetProvenance === "live").map((programme) => <option key={programme.id} value={programme.id}>{programme.name}</option>)}</select></Field>
+            <Field label="Approved operations profile ID"><input value={linkedProfileId} onChange={(event) => setLinkedProfileId(event.target.value)} required style={inputStyle} /></Field>
+          </>
         )}
         {(type === "admin_invite" || type === "warehouse_manager_invite") && (
           <>

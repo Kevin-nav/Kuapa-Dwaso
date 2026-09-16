@@ -1,5 +1,10 @@
 # Kuapa Dwaso product guide
 
+Status: describes the implemented warehouse product. The demand-led maize pilot
+is planned work and does not replace these existing workflows. See the
+[implementation backlog](maize-pilot-software-tickets.md) and
+[ADR-0005](../decisions/ADR-0005-demand-led-maize-pilot-boundary.md).
+
 ## A better path from harvest to buyer
 
 Kuapa Dwaso is a smartphone-first, warehouse-based produce aggregation platform. It helps farmers bring produce to a nearby warehouse, gives warehouse teams a reliable way to receive and manage it, and helps buyers purchase from verified stock rather than uncertain supply.

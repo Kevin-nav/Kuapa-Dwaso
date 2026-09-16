@@ -3,6 +3,14 @@ import { loadEnvFile } from "node:process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+export const previewAccessRoles = [
+  "farmer",
+  "buyer",
+  "transporter",
+  "warehouse_agent",
+] as const;
+export type PreviewAccessRole = (typeof previewAccessRoles)[number];
+
 export type ApiEnvironment = {
   nodeEnv: string;
   port: number;
@@ -11,6 +19,11 @@ export type ApiEnvironment = {
     firebaseProjectId?: string;
     firebaseServiceAccountJson?: string;
     disabled: boolean;
+  };
+  previewAccess: {
+    enabled: boolean;
+    cutoffUtc?: string;
+    firebaseUids: Partial<Record<PreviewAccessRole, string>>;
   };
   publicAppUrl?: string;
   productAppUrl?: string;
@@ -28,6 +41,13 @@ export type ApiEnvironment = {
     arkeselApiKey?: string;
     webhookSignatureSecret?: string;
     webhookSignatureHeader: string;
+    previewPolicy: {
+      enabled: boolean;
+      recipientAllowlist: string[];
+      hourlySegmentLimit: number;
+      highCapacityUtcDates: string[];
+      highCapacityHourlySegmentLimit: number;
+    };
   };
   payments: {
     provider: "mock" | "paystack";
@@ -35,6 +55,7 @@ export type ApiEnvironment = {
     paystackSecretKey?: string;
     paystackPublicKey?: string;
     webhookSecret?: string;
+    serviceSecret?: string;
   };
   uploads: {
     r2AccountId?: string;
@@ -51,6 +72,7 @@ export type ApiEnvironment = {
     windowMs: number;
     inviteSendMax: number;
     uploadPresignMax: number;
+    previewSessionMax: number;
   };
   notifications: {
     deliverySecret?: string;
@@ -97,7 +119,8 @@ export function getApiEnvironment(): ApiEnvironment {
   loadRootEnvFiles();
   const nodeEnv = process.env.NODE_ENV ?? "development";
   const auth: ApiEnvironment["auth"] = {
-    disabled: process.env.API_AUTH_DISABLED === "true" && nodeEnv !== "production"
+    disabled:
+      process.env.API_AUTH_DISABLED === "true" && nodeEnv !== "production",
   };
 
   if (process.env.FIREBASE_PROJECT_ID !== undefined) {
@@ -105,11 +128,33 @@ export function getApiEnvironment(): ApiEnvironment {
   }
 
   if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 !== undefined) {
-    auth.firebaseServiceAccountJson = decodeBase64Text(process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64);
+    auth.firebaseServiceAccountJson = decodeBase64Text(
+      process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64,
+    );
   }
 
   if (process.env.CONVEX_URL !== undefined) {
     auth.convexUrl = process.env.CONVEX_URL;
+  }
+
+  const previewAccess: ApiEnvironment["previewAccess"] = {
+    enabled: process.env.PREVIEW_ACCESS_ENABLED === "true",
+    firebaseUids: {},
+  };
+  if (process.env.PREVIEW_ACCESS_CUTOFF_UTC !== undefined) {
+    previewAccess.cutoffUtc = process.env.PREVIEW_ACCESS_CUTOFF_UTC;
+  }
+  const previewFirebaseUidEnvironmentKeys: Record<PreviewAccessRole, string> = {
+    farmer: "PREVIEW_ACCESS_FARMER_FIREBASE_UID",
+    buyer: "PREVIEW_ACCESS_BUYER_FIREBASE_UID",
+    transporter: "PREVIEW_ACCESS_TRANSPORTER_FIREBASE_UID",
+    warehouse_agent: "PREVIEW_ACCESS_WAREHOUSE_AGENT_FIREBASE_UID",
+  };
+  for (const role of previewAccessRoles) {
+    const uid = process.env[previewFirebaseUidEnvironmentKeys[role]];
+    if (uid !== undefined) {
+      previewAccess.firebaseUids[role] = uid;
+    }
   }
 
   const email: ApiEnvironment["email"] = {};
@@ -122,9 +167,31 @@ export function getApiEnvironment(): ApiEnvironment {
 
   const requestedSmsProvider = process.env.SMS_PROVIDER ?? "mock";
   const smsProvider = requestedSmsProvider === "arkesel" ? "arkesel" : "mock";
+  const previewHourlySegmentLimit = parsePositiveInteger(
+    process.env.PREVIEW_SMS_HOURLY_SEGMENT_LIMIT,
+    12,
+  );
   const sms: ApiEnvironment["sms"] = {
     provider: smsProvider,
-    webhookSignatureHeader: process.env.ARKESEL_WEBHOOK_SIGNATURE_HEADER ?? "x-arkesel-signature"
+    webhookSignatureHeader:
+      process.env.ARKESEL_WEBHOOK_SIGNATURE_HEADER ?? "x-arkesel-signature",
+    previewPolicy: {
+      enabled: previewAccess.enabled,
+      recipientAllowlist: parseCommaSeparatedValues(
+        process.env.PREVIEW_SMS_RECIPIENT_ALLOWLIST,
+      ),
+      hourlySegmentLimit: previewHourlySegmentLimit,
+      highCapacityUtcDates: parseCommaSeparatedValues(
+        process.env.PREVIEW_SMS_HIGH_CAPACITY_UTC_DATES,
+      ),
+      highCapacityHourlySegmentLimit: Math.max(
+        previewHourlySegmentLimit,
+        parsePositiveInteger(
+          process.env.PREVIEW_SMS_HIGH_CAPACITY_HOURLY_SEGMENT_LIMIT,
+          120,
+        ),
+      ),
+    },
   };
   if (requestedSmsProvider !== "mock" && requestedSmsProvider !== "arkesel") {
     sms.unsupportedProvider = requestedSmsProvider;
@@ -140,11 +207,15 @@ export function getApiEnvironment(): ApiEnvironment {
   }
 
   const requestedPaymentProvider = process.env.PAYMENT_PROVIDER ?? "mock";
-  const paymentProvider = requestedPaymentProvider === "paystack" ? "paystack" : "mock";
+  const paymentProvider =
+    requestedPaymentProvider === "paystack" ? "paystack" : "mock";
   const payments: ApiEnvironment["payments"] = {
     provider: paymentProvider,
   };
-  if (requestedPaymentProvider !== "mock" && requestedPaymentProvider !== "paystack") {
+  if (
+    requestedPaymentProvider !== "mock" &&
+    requestedPaymentProvider !== "paystack"
+  ) {
     payments.unsupportedProvider = requestedPaymentProvider;
   }
   if (process.env.PAYSTACK_SECRET_KEY !== undefined) {
@@ -156,11 +227,23 @@ export function getApiEnvironment(): ApiEnvironment {
   if (process.env.PAYSTACK_WEBHOOK_SECRET !== undefined) {
     payments.webhookSecret = process.env.PAYSTACK_WEBHOOK_SECRET;
   }
+  if (process.env.PAYMENT_PROVIDER_SERVICE_SECRET !== undefined) {
+    payments.serviceSecret = process.env.PAYMENT_PROVIDER_SERVICE_SECRET;
+  }
 
   const uploads: ApiEnvironment["uploads"] = {
-    presignTtlSeconds: parsePositiveInteger(process.env.R2_PRESIGN_TTL_SECONDS, 900),
-    readPresignTtlSeconds: parsePositiveInteger(process.env.R2_READ_PRESIGN_TTL_SECONDS, 300),
-    maxSizeBytes: parsePositiveInteger(process.env.UPLOAD_MAX_SIZE_BYTES, 8 * 1024 * 1024)
+    presignTtlSeconds: parsePositiveInteger(
+      process.env.R2_PRESIGN_TTL_SECONDS,
+      900,
+    ),
+    readPresignTtlSeconds: parsePositiveInteger(
+      process.env.R2_READ_PRESIGN_TTL_SECONDS,
+      300,
+    ),
+    maxSizeBytes: parsePositiveInteger(
+      process.env.UPLOAD_MAX_SIZE_BYTES,
+      8 * 1024 * 1024,
+    ),
   };
   if (process.env.CLOUDFLARE_R2_ACCOUNT_ID !== undefined) {
     uploads.r2AccountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
@@ -178,29 +261,40 @@ export function getApiEnvironment(): ApiEnvironment {
     uploads.r2PublicBucket = process.env.CLOUDFLARE_R2_PUBLIC_BUCKET;
   }
   if (process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL !== undefined) {
-    uploads.r2PublicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL.replace(/\/$/, "");
+    uploads.r2PublicBaseUrl = process.env.CLOUDFLARE_R2_PUBLIC_BASE_URL.replace(
+      /\/$/,
+      "",
+    );
   }
 
   const publicAppUrl = process.env.PUBLIC_APP_URL;
   const productAppUrl = process.env.PRODUCT_APP_URL;
   const requestedWebPushProvider = process.env.WEB_PUSH_PROVIDER ?? "mock";
-  const notifications: ApiEnvironment["notifications"] = { webPushProvider: requestedWebPushProvider === "vapid" ? "vapid" : "mock" };
+  const notifications: ApiEnvironment["notifications"] = {
+    webPushProvider: requestedWebPushProvider === "vapid" ? "vapid" : "mock",
+  };
   if (process.env.NOTIFICATION_DELIVERY_SECRET !== undefined) {
     notifications.deliverySecret = process.env.NOTIFICATION_DELIVERY_SECRET;
   }
-  if (process.env.WEB_PUSH_VAPID_SUBJECT !== undefined) notifications.vapidSubject = process.env.WEB_PUSH_VAPID_SUBJECT;
-  if (process.env.WEB_PUSH_VAPID_PUBLIC_KEY !== undefined) notifications.vapidPublicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
-  if (process.env.WEB_PUSH_VAPID_PRIVATE_KEY !== undefined) notifications.vapidPrivateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+  if (process.env.WEB_PUSH_VAPID_SUBJECT !== undefined)
+    notifications.vapidSubject = process.env.WEB_PUSH_VAPID_SUBJECT;
+  if (process.env.WEB_PUSH_VAPID_PUBLIC_KEY !== undefined)
+    notifications.vapidPublicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+  if (process.env.WEB_PUSH_VAPID_PRIVATE_KEY !== undefined)
+    notifications.vapidPrivateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
 
   const rawAllowedOrigins = process.env.API_CORS_ALLOWED_ORIGINS;
   const allowedOrigins = rawAllowedOrigins
-    ? rawAllowedOrigins.split(",").map((o) => o.trim()).filter(Boolean)
+    ? rawAllowedOrigins
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean)
     : [
         "https://kuapadwaso.com",
         "https://app.kuapadwaso.com",
         "https://admin.kuapadwaso.com",
         "https://ops.kuapadwaso.com",
-        "https://api.kuapadwaso.com"
+        "https://api.kuapadwaso.com",
       ];
 
   if (publicAppUrl && !allowedOrigins.includes(publicAppUrl)) {
@@ -214,19 +308,33 @@ export function getApiEnvironment(): ApiEnvironment {
     nodeEnv,
     port: parsePort(process.env.PORT),
     auth,
+    previewAccess,
     cors: {
-      allowedOrigins
+      allowedOrigins,
     },
     email,
     sms,
     payments,
     uploads,
     rateLimit: {
-      windowMs: parsePositiveInteger(process.env.API_RATE_LIMIT_WINDOW_MS, 15 * 60 * 1000),
-      inviteSendMax: parsePositiveInteger(process.env.API_RATE_LIMIT_INVITE_SEND_MAX, 20),
-      uploadPresignMax: parsePositiveInteger(process.env.API_RATE_LIMIT_UPLOAD_PRESIGN_MAX, 60)
+      windowMs: parsePositiveInteger(
+        process.env.API_RATE_LIMIT_WINDOW_MS,
+        15 * 60 * 1000,
+      ),
+      inviteSendMax: parsePositiveInteger(
+        process.env.API_RATE_LIMIT_INVITE_SEND_MAX,
+        20,
+      ),
+      uploadPresignMax: parsePositiveInteger(
+        process.env.API_RATE_LIMIT_UPLOAD_PRESIGN_MAX,
+        60,
+      ),
+      previewSessionMax: parsePositiveInteger(
+        process.env.API_RATE_LIMIT_PREVIEW_SESSION_MAX,
+        30,
+      ),
     },
-    notifications
+    notifications,
   };
   if (publicAppUrl !== undefined) {
     environment.publicAppUrl = publicAppUrl;
@@ -237,13 +345,30 @@ export function getApiEnvironment(): ApiEnvironment {
   return environment;
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
   if (value === undefined) {
     return fallback;
   }
 
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parseCommaSeparatedValues(value: string | undefined): string[] {
+  if (value === undefined) {
+    return [];
+  }
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function decodeBase64Text(value: string): string {

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { pilotTables } from "./pilotSchema";
 
 const marketplaceRole = v.union(
   v.literal("farmer"),
@@ -9,7 +10,11 @@ const marketplaceRole = v.union(
   v.literal("admin"),
 );
 
-const pwaSurface = v.union(v.literal("app"), v.literal("ops"), v.literal("admin"));
+const pwaSurface = v.union(
+  v.literal("app"),
+  v.literal("ops"),
+  v.literal("admin"),
+);
 const offlineActionKind = v.union(
   v.literal("farmer_dispute_create"),
   v.literal("ops_farmer_register"),
@@ -18,8 +23,16 @@ const offlineActionKind = v.union(
   v.literal("transporter_dispatch_status"),
   v.literal("transporter_proof_upload"),
 );
-const pushSubscriptionStatus = v.union(v.literal("active"), v.literal("revoked"));
-const webPushDeliveryStatus = v.union(v.literal("pending"), v.literal("processing"), v.literal("sent"), v.literal("failed"));
+const pushSubscriptionStatus = v.union(
+  v.literal("active"),
+  v.literal("revoked"),
+);
+const webPushDeliveryStatus = v.union(
+  v.literal("pending"),
+  v.literal("processing"),
+  v.literal("sent"),
+  v.literal("failed"),
+);
 
 const userStatus = v.union(
   v.literal("pending"),
@@ -74,6 +87,7 @@ const adminScopeType = v.union(
   v.literal("district"),
   v.literal("warehouse"),
   v.literal("destination_market"),
+  v.literal("pilot_programme"),
 );
 
 const adminRoleAssignmentStatus = v.union(
@@ -379,6 +393,7 @@ const platformInvitationType = v.union(
   v.literal("warehouse_manager_invite"),
   v.literal("warehouse_agent_invite"),
   v.literal("transporter_invite"),
+  v.literal("pilot_operations_invite"),
 );
 const invitationChannel = v.union(
   v.literal("email"),
@@ -401,6 +416,13 @@ const uploadAssetPurpose = v.union(
   v.literal("profile_evidence"),
   v.literal("blog_hero_image"),
   v.literal("blog_content_image"),
+  v.literal("pilot_inspection_evidence"),
+  v.literal("pilot_collection_evidence"),
+  v.literal("pilot_custody_evidence"),
+  v.literal("pilot_acceptance_evidence"),
+  v.literal("pilot_financial_evidence"),
+  v.literal("pilot_issue_evidence"),
+  v.literal("pilot_facility_assessment"),
 );
 const uploadAssetStatus = v.union(
   v.literal("pending_upload"),
@@ -424,6 +446,15 @@ const uploadRelatedEntityType = v.union(
   v.literal("dispatch"),
   v.literal("dispute"),
   v.literal("blog_post"),
+  v.literal("pilotFacilities"),
+  v.literal("pilotProgrammes"),
+  v.literal("pilotBuyerRequests"),
+  v.literal("pilotInspections"),
+  v.literal("pilotProcurementLots"),
+  v.literal("pilotCustodyEvents"),
+  v.literal("pilotBuyerAcceptances"),
+  v.literal("pilotFinancialEntries"),
+  v.literal("pilotIssues"),
 );
 
 const blogCategory = v.union(
@@ -535,6 +566,7 @@ const pendingAdminRoleAssignment = v.object({
 });
 
 export default defineSchema({
+  ...pilotTables,
   users: defineTable({
     authProviderId: v.optional(v.string()),
     authProvider: v.optional(v.string()),
@@ -584,6 +616,7 @@ export default defineSchema({
     intendedRole: marketplaceRole,
     intendedProfileType: profileType,
     linkedProfileId: v.optional(v.string()),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     pendingAdminRoleAssignment: v.optional(pendingAdminRoleAssignment),
     mfaRequirement,
     invitedByUserId: v.id("users"),
@@ -607,6 +640,7 @@ export default defineSchema({
     ownerUserId: v.id("users"),
     ownerProfileType: v.optional(profileType),
     ownerProfileId: v.optional(v.string()),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     purpose: uploadAssetPurpose,
     status: uploadAssetStatus,
     accessLevel: uploadAccessLevel,
@@ -1109,6 +1143,7 @@ export default defineSchema({
     eventType: v.string(),
     status: paymentEventStatus,
     paymentTransactionId: v.optional(v.id("paymentTransactions")),
+    pilotPaymentTransactionId: v.optional(v.id("pilotPaymentTransactions")),
     rawPayload: genericRecord,
     processedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),

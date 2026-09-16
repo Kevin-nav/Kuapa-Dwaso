@@ -9,4 +9,5 @@ export * from "./components/DataTable.js";
 export * from "./components/WarehouseFilterContext.js";
 export * from "./components/AdminShell.js";
 export * from "./components/AdminAccessState.js";
+export * from "./components/PilotTransactionSummary.js";
 export { gray, palette, status } from "@kuapa-dwaso/design-tokens";

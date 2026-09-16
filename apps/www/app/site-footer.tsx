@@ -22,8 +22,8 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
             title="Product"
             links={[
               ["How it works", "/#how"],
-              ["For farmers", "/#market"],
-              ["For buyers", "/#market"],
+              ["For farmers", "/#people"],
+              ["For buyers", "/#people"],
               ["For partners", "/#people"],
             ]}
           />
@@ -33,7 +33,7 @@ export function SiteFooter({ appAuthHref }: { appAuthHref: string }) {
               ["Stories and insights", "/blog"],
               ["About", "/#market"],
               ["Contact", officialContactHref],
-              ["Join the pilot", appAuthHref],
+              ["Get started", appAuthHref],
             ]}
           />
           <div>

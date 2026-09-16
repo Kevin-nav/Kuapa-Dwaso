@@ -96,6 +96,34 @@ test("upload purposes are constrained to compatible evidence entities", () => {
     }),
     false,
   );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_inspection_evidence",
+      relatedEntityType: "pilotInspections",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_financial_evidence",
+      relatedEntityType: "pilotIssues",
+    }),
+    false,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_financial_evidence",
+      relatedEntityType: "pilotProgrammes",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_financial_evidence",
+      relatedEntityType: "pilotBuyerRequests",
+    }),
+    true,
+  );
   assert.throws(
     () =>
       assertUploadPurposeAllowedForRelatedEntity({
@@ -103,5 +131,22 @@ test("upload purposes are constrained to compatible evidence entities", () => {
         relatedEntityType: "dispatch",
       }),
     /not allowed/,
+  );
+});
+
+test("custody and acceptance evidence can be staged against an existing pilot lot", () => {
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_custody_evidence",
+      relatedEntityType: "pilotProcurementLots",
+    }),
+    true,
+  );
+  assert.equal(
+    isUploadPurposeAllowedForRelatedEntity({
+      purpose: "pilot_acceptance_evidence",
+      relatedEntityType: "pilotProcurementLots",
+    }),
+    true,
   );
 });

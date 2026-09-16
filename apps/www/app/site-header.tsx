@@ -1,6 +1,6 @@
 const navLinks = [
   ["How it works", "/#how"],
-  ["For farmers", "/#market"],
+  ["For farmers", "/#people"],
   ["For buyers", "/#people"],
   ["Stories", "/blog"],
 ] as const;
@@ -72,7 +72,7 @@ export function SiteHeader({
             href={joinHref}
             className="rounded-full bg-brand-field px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-field-light"
           >
-            Join the pilot
+            Get started
           </a>
         </div>
 
@@ -87,7 +87,7 @@ export function SiteHeader({
             href={joinHref}
             className="rounded-full bg-brand-field px-4 py-2 text-sm font-bold text-white"
           >
-            Join
+            Get started
           </a>
         </div>
       </nav>

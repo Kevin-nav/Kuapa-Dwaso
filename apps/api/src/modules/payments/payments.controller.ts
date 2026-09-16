@@ -30,12 +30,101 @@ type VerifyPaymentBody = {
   reference: string;
 };
 
+type InitializePilotPaymentBody = InitializePaymentBody & {
+  purpose: "buyer_produce" | "buyer_transport";
+  amountPesewas: number;
+};
+
 @Controller("payments")
 export class PaymentsController {
   constructor(
     private readonly convex: ConvexPlatformProvider,
     private readonly payments: PaymentProviderRegistry,
   ) {}
+
+  @Post("pilot-requests/:requestId/initialize")
+  @UseGuards(FirebaseAuthGuard, RoleGuard)
+  @RequireRoles("buyer", "admin")
+  async initializePilotPayment(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param("requestId") requestId: string,
+    @Body() body: InitializePilotPaymentBody,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ): Promise<{
+    pilotPaymentTransactionId: string;
+    provider: string;
+    reference: string;
+    authorizationUrl?: string;
+    accessCode?: string;
+    amountPesewas: number;
+    currency: string;
+    status: string;
+  }> {
+    if (principal.userId === undefined || principal.firebaseIdToken === undefined) {
+      throw new UnauthorizedException("Authenticated Convex user profile is required.");
+    }
+    const provider = await this.payments.getProvider();
+    const idempotencyKey =
+      body.idempotencyKey ??
+      readHeader(headers, "x-idempotency-key") ??
+      `pilot-payment:${requestId}:${body.purpose}:${principal.userId}`;
+    const prepared = await this.convex.preparePilotBuyerPayment(
+      omitUndefinedValues({
+        requestId,
+        purpose: body.purpose,
+        amountPesewas: body.amountPesewas,
+        provider: provider.provider,
+        idempotencyKey,
+        correlationId: body.correlationId,
+      }),
+      principal.firebaseIdToken,
+    );
+    if (prepared.authorizationUrl !== undefined) {
+      return omitUndefinedValues({
+        pilotPaymentTransactionId: prepared._id,
+        provider: prepared.provider,
+        reference: prepared.providerReference,
+        authorizationUrl: prepared.authorizationUrl,
+        accessCode: prepared.providerAccessCode,
+        amountPesewas: prepared.amountPesewas,
+        currency: prepared.currency,
+        status: prepared.status,
+      });
+    }
+    const initialized = await provider.initialize({
+      email: resolvePaymentEmail(principal, prepared.buyerId),
+      amount: prepared.amountPesewas / 100,
+      currency: prepared.currency,
+      reference: prepared.providerReference,
+      ...(body.callbackUrl === undefined ? {} : { callbackUrl: body.callbackUrl }),
+      metadata: {
+        pilotRequestId: requestId,
+        pilotPaymentTransactionId: prepared._id,
+        purpose: prepared.purpose,
+        correlationId: body.correlationId,
+      },
+    });
+    await this.convex.recordPilotProviderInitialization(
+      omitUndefinedValues({
+        provider: initialized.provider,
+        providerReference: initialized.reference,
+        providerAccessCode: initialized.accessCode,
+        authorizationUrl: initialized.authorizationUrl,
+        providerStatus: initialized.providerStatus,
+        providerMessage: initialized.providerMessage,
+      }),
+    );
+    return omitUndefinedValues({
+      pilotPaymentTransactionId: prepared._id,
+      provider: initialized.provider,
+      reference: initialized.reference,
+      authorizationUrl: initialized.authorizationUrl,
+      accessCode: initialized.accessCode,
+      amountPesewas: prepared.amountPesewas,
+      currency: prepared.currency,
+      status: initialized.status,
+    });
+  }
 
   @Post("buyer-orders/:buyerOrderId/initialize")
   @UseGuards(FirebaseAuthGuard, RoleGuard)
@@ -138,16 +227,33 @@ export class PaymentsController {
     }
     const provider = await this.payments.getProvider();
     const verification = await provider.verify(body.reference);
-    await this.convex.reconcileProviderPayment(omitUndefinedValues({
-      provider: verification.provider,
-      providerReference: verification.reference,
-      status: verification.status,
-      amount: verification.amount,
-      currency: verification.currency,
-      providerStatus: verification.providerStatus,
-      providerMessage: verification.providerMessage,
-      rawProviderData: verification.rawProviderData,
-    }));
+    if (isPilotPaymentReference(verification.reference)) {
+      await this.convex.reconcilePilotProviderPayment(
+        omitUndefinedValues({
+          provider: verification.provider,
+          providerReference: verification.reference,
+          status: verification.status,
+          amountPesewas:
+            verification.amount === undefined
+              ? undefined
+              : Math.round(verification.amount * 100),
+          currency: verification.currency,
+          providerStatus: verification.providerStatus,
+          providerMessage: verification.providerMessage,
+        }),
+      );
+    } else {
+      await this.convex.reconcileProviderPayment(omitUndefinedValues({
+        provider: verification.provider,
+        providerReference: verification.reference,
+        status: verification.status,
+        amount: verification.amount,
+        currency: verification.currency,
+        providerStatus: verification.providerStatus,
+        providerMessage: verification.providerMessage,
+        rawProviderData: verification.rawProviderData,
+      }));
+    }
     return { ok: true, reference: verification.reference, status: verification.status };
   }
 
@@ -163,20 +269,42 @@ export class PaymentsController {
       secret: env.payments.webhookSecret ?? env.payments.paystackSecretKey,
     });
     const event = normalizePaystackWebhookEvent(body);
-    await this.convex.recordProviderEvent(omitUndefinedValues({
-      provider: event.provider,
-      providerEventId: event.providerEventId,
-      providerReference: event.reference,
-      eventType: event.eventType,
-      normalizedStatus: event.status,
-      amount: event.amount,
-      currency: event.currency,
-      providerStatus: event.providerStatus,
-      providerMessage: event.providerMessage,
-      rawPayload: event.rawPayload,
-    }));
+    if (event.reference !== undefined && isPilotPaymentReference(event.reference)) {
+      await this.convex.recordPilotProviderEvent(
+        omitUndefinedValues({
+          provider: event.provider,
+          providerEventId: event.providerEventId,
+          providerReference: event.reference,
+          eventType: event.eventType,
+          normalizedStatus: event.status,
+          amountPesewas:
+            event.amount === undefined ? undefined : Math.round(event.amount * 100),
+          currency: event.currency,
+          providerStatus: event.providerStatus,
+          providerMessage: event.providerMessage,
+          rawPayload: event.rawPayload,
+        }),
+      );
+    } else {
+      await this.convex.recordProviderEvent(omitUndefinedValues({
+        provider: event.provider,
+        providerEventId: event.providerEventId,
+        providerReference: event.reference,
+        eventType: event.eventType,
+        normalizedStatus: event.status,
+        amount: event.amount,
+        currency: event.currency,
+        providerStatus: event.providerStatus,
+        providerMessage: event.providerMessage,
+        rawPayload: event.rawPayload,
+      }));
+    }
     return { ok: true };
   }
+}
+
+function isPilotPaymentReference(reference: string): boolean {
+  return reference.startsWith("KD-PILOT-");
 }
 
 function omitUndefinedValues<T extends Record<string, unknown>>(value: T): {

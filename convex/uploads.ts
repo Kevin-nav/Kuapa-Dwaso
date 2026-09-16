@@ -8,6 +8,15 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
+  assertAuthenticatedActor,
+  requirePilotAdminPermission,
+  requirePilotCapability,
+  requirePilotFinancialEntryRead,
+  requirePilotLotRead,
+  requirePilotPrincipal,
+  requirePilotRequestRead,
+} from "./pilotAccess";
+import {
   adminScopeTarget,
   assertAllowed,
   auditSnapshot,
@@ -40,6 +49,13 @@ const uploadPurpose = v.union(
   v.literal("profile_evidence"),
   v.literal("blog_hero_image"),
   v.literal("blog_content_image"),
+  v.literal("pilot_inspection_evidence"),
+  v.literal("pilot_collection_evidence"),
+  v.literal("pilot_custody_evidence"),
+  v.literal("pilot_acceptance_evidence"),
+  v.literal("pilot_financial_evidence"),
+  v.literal("pilot_issue_evidence"),
+  v.literal("pilot_facility_assessment"),
 );
 const uploadStatus = v.union(
   v.literal("pending_upload"),
@@ -63,6 +79,15 @@ const relatedEntityType = v.union(
   v.literal("dispatch"),
   v.literal("dispute"),
   v.literal("blog_post"),
+  v.literal("pilotProgrammes"),
+  v.literal("pilotBuyerRequests"),
+  v.literal("pilotFacilities"),
+  v.literal("pilotInspections"),
+  v.literal("pilotProcurementLots"),
+  v.literal("pilotCustodyEvents"),
+  v.literal("pilotBuyerAcceptances"),
+  v.literal("pilotFinancialEntries"),
+  v.literal("pilotIssues"),
 );
 
 type UploadPurpose =
@@ -73,7 +98,14 @@ type UploadPurpose =
   | "dispatch_proof_photo"
   | "profile_evidence"
   | "blog_hero_image"
-  | "blog_content_image";
+  | "blog_content_image"
+  | "pilot_inspection_evidence"
+  | "pilot_collection_evidence"
+  | "pilot_custody_evidence"
+  | "pilot_acceptance_evidence"
+  | "pilot_financial_evidence"
+  | "pilot_issue_evidence"
+  | "pilot_facility_assessment";
 
 type UploadStatus =
   | "pending_upload"
@@ -92,7 +124,43 @@ type RelatedEntityType =
   | "inventory_batch"
   | "dispatch"
   | "dispute"
-  | "blog_post";
+  | "blog_post"
+  | "pilotProgrammes"
+  | "pilotBuyerRequests"
+  | "pilotFacilities"
+  | "pilotInspections"
+  | "pilotProcurementLots"
+  | "pilotCustodyEvents"
+  | "pilotBuyerAcceptances"
+  | "pilotFinancialEntries"
+  | "pilotIssues";
+
+const pilotRelatedEntityTypes: readonly RelatedEntityType[] = [
+  "pilotProgrammes",
+  "pilotBuyerRequests",
+  "pilotFacilities",
+  "pilotInspections",
+  "pilotProcurementLots",
+  "pilotCustodyEvents",
+  "pilotBuyerAcceptances",
+  "pilotFinancialEntries",
+  "pilotIssues",
+];
+
+function isPilotAsset(asset: {
+  purpose: string;
+  relatedEntityType?: string;
+  pilotProgrammeId?: Id<"pilotProgrammes">;
+}): boolean {
+  return (
+    asset.pilotProgrammeId !== undefined ||
+    asset.purpose.startsWith("pilot_") ||
+    (asset.relatedEntityType !== undefined &&
+      pilotRelatedEntityTypes.includes(
+        asset.relatedEntityType as RelatedEntityType,
+      ))
+  );
+}
 
 function actorCanCreateUploadForOwner(
   actor: { _id: Id<"users">; role: string },
@@ -121,6 +189,7 @@ async function requireActorCanUseRelatedEntity(
   permission: "read" | "manage",
   relatedEntityType: RelatedEntityType | undefined,
   relatedEntityId: string | undefined,
+  pilotProgrammeId?: Id<"pilotProgrammes">,
 ): Promise<void> {
   if (relatedEntityType === undefined || relatedEntityId === undefined) {
     if (actor.role === "admin") {
@@ -131,6 +200,22 @@ async function requireActorCanUseRelatedEntity(
         {},
       );
     }
+    return;
+  }
+
+  if (pilotRelatedEntityTypes.includes(relatedEntityType)) {
+    assertAllowed(
+      pilotProgrammeId !== undefined,
+      "Pilot evidence requires a programme.",
+    );
+    await requireActorCanUsePilotRelatedEntity(
+      ctx,
+      actor,
+      permission,
+      relatedEntityType,
+      relatedEntityId,
+      pilotProgrammeId,
+    );
     return;
   }
 
@@ -337,6 +422,164 @@ async function requireActorCanUseRelatedEntity(
   }
 }
 
+async function requireActorCanUsePilotRelatedEntity(
+  ctx: QueryCtx | MutationCtx,
+  actor: Actor,
+  permission: "read" | "manage",
+  relatedEntityType: RelatedEntityType,
+  relatedEntityId: string,
+  programmeId: Id<"pilotProgrammes">,
+): Promise<void> {
+  if (relatedEntityType === "pilotProgrammes") {
+    const entity = await ctx.db.get(relatedEntityId as Id<"pilotProgrammes">);
+    assertAllowed(
+      entity !== null && entity._id === programmeId,
+      "Pilot programme was not found.",
+    );
+    await requirePilotAdminPermission(
+      ctx,
+      actor,
+      programmeId,
+      permission === "read" ? "pilotFinance:read" : "pilotFinance:manage",
+    );
+    return;
+  }
+  if (relatedEntityType === "pilotBuyerRequests") {
+    const entity = await ctx.db.get(
+      relatedEntityId as Id<"pilotBuyerRequests">,
+    );
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot request was not found in this programme.",
+    );
+    await requirePilotAdminPermission(
+      ctx,
+      actor,
+      programmeId,
+      permission === "read" ? "pilotFinance:read" : "pilotFinance:manage",
+    );
+    return;
+  }
+  if (relatedEntityType === "pilotFacilities") {
+    const entity = await ctx.db.get(relatedEntityId as Id<"pilotFacilities">);
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot facility was not found in this programme.",
+    );
+    await requirePilotCapability(
+      ctx,
+      actor,
+      programmeId,
+      permission === "read" ? "pilot:read" : "quality:record",
+    );
+    return;
+  }
+  if (relatedEntityType === "pilotInspections") {
+    const entity = await ctx.db.get(relatedEntityId as Id<"pilotInspections">);
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot inspection was not found in this programme.",
+    );
+    const lot = await ctx.db.get(entity.lotId);
+    assertAllowed(lot !== null, "Pilot lot was not found.");
+    if (permission === "read") await requirePilotLotRead(ctx, actor, lot);
+    else
+      await requirePilotCapability(ctx, actor, programmeId, "quality:record");
+    return;
+  }
+  if (relatedEntityType === "pilotProcurementLots") {
+    const lot = await ctx.db.get(relatedEntityId as Id<"pilotProcurementLots">);
+    assertAllowed(
+      lot !== null && lot.programmeId === programmeId,
+      "Pilot lot was not found in this programme.",
+    );
+    if (permission === "read") await requirePilotLotRead(ctx, actor, lot);
+    else
+      await requirePilotCapability(ctx, actor, programmeId, "custody:record");
+    return;
+  }
+  if (relatedEntityType === "pilotCustodyEvents") {
+    const entity = await ctx.db.get(
+      relatedEntityId as Id<"pilotCustodyEvents">,
+    );
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot custody event was not found in this programme.",
+    );
+    const lot = await ctx.db.get(entity.lotId);
+    assertAllowed(lot !== null, "Pilot lot was not found.");
+    if (permission === "read") await requirePilotLotRead(ctx, actor, lot);
+    else
+      await requirePilotCapability(ctx, actor, programmeId, "custody:record");
+    return;
+  }
+  if (relatedEntityType === "pilotBuyerAcceptances") {
+    const entity = await ctx.db.get(
+      relatedEntityId as Id<"pilotBuyerAcceptances">,
+    );
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot acceptance was not found in this programme.",
+    );
+    const request = await ctx.db.get(entity.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    if (permission === "read" || actor.role === "buyer")
+      await requirePilotRequestRead(ctx, actor, request);
+    else
+      await requirePilotCapability(
+        ctx,
+        actor,
+        programmeId,
+        "fulfilment:manage",
+      );
+    return;
+  }
+  if (relatedEntityType === "pilotFinancialEntries") {
+    const entity = await ctx.db.get(
+      relatedEntityId as Id<"pilotFinancialEntries">,
+    );
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot financial entry was not found in this programme.",
+    );
+    if (permission === "read" || actor.role !== "admin")
+      await requirePilotFinancialEntryRead(ctx, actor, entity);
+    else
+      await requirePilotAdminPermission(
+        ctx,
+        actor,
+        programmeId,
+        "pilotFinance:manage",
+      );
+    return;
+  }
+  if (relatedEntityType === "pilotIssues") {
+    const entity = await ctx.db.get(relatedEntityId as Id<"pilotIssues">);
+    assertAllowed(
+      entity !== null && entity.programmeId === programmeId,
+      "Pilot issue was not found in this programme.",
+    );
+    const request = await ctx.db.get(entity.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    if (permission === "read" || actor.role === "buyer")
+      await requirePilotRequestRead(ctx, actor, request);
+    else await requirePilotCapability(ctx, actor, programmeId, "issues:manage");
+    return;
+  }
+  assertAllowed(false, "Unsupported pilot evidence entity.");
+}
+
+async function getUploadActor(
+  ctx: QueryCtx | MutationCtx,
+  actorUserId: Id<"users">,
+  pilotEvidence: boolean,
+): Promise<Actor> {
+  if (!pilotEvidence) return await getActor(ctx, actorUserId);
+  const principal = await requirePilotPrincipal(ctx);
+  assertAuthenticatedActor(principal, actorUserId);
+  return principal;
+}
+
 export const createPending = mutation({
   args: {
     actorUserId: v.id("users"),
@@ -352,18 +595,40 @@ export const createPending = mutation({
     fileName: v.optional(v.string()),
     relatedEntityType: v.optional(relatedEntityType),
     relatedEntityId: v.optional(v.string()),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
   },
   returns: v.object({
     uploadAssetId: v.string(),
     objectKey: v.string(),
   }),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
+    const isPilotEvidence =
+      args.purpose.startsWith("pilot_") ||
+      (args.relatedEntityType !== undefined &&
+        pilotRelatedEntityTypes.includes(args.relatedEntityType));
+    const actor = await getUploadActor(ctx, args.actorUserId, isPilotEvidence);
     const ownerUserId = args.ownerUserId ?? args.actorUserId;
     const relatedEntityId = cleanOptionalText(args.relatedEntityId);
     const isBlogMedia =
       args.purpose === "blog_hero_image" ||
       args.purpose === "blog_content_image";
+    assertAllowed(
+      !isPilotEvidence || args.pilotProgrammeId !== undefined,
+      "Pilot evidence requires a programme.",
+    );
+    assertAllowed(
+      !isPilotEvidence ||
+        (args.relatedEntityType !== undefined &&
+          pilotRelatedEntityTypes.includes(args.relatedEntityType) &&
+          relatedEntityId !== undefined),
+      "Pilot evidence requires a related pilot entity.",
+    );
+    assertAllowed(
+      !isPilotEvidence ||
+        args.accessLevel === undefined ||
+        args.accessLevel === "private",
+      "Pilot evidence must remain private.",
+    );
     assertAllowed(
       actorCanCreateUploadForOwner(actor, ownerUserId),
       "Actor cannot create uploads for this owner.",
@@ -392,12 +657,18 @@ export const createPending = mutation({
         args.purpose === "blog_content_image",
       "Only approved public media purposes may be publicly readable.",
     );
+    const stagedLotEvidence =
+      args.relatedEntityType === "pilotProcurementLots" &&
+      (args.purpose === "pilot_collection_evidence" ||
+        args.purpose === "pilot_custody_evidence" ||
+        args.purpose === "pilot_acceptance_evidence");
     await requireActorCanUseRelatedEntity(
       ctx,
       actor,
-      "manage",
+      stagedLotEvidence ? "read" : "manage",
       args.relatedEntityType,
       relatedEntityId,
+      args.pilotProgrammeId,
     );
 
     const now = Date.now();
@@ -418,6 +689,7 @@ export const createPending = mutation({
         ownerUserId,
         ownerProfileType: args.ownerProfileType,
         ownerProfileId: cleanOptionalText(args.ownerProfileId),
+        pilotProgrammeId: args.pilotProgrammeId,
         purpose: args.purpose,
         status: "pending_upload",
         accessLevel: args.accessLevel ?? "private",
@@ -482,9 +754,10 @@ export const complete = mutation({
     status: v.union(v.literal("uploaded"), v.literal("attached")),
   }),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const asset = await ctx.db.get(args.uploadAssetId);
     assertAllowed(asset !== null, "Upload asset was not found.");
+    const pilotEvidence = isPilotAsset(asset);
+    const actor = await getUploadActor(ctx, args.actorUserId, pilotEvidence);
     assertAllowed(
       asset.status === "pending_upload",
       "Only pending uploads can be completed.",
@@ -497,6 +770,16 @@ export const complete = mutation({
     );
     if (actor.role === "admin" && actor._id !== asset.ownerUserId) {
       await requireAdminPermission(ctx, actor._id, "uploads:manage", {});
+    }
+    if (pilotEvidence) {
+      await requireActorCanUseRelatedEntity(
+        ctx,
+        actor,
+        "manage",
+        asset.relatedEntityType,
+        asset.relatedEntityId,
+        asset.pilotProgrammeId,
+      );
     }
     assertAllowed(
       args.sizeBytes === asset.sizeBytes,
@@ -537,14 +820,30 @@ export const attachToEntity = mutation({
     uploadAssetId: v.id("uploadAssets"),
     relatedEntityType,
     relatedEntityId: v.string(),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     purpose: v.optional(uploadPurpose),
     reason: v.optional(v.string()),
   },
   returns: v.id("uploadAssets"),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const asset = await ctx.db.get(args.uploadAssetId);
     assertAllowed(asset !== null, "Upload asset was not found.");
+    const attachingPilot = pilotRelatedEntityTypes.includes(
+      args.relatedEntityType,
+    );
+    const actor = await getUploadActor(
+      ctx,
+      args.actorUserId,
+      attachingPilot || isPilotAsset(asset),
+    );
+    assertAllowed(
+      !attachingPilot || args.pilotProgrammeId !== undefined,
+      "Pilot evidence requires a programme.",
+    );
+    assertAllowed(
+      !attachingPilot || asset.accessLevel === "private",
+      "Pilot evidence must remain private.",
+    );
     assertAllowed(
       asset.status === "uploaded" || asset.status === "attached",
       "Only uploaded evidence can be attached.",
@@ -567,6 +866,7 @@ export const attachToEntity = mutation({
       "manage",
       args.relatedEntityType,
       cleanOptionalText(args.relatedEntityId),
+      args.pilotProgrammeId,
     );
 
     const now = Date.now();
@@ -576,6 +876,7 @@ export const attachToEntity = mutation({
         purpose,
         relatedEntityType: args.relatedEntityType,
         relatedEntityId: cleanOptionalText(args.relatedEntityId),
+        pilotProgrammeId: args.pilotProgrammeId,
         status: "attached",
         updatedAt: now,
       }),
@@ -603,15 +904,20 @@ async function updateUploadAssetStatus(
     reason?: string | undefined;
   },
 ): Promise<Id<"uploadAssets">> {
-  const actor = await getActor(ctx, args.actorUserId);
   const asset = await ctx.db.get(args.uploadAssetId);
   assertAllowed(asset !== null, "Upload asset was not found.");
+  const actor = await getUploadActor(
+    ctx,
+    args.actorUserId,
+    isPilotAsset(asset),
+  );
   await requireActorCanUseRelatedEntity(
     ctx,
     actor,
     "manage",
     asset.relatedEntityType,
     asset.relatedEntityId,
+    asset.pilotProgrammeId,
   );
   const now = Date.now();
   await ctx.db.patch(
@@ -696,14 +1002,15 @@ export const getById = query({
   },
   returns: v.union(v.null(), v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const asset = await ctx.db.get(args.uploadAssetId);
     if (asset === null) {
       return null;
     }
+    const pilotEvidence = isPilotAsset(asset);
+    const actor = await getUploadActor(ctx, args.actorUserId, pilotEvidence);
     if (
-      actor._id !== asset.ownerUserId &&
-      actor._id !== asset.createdByUserId
+      pilotEvidence ||
+      (actor._id !== asset.ownerUserId && actor._id !== asset.createdByUserId)
     ) {
       await requireActorCanUseRelatedEntity(
         ctx,
@@ -711,6 +1018,7 @@ export const getById = query({
         "read",
         asset.relatedEntityType,
         asset.relatedEntityId,
+        asset.pilotProgrammeId,
       );
     }
     return asset;
@@ -734,11 +1042,12 @@ export const getReadableObject = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const asset = await ctx.db.get(args.uploadAssetId);
     if (asset === null) {
       return null;
     }
+    const pilotEvidence = isPilotAsset(asset);
+    const actor = await getUploadActor(ctx, args.actorUserId, pilotEvidence);
     assertAllowed(
       asset.status !== "pending_upload",
       "Upload is not ready for read access.",
@@ -748,8 +1057,8 @@ export const getReadableObject = query({
       "Upload is not available for read access.",
     );
     if (
-      actor._id !== asset.ownerUserId &&
-      actor._id !== asset.createdByUserId
+      pilotEvidence ||
+      (actor._id !== asset.ownerUserId && actor._id !== asset.createdByUserId)
     ) {
       await requireActorCanUseRelatedEntity(
         ctx,
@@ -757,6 +1066,7 @@ export const getReadableObject = query({
         "read",
         asset.relatedEntityType,
         asset.relatedEntityId,
+        asset.pilotProgrammeId,
       );
     }
     return {
@@ -777,22 +1087,27 @@ export const listByRelatedEntity = query({
     relatedEntityId: v.string(),
     status: v.optional(uploadStatus),
     purpose: v.optional(uploadPurpose),
+    pilotProgrammeId: v.optional(v.id("pilotProgrammes")),
     limit: v.optional(v.number()),
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
     const relatedEntityId = cleanOptionalText(args.relatedEntityId);
     assertAllowed(
       relatedEntityId !== undefined,
       "Related entity id is required.",
     );
+    const pilotEvidence = pilotRelatedEntityTypes.includes(
+      args.relatedEntityType,
+    );
+    const actor = await getUploadActor(ctx, args.actorUserId, pilotEvidence);
     await requireActorCanUseRelatedEntity(
       ctx,
       actor,
       "read",
       args.relatedEntityType,
       relatedEntityId,
+      args.pilotProgrammeId,
     );
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates = await ctx.db
@@ -825,10 +1140,6 @@ export const listByOwner = query({
   },
   returns: v.array(v.any()),
   handler: async (ctx, args) => {
-    const actor = await getActor(ctx, args.actorUserId);
-    if (actor._id !== args.ownerUserId) {
-      await requireAdminPermission(ctx, actor._id, "uploads:read", {});
-    }
     const limit = Math.min(args.limit ?? 50, 100);
     const candidates =
       args.purpose === undefined
@@ -855,6 +1166,23 @@ export const listByOwner = query({
                     .eq("status", args.status!),
             )
             .take(limit * 2);
+    const pilotEvidence = candidates.some(isPilotAsset);
+    const actor = await getUploadActor(ctx, args.actorUserId, pilotEvidence);
+    if (actor._id !== args.ownerUserId) {
+      await requireAdminPermission(ctx, actor._id, "uploads:read", {});
+    }
+    if (pilotEvidence) {
+      for (const asset of candidates.filter(isPilotAsset)) {
+        await requireActorCanUseRelatedEntity(
+          ctx,
+          actor,
+          "read",
+          asset.relatedEntityType,
+          asset.relatedEntityId,
+          asset.pilotProgrammeId,
+        );
+      }
+    }
     return candidates
       .filter(
         (asset) => args.status === undefined || asset.status === args.status,

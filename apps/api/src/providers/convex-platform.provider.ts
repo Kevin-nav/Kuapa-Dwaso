@@ -27,6 +27,7 @@ type CreateInvitationArgs = {
   targetEmail?: string;
   targetPhoneNumber?: string;
   linkedProfileId?: string;
+  pilotProgrammeId?: string;
   pendingAdminRoleAssignment?: {
     roleKey: AdminRoleKey;
     scopeType: AdminScopeType;
@@ -77,6 +78,7 @@ type CreatePendingUploadArgs = {
   fileName?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
+  pilotProgrammeId?: string;
 };
 
 type CompleteUploadArgs = {
@@ -163,6 +165,55 @@ type PreparedBuyerPayment = {
     userId?: string;
     phoneNumber?: string;
   } | null;
+};
+
+type PreparePilotBuyerPaymentArgs = {
+  requestId: string;
+  purpose: "buyer_produce" | "buyer_transport";
+  amountPesewas: number;
+  provider: PaymentProvider;
+  idempotencyKey: string;
+  correlationId?: string;
+};
+
+type PreparedPilotBuyerPayment = {
+  _id: string;
+  requestId: string;
+  buyerId: string;
+  purpose: "buyer_produce" | "buyer_transport";
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  amountPesewas: number;
+  currency: "GHS";
+  status: "pending" | "initialized" | "succeeded" | "failed" | "reversed";
+};
+
+type PilotProviderResultArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  status: PaymentTransactionStatus;
+  amountPesewas?: number;
+  currency?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+};
+
+type PilotProviderInitializationArgs = {
+  provider: PaymentProvider;
+  providerReference: string;
+  providerAccessCode?: string;
+  authorizationUrl?: string;
+  providerStatus?: string;
+  providerMessage?: string;
+};
+
+type PilotProviderEventArgs = Omit<PilotProviderResultArgs, "status"> & {
+  providerEventId: string;
+  eventType: string;
+  normalizedStatus: PaymentTransactionStatus;
+  rawPayload: Record<string, unknown>;
 };
 
 type RecordProviderInitializationArgs = {
@@ -325,39 +376,77 @@ const recordProviderEvent = makeFunctionReference<
   unknown
 >("payments:recordProviderEvent");
 
+const preparePilotBuyerPayment = makeFunctionReference<
+  "mutation",
+  PreparePilotBuyerPaymentArgs,
+  PreparedPilotBuyerPayment
+>("pilotFinance:prepareBuyerPayment");
+
+const recordPilotProviderInitialization = makeFunctionReference<
+  "mutation",
+  {
+    serviceSecret: string;
+    provider: PaymentProvider;
+    providerReference: string;
+    providerAccessCode?: string;
+    authorizationUrl?: string;
+    providerStatus?: string;
+    providerMessage?: string;
+  },
+  string
+>("pilotFinance:recordProviderInitialization");
+
+const reconcilePilotProviderPayment = makeFunctionReference<
+  "mutation",
+  PilotProviderResultArgs & { serviceSecret: string },
+  unknown
+>("pilotFinance:reconcileProviderPayment");
+
+const recordPilotProviderEvent = makeFunctionReference<
+  "mutation",
+  Omit<PilotProviderResultArgs, "status"> & {
+    serviceSecret: string;
+    providerEventId: string;
+    eventType: string;
+    normalizedStatus: PaymentTransactionStatus;
+    rawPayload: Record<string, unknown>;
+  },
+  unknown
+>("pilotFinance:recordProviderEvent");
+
 @Injectable()
 export class ConvexPlatformProvider {
   private client: ConvexHttpClient | undefined;
 
-  async createInvitation(args: CreateInvitationArgs): Promise<string> {
-    return await this.getClient().mutation(createInvitation, args);
+  async createInvitation(args: CreateInvitationArgs, authToken?: string): Promise<string> {
+    return await this.getClient(authToken).mutation(createInvitation, args);
   }
 
-  async acceptInvitation(args: AcceptInvitationArgs): Promise<AcceptInvitationResult> {
-    return await this.getClient().mutation(acceptInvitation, args);
+  async acceptInvitation(args: AcceptInvitationArgs, authToken?: string): Promise<AcceptInvitationResult> {
+    return await this.getClient(authToken).mutation(acceptInvitation, args);
   }
 
   async getPendingInvitationByTokenHash(tokenHash: string) {
     return await this.getClient().query(getPendingInvitationByTokenHash, { tokenHash });
   }
 
-  async createPendingUpload(args: CreatePendingUploadArgs): Promise<{
+  async createPendingUpload(args: CreatePendingUploadArgs, authToken?: string): Promise<{
     uploadAssetId: string;
     objectKey: string;
   }> {
-    return await this.getClient().mutation(createPendingUpload, args);
+    return await this.getClient(authToken).mutation(createPendingUpload, args);
   }
 
-  async completeUpload(args: CompleteUploadArgs): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
-    return await this.getClient().mutation(completeUpload, args);
+  async completeUpload(args: CompleteUploadArgs, authToken?: string): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
+    return await this.getClient(authToken).mutation(completeUpload, args);
   }
 
-  async discardUpload(args: { actorUserId: string; uploadAssetId: string; reason: string }): Promise<string> {
-    return await this.getClient().mutation(updateUploadStatus, { ...args, status: "deleted" });
+  async discardUpload(args: { actorUserId: string; uploadAssetId: string; reason: string }, authToken?: string): Promise<string> {
+    return await this.getClient(authToken).mutation(updateUploadStatus, { ...args, status: "deleted" });
   }
 
-  async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }): Promise<ReadableUploadObject | null> {
-    return await this.getClient().query(getReadableUploadObject, args);
+  async getReadableUploadObject(args: { actorUserId: string; uploadAssetId: string }, authToken?: string): Promise<ReadableUploadObject | null> {
+    return await this.getClient(authToken).query(getReadableUploadObject, args);
   }
 
   async recordSmsSend(args: RecordSmsSendArgs): Promise<string> {
@@ -403,7 +492,49 @@ export class ConvexPlatformProvider {
     return await this.getClient().mutation(recordProviderEvent, args);
   }
 
-  private getClient(): ConvexHttpClient {
+  async preparePilotBuyerPayment(
+    args: PreparePilotBuyerPaymentArgs,
+    authToken: string,
+  ): Promise<PreparedPilotBuyerPayment> {
+    this.getPaymentServiceSecret();
+    return await this.getClient(authToken).mutation(preparePilotBuyerPayment, args);
+  }
+
+  async recordPilotProviderInitialization(
+    args: PilotProviderInitializationArgs,
+  ): Promise<string> {
+    return await this.getClient().mutation(recordPilotProviderInitialization, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
+  async reconcilePilotProviderPayment(args: PilotProviderResultArgs): Promise<unknown> {
+    return await this.getClient().mutation(reconcilePilotProviderPayment, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
+  async recordPilotProviderEvent(
+    args: PilotProviderEventArgs,
+  ): Promise<unknown> {
+    return await this.getClient().mutation(recordPilotProviderEvent, {
+      ...args,
+      serviceSecret: this.getPaymentServiceSecret(),
+    });
+  }
+
+  private getClient(authToken?: string): ConvexHttpClient {
+    if (authToken !== undefined) {
+      const env = getApiEnvironment();
+      if (env.auth.convexUrl === undefined) {
+        throw new ServiceUnavailableException("Convex URL is not configured.");
+      }
+      const authenticatedClient = new ConvexHttpClient(env.auth.convexUrl);
+      authenticatedClient.setAuth(authToken);
+      return authenticatedClient;
+    }
     if (this.client !== undefined) {
       return this.client;
     }
@@ -418,6 +549,15 @@ export class ConvexPlatformProvider {
   private getNotificationServiceSecret(): string {
     const secret = getApiEnvironment().notifications.deliverySecret;
     if (secret === undefined || secret.length < 16) throw new ServiceUnavailableException("Notification service authorization is not configured.");
+    return secret;
+  }
+
+  private getPaymentServiceSecret(): string {
+    const secret = getApiEnvironment().payments.serviceSecret;
+    if (secret === undefined || secret.length < 24)
+      throw new ServiceUnavailableException(
+        "Payment provider service authorization is not configured.",
+      );
     return secret;
   }
 }

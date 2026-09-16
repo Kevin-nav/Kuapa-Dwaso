@@ -61,6 +61,11 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       ],
     },
     {
+      id: "editorial-update-2026-09-12",
+      type: "paragraph",
+      content: [{ text: "Editorial update — 12 September 2026: this article records a learning visit, not a signed order, endorsement, or operating partnership. Extech's role remains prospective and must be agreed for each transaction. Kuapa Dwaso's first pilot begins with commercial maize demand and does not require an owned or participating warehouse." }],
+    },
+    {
       id: "network-heading",
       type: "heading2",
       content: [{ text: "Start with the network, not a new building" }],
@@ -79,7 +84,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "That lesson still guides us, but our model has developed since the visit. Kuapa Dwaso now begins with participating community warehouses and experienced partners instead of constructing a facility of its own. Farmers gain a nearby point for intake and storage, while the platform connects recorded stock to buyer orders and scheduled market delivery.",
+          text: "That lesson still guides us, but our model has developed since the visit. Kuapa Dwaso now begins with a commercial maize requirement, farmer offers, agreed quality checks, and coordinated collection. An existing facility may be assessed for a particular transaction when storage is genuinely useful, but the first pilot does not require one.",
         },
       ],
     },
@@ -88,7 +93,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "We did not move away from warehouses. We became clearer about how to use them: start with existing local capacity, build dependable operating habits, measure real demand, and let evidence determine where additional infrastructure is eventually justified.",
+          text: "Warehousing remains a conditional later option. We first need dependable operating habits and evidence from actual demand, accepted quantities, delivery performance, payment behaviour, storage need, and costs before considering formal capacity or infrastructure.",
         },
       ],
     },
@@ -119,14 +124,14 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "That is what Kuapa Dwaso is putting into practice today. At intake, warehouse agents weigh, grade, photograph, and record produce. Farmers receive storage receipts. Inventory remains tied to its owner and location, and its status changes visibly as stock becomes available, reserved, sold, or dispatched.",
+          text: "The pilot software applies that discipline to a no-warehouse transaction. It keeps lot identity, farmer ownership, inspection evidence, custody, accepted and rejected quantity, buyer acceptance, and financial obligations distinct. These are implemented controls for a controlled pilot, not evidence that Kuapa Dwaso is already operating at scale.",
         },
       ],
     },
     {
       id: "buyer-heading",
       type: "heading2",
-      content: [{ text: "Know the buyer before confirmed orders move" }],
+      content: [{ text: "Know the buyer before maize moves" }],
     },
     {
       id: "buyer-1",
@@ -143,9 +148,9 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       items: [
         [{ text: "The crop, variety, quantity, and quality required." }],
         [{ text: "The destination and scheduled delivery day." }],
-        [{ text: "The published order cutoff and payment deadline." }],
+        [{ text: "The delivery window and disclosed payment trigger." }],
         [{ text: "The price, applicable fees, and fulfilment conditions." }],
-        [{ text: "The people responsible for preparation and dispatch." }],
+        [{ text: "The parties responsible for inspection, collection, acceptance, and payment." }],
       ],
     },
     {
@@ -153,7 +158,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Traders and bulk buyers therefore order from verified warehouse stock before a published cutoff. Confirmed orders are aggregated for a dated run and prepared for scheduled delivery to selected destinations. Farmers keep clear ownership and sale records, while buyers gain confidence that the stock they order has been received and checked.",
+          text: "A commercial buyer therefore records a maize requirement before sourcing begins. Farmers review their own offers, inspected lots remain identifiable, and only quality-cleared quantity enters the collection plan. Arrival, buyer acceptance, and payment are recorded as separate events so one cannot be mistaken for another.",
         },
       ],
     },
@@ -207,7 +212,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Kuapa Dwaso evaluates crops and delivery routes through evidence: buyer demand, farmer supply, harvest timing, quality requirements, shelf life, warehouse capacity, transport cost, payment behaviour, and the margin left after fulfilment. The same discipline applies when selecting destination markets and delivery days.",
+          text: "Kuapa Dwaso evaluates crops and delivery routes through evidence: buyer demand, farmer supply, harvest timing, quality requirements, shelf life, transport cost, payment behaviour, and the contribution left after actual fulfilment costs. The same discipline will apply to any later storage decision.",
         },
       ],
     },
@@ -245,27 +250,27 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       items: [
         [
           {
-            text: "Farmers deposit produce at a participating community warehouse.",
+            text: "A commercial buyer records a specific maize requirement.",
           },
         ],
         [
           {
-            text: "Warehouse agents record ownership, weight, grade, images, condition, and fees.",
+            text: "Farmers declare matching supply and review the purchaser, quantity, price, quality conditions, deductions, and payment responsibility.",
           },
         ],
         [
           {
-            text: "Buyers view verified available stock and order before a published cutoff.",
+            text: "Assigned operators record inspection results and keep accepted and rejected lots distinct.",
           },
         ],
         [
           {
-            text: "Confirmed orders are reserved, aggregated, and prepared for a dated delivery run.",
+            text: "Only cleared lots enter a funded, assigned collection and delivery plan.",
           },
         ],
         [
           {
-            text: "Dispatch records and concise updates keep the movement visible to the people involved.",
+            text: "Delivery acceptance, payment obligations, costs, and settlement evidence are reconciled separately.",
           },
         ],
       ],
@@ -280,7 +285,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "The visit also strengthened our commitment to measure what happens in practice: quantities received and accepted, storage duration, handling and transport costs, order fulfilment, delivery time, payment periods, losses, warehouse utilisation, and farmer and buyer experience.",
+          text: "The visit also strengthened our commitment to measure what happens in practice: quantities offered, quality-cleared and accepted, handling and transport costs, fulfilment, delivery time, payment periods, losses, and farmer and buyer experience.",
         },
       ],
     },
@@ -355,7 +360,7 @@ function storyContent(origin: string): Doc<"blogPosts">["content"] {
       type: "paragraph",
       content: [
         {
-          text: "Our day with Extech showed us that the answer is not a building in isolation. It is a working network: community warehouses, disciplined records, verified stock, real buyer orders, scheduled delivery, and experienced partners who understand the conditions on the ground.",
+          text: "Our day with Extech showed us that the answer is not a building in isolation. It is a disciplined network around real buyer demand, willing farmers, quality evidence, accountable delivery, clear payment responsibility, and experienced participants who understand the conditions on the ground.",
         },
       ],
     },
@@ -422,6 +427,8 @@ export const seed = internalMutation({
     actorUserId: v.optional(v.id("users")),
     dryRun: v.optional(v.boolean()),
     siteUrl: v.optional(v.string()),
+    expectedExistingId: v.optional(v.id("blogPosts")),
+    expectedExistingUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const origin = publicSiteOrigin(args.siteUrl);
@@ -432,8 +439,11 @@ export const seed = internalMutation({
     const action = existing === null ? "insert" : "update";
 
     if (args.dryRun === true) {
-      return { action: `would-${action}`, slug, siteUrl: origin };
+      return { action: `would-${action}`, slug, siteUrl: origin, blogPostId: existing?._id, currentUpdatedAt: existing?.updatedAt };
     }
+
+    if (existing !== null && (args.expectedExistingId !== existing._id || args.expectedExistingUpdatedAt !== existing.updatedAt))
+      throw new Error("Existing story changed. Run the dry-run again and pass its exact blogPostId and currentUpdatedAt.");
 
     const actor = await resolveActor(ctx, args.actorUserId);
     const now = Date.now();
@@ -441,7 +451,7 @@ export const seed = internalMutation({
       title: "What We Learned From Our Visit to Extech Agricultural Services",
       slug,
       excerpt:
-        "A visit to Extech Agricultural Services helped shape how Kuapa Dwaso now works with community warehouses, verified stock, experienced partners, and scheduled market delivery.",
+        "A learning visit to Extech Agricultural Services helped shape Kuapa Dwaso's demand-led maize pilot. Any collaboration remains prospective and transaction-specific.",
       category: "partnerships" as const,
       status: "published" as const,
       content: storyContent(origin),

@@ -947,6 +947,7 @@ export function assertInviteIdentityVerification(input: {
 }): void {
   const phonePrimary =
     input.invitationType === "warehouse_agent_invite" ||
+    input.invitationType === "pilot_operations_invite" ||
     input.invitationType === "transporter_invite";
   if (phonePrimary) {
     if (
@@ -1017,6 +1018,24 @@ export function isUploadPurposeAllowedForRelatedEntity(input: {
     case "blog_hero_image":
     case "blog_content_image":
       return input.relatedEntityType === "blog_post";
+    case "pilot_inspection_evidence":
+      return input.relatedEntityType === "pilotInspections";
+    case "pilot_collection_evidence":
+      return input.relatedEntityType === "pilotProcurementLots";
+    case "pilot_custody_evidence":
+      return input.relatedEntityType === "pilotCustodyEvents" || input.relatedEntityType === "pilotProcurementLots";
+    case "pilot_acceptance_evidence":
+      return input.relatedEntityType === "pilotBuyerAcceptances" || input.relatedEntityType === "pilotProcurementLots";
+    case "pilot_financial_evidence":
+      return (
+        input.relatedEntityType === "pilotProgrammes" ||
+        input.relatedEntityType === "pilotBuyerRequests" ||
+        input.relatedEntityType === "pilotFinancialEntries"
+      );
+    case "pilot_issue_evidence":
+      return input.relatedEntityType === "pilotIssues";
+    case "pilot_facility_assessment":
+      return input.relatedEntityType === "pilotFacilities";
   }
 }
 
@@ -1768,4 +1787,27 @@ export function calculateActualFinancialSummary(input: {
       ...input.buyerOrders.filter((order) => order.paymentStatus === "disputed").map((order) => order.totalAmount ?? 0),
     ]),
   };
+}
+
+export const onboardingIntents = ["request_maize_supply", "sell_maize"] as const;
+export type OnboardingIntent = (typeof onboardingIntents)[number];
+
+export function parseOnboardingIntent(value: unknown): OnboardingIntent | undefined {
+  return typeof value === "string" && onboardingIntents.includes(value as OnboardingIntent)
+    ? value as OnboardingIntent
+    : undefined;
+}
+
+export function onboardingIntentRole(intent: OnboardingIntent | undefined): "buyer" | "farmer" | undefined {
+  return intent === "request_maize_supply" ? "buyer" : intent === "sell_maize" ? "farmer" : undefined;
+}
+
+export function onboardingIntentDestination(intent: OnboardingIntent | undefined): string | undefined {
+  return intent === "request_maize_supply" ? "/buyer/requests/new" : intent === "sell_maize" ? "/farmer/supply" : undefined;
+}
+
+export function onboardingIntentHref(appOrigin: string, intent: OnboardingIntent): string {
+  const url = new URL("/signup", appOrigin);
+  url.searchParams.set("intent", intent);
+  return url.toString();
 }
