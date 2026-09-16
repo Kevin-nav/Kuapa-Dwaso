@@ -281,7 +281,9 @@ metadata:
   labels:
     app.kubernetes.io/name: api
 spec:
-  replicas: 2
+  # Temporary shared-access SMS limits are process-local. Keep one API replica
+  # for the preview window, then restore two after access is disabled.
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: api

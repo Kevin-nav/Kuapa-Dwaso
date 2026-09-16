@@ -34,10 +34,19 @@ const warehouseNav = [
   { href: "/farmers", label: "Farmers", icon: Search },
 ];
 
-export default function LayoutShell({ children }: { children: React.ReactNode }) {
+export default function LayoutShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const { firebaseUser, principal, isLoading: isAuthLoading, signOut } = useOpsAuth();
+  const {
+    firebaseUser,
+    principal,
+    isLoading: isAuthLoading,
+    signOut,
+  } = useOpsAuth();
   const {
     programmes,
     activeProgramme,
@@ -58,26 +67,59 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const [syncError, setSyncError] = useState<string>();
   const isAuthRoute = pathname === "/auth";
   const isPilotRoute = pathname.startsWith("/pilot");
+  const previewAccessEnabled =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
+  const isPreviewBlockedRoute =
+    previewAccessEnabled &&
+    (pathname === "/" ||
+      pathname.startsWith("/inventory") ||
+      pathname.startsWith("/farmers") ||
+      pathname.startsWith("/intake") ||
+      pathname.startsWith("/receipts") ||
+      pathname.startsWith("/disputes"));
   const hasOperationsIdentity =
     firebaseUser !== null && principal?.role === "warehouse_agent";
 
   useEffect(() => {
-    if (!isAuthRoute && !isAuthLoading && !hasOperationsIdentity) router.replace("/auth");
-  }, [hasOperationsIdentity, isAuthLoading, isAuthRoute, router]);
+    if (isAuthRoute || isAuthLoading) return;
+    if (!hasOperationsIdentity) {
+      router.replace("/auth");
+      return;
+    }
+    if (isPreviewBlockedRoute) router.replace("/pilot");
+  }, [
+    hasOperationsIdentity,
+    isAuthLoading,
+    isAuthRoute,
+    isPreviewBlockedRoute,
+    router,
+  ]);
 
   if (isAuthRoute) return <>{children}</>;
-  if (isAuthLoading || !hasOperationsIdentity)
+  if (isAuthLoading || !hasOperationsIdentity || isPreviewBlockedRoute)
     return (
       <main className="ops-auth-gate" aria-live="polite">
         <div className="ops-auth-gate-mark" />
-        <p>{isAuthLoading ? "Checking operations access…" : "Taking you to secure sign in…"}</p>
+        <p>
+          {isAuthLoading
+            ? "Checking operations access…"
+            : "Taking you to secure sign in…"}
+        </p>
       </main>
     );
 
   const syncStatus = isOffline
-    ? { className: "offline", label: `Offline — ${syncQueue.length} pending`, icon: CloudOff }
+    ? {
+        className: "offline",
+        label: `Offline — ${syncQueue.length} pending`,
+        icon: CloudOff,
+      }
     : syncQueue.length > 0
-      ? { className: "syncing", label: `Syncing (${syncQueue.length})`, icon: RefreshCw }
+      ? {
+          className: "syncing",
+          label: `Syncing (${syncQueue.length})`,
+          icon: RefreshCw,
+        }
       : { className: "synced", label: "Synced", icon: CheckCircle };
   const SyncIcon = syncStatus.icon;
   const sampleProgrammes = programmes
@@ -87,7 +129,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       programmeName: programme.name,
       dataMode: programme.datasetProvenance,
     }));
-  const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const demoPresentation =
+    process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" &&
+    !previewAccessEnabled;
 
   async function retrySync() {
     setSyncError(undefined);
@@ -98,7 +142,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
     try {
       await triggerSync();
     } catch (error) {
-      setSyncError(error instanceof Error ? error.message : "Saved actions could not be retried.");
+      setSyncError(
+        error instanceof Error
+          ? error.message
+          : "Saved actions could not be retried.",
+      );
     }
   }
 
@@ -112,7 +160,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
               <select
                 value={activeProgrammeId}
                 onChange={(event) =>
-                  setActiveProgrammeId(event.target.value as typeof activeProgrammeId)
+                  setActiveProgrammeId(
+                    event.target.value as typeof activeProgrammeId,
+                  )
                 }
                 aria-label="Active maize programme"
               >
@@ -132,13 +182,17 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
                 aria-label="Active warehouse"
               >
                 {assignedWarehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+                  <option key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}
+                  </option>
                 ))}
               </select>
             </label>
           ) : (
             <div className="topbar-title">
-              {isPilotRoute ? activeProgramme?.name ?? "Maize programme" : activeWarehouse.name}
+              {isPilotRoute
+                ? (activeProgramme?.name ?? "Maize programme")
+                : activeWarehouse.name}
             </div>
           )}
         </div>
@@ -149,7 +203,12 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             className={`sync-pill ${syncStatus.className}`}
             onClick={() => void retrySync()}
           >
-            <SyncIcon size={16} className={syncStatus.className === "syncing" ? "animate-spin" : undefined} />
+            <SyncIcon
+              size={16}
+              className={
+                syncStatus.className === "syncing" ? "animate-spin" : undefined
+              }
+            />
             <span>{syncStatus.label}</span>
           </button>
           <button
@@ -160,7 +219,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
             aria-haspopup="true"
           >
             <span className="profile-avatar">
-              {activeAgent.fullName.split(" ").map((name) => name[0]).join("").toUpperCase()}
+              {activeAgent.fullName
+                .split(" ")
+                .map((name) => name[0])
+                .join("")
+                .toUpperCase()}
             </span>
             <span className="profile-name">{activeAgent.fullName}</span>
             <ChevronDown size={14} />
@@ -173,13 +236,25 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
               </div>
               <div className="profile-dropdown-body">
                 <span className="profile-info-label">Current workspace</span>
-                <strong>{isPilotRoute ? activeProgramme?.name ?? "No programme assignment" : activeWarehouse.name}</strong>
+                <strong>
+                  {isPilotRoute
+                    ? (activeProgramme?.name ?? "No programme assignment")
+                    : activeWarehouse.name}
+                </strong>
               </div>
               <div className="profile-dropdown-footer">
-                <Link href="/notifications" className="btn-logout" onClick={() => setShowProfileMenu(false)}>
+                <Link
+                  href="/notifications"
+                  className="btn-logout"
+                  onClick={() => setShowProfileMenu(false)}
+                >
                   <Bell size={16} /> Notifications
                 </Link>
-                <button type="button" className="btn-logout" onClick={() => void signOut()}>
+                <button
+                  type="button"
+                  className="btn-logout"
+                  onClick={() => void signOut()}
+                >
                   <LogOut size={16} /> Log out
                 </button>
               </div>
@@ -189,11 +264,23 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       </header>
 
       <aside className="sidebar">
-        <Link href="/" className="ops-brand"><span>KD</span><strong>KuapaDwaso</strong></Link>
+        <Link
+          href={previewAccessEnabled ? "/pilot" : "/"}
+          className="ops-brand"
+        >
+          <span>KD</span>
+          <strong>KuapaDwaso</strong>
+        </Link>
         <nav aria-label="Operations navigation">
-          <Link href="/" className={`sidebar-link ${pathname === "/" ? "active" : ""}`}>
-            <Home size={19} /><span>Home</span>
-          </Link>
+          {!previewAccessEnabled ? (
+            <Link
+              href="/"
+              className={`sidebar-link ${pathname === "/" ? "active" : ""}`}
+            >
+              <Home size={19} />
+              <span>Home</span>
+            </Link>
+          ) : null}
           <p className="ops-nav-label">Maize programme</p>
           {pilotNav.map(({ href, label, icon: Icon }) => (
             <Link
@@ -201,33 +288,53 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
               href={href}
               className={`sidebar-link ${pathname === href || (href !== "/pilot" && pathname.startsWith(href)) || (href === "/pilot" && /^\/pilot\/requests/.test(pathname)) ? "active" : ""}`}
             >
-              <Icon size={19} /><span>{label}</span>
+              <Icon size={19} />
+              <span>{label}</span>
             </Link>
           ))}
-          <p className="ops-nav-label">Warehouse workspace</p>
-          {warehouseNav.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={`sidebar-link ${pathname.startsWith(href) ? "active" : ""}`}>
-              <Icon size={19} /><span>{label}</span>
-            </Link>
-          ))}
-          <Link href="/intake" className={`sidebar-link ${pathname.startsWith("/intake") ? "active" : ""}`}>
-            <Package size={19} /><span>Produce intake</span>
-          </Link>
+          {!previewAccessEnabled ? (
+            <>
+              <p className="ops-nav-label">Warehouse workspace</p>
+              {warehouseNav.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`sidebar-link ${pathname.startsWith(href) ? "active" : ""}`}
+                >
+                  <Icon size={19} />
+                  <span>{label}</span>
+                </Link>
+              ))}
+              <Link
+                href="/intake"
+                className={`sidebar-link ${pathname.startsWith("/intake") ? "active" : ""}`}
+              >
+                <Package size={19} />
+                <span>Produce intake</span>
+              </Link>
+            </>
+          ) : null}
         </nav>
       </aside>
 
       <main className="main-content">
-        {demoPresentation ? <SampleDataBanner programmes={sampleProgrammes} /> : null}
+        {demoPresentation ? (
+          <SampleDataBanner programmes={sampleProgrammes} />
+        ) : null}
         <div className="content-container">
           {isOffline ? (
             <div className="offline-banner" role="alert">
               <CloudOff size={20} />
-              <span>You are offline. Commercial decisions and inspection results require a connection.</span>
+              <span>
+                You are offline. Commercial decisions and inspection results
+                require a connection.
+              </span>
             </div>
           ) : null}
           {syncError === undefined ? null : (
             <div className="offline-banner" role="alert">
-              <AlertTriangle size={20} /><span>{syncError} Try again when the connection is stable.</span>
+              <AlertTriangle size={20} />
+              <span>{syncError} Try again when the connection is stable.</span>
             </div>
           )}
           {children}
@@ -235,10 +342,36 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       </main>
 
       <nav aria-label="Mobile navigation" className="mobile-nav">
-        <Link href="/" className={`mobile-nav-item ${pathname === "/" ? "active" : ""}`}><Home size={20} /><span>Home</span></Link>
-        <Link href="/pilot" className={`mobile-nav-item ${pathname.startsWith("/pilot/requests") || pathname === "/pilot" ? "active" : ""}`}><Sprout size={20} /><span>Demand</span></Link>
-        <Link href="/pilot/supply" className={`mobile-nav-item ${pathname.startsWith("/pilot/supply") ? "active" : ""}`}><Leaf size={20} /><span>Supply</span></Link>
-        <Link href="/pilot/issues" className={`mobile-nav-item ${pathname.startsWith("/pilot/issues") ? "active" : ""}`}><AlertTriangle size={20} /><span>Blockers</span></Link>
+        {!previewAccessEnabled ? (
+          <Link
+            href="/"
+            className={`mobile-nav-item ${pathname === "/" ? "active" : ""}`}
+          >
+            <Home size={20} />
+            <span>Home</span>
+          </Link>
+        ) : null}
+        <Link
+          href="/pilot"
+          className={`mobile-nav-item ${pathname.startsWith("/pilot/requests") || pathname === "/pilot" ? "active" : ""}`}
+        >
+          <Sprout size={20} />
+          <span>Demand</span>
+        </Link>
+        <Link
+          href="/pilot/supply"
+          className={`mobile-nav-item ${pathname.startsWith("/pilot/supply") ? "active" : ""}`}
+        >
+          <Leaf size={20} />
+          <span>Supply</span>
+        </Link>
+        <Link
+          href="/pilot/issues"
+          className={`mobile-nav-item ${pathname.startsWith("/pilot/issues") ? "active" : ""}`}
+        >
+          <AlertTriangle size={20} />
+          <span>Blockers</span>
+        </Link>
       </nav>
     </div>
   );

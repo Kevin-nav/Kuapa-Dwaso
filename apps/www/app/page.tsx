@@ -54,10 +54,17 @@ function getAppOrigin() {
   return appUrl;
 }
 
-function onboardingIntentHref(appOrigin: string, intent: "request_maize_supply" | "sell_maize") {
+function onboardingIntentHref(
+  appOrigin: string,
+  intent: "request_maize_supply" | "sell_maize",
+) {
   const url = new URL("/signup", appOrigin);
   url.searchParams.set("intent", intent);
   return url.toString();
+}
+
+function roleEntryHref(appOrigin: string, role: "buyer" | "farmer") {
+  return new URL(`/${role}/login`, appOrigin).toString();
 }
 
 function getAppLoginHref() {
@@ -75,9 +82,18 @@ export default async function LandingPage({
   searchParams: Promise<{ token?: string | string[] }>;
 }) {
   const appOrigin = getAppOrigin();
-  const appAuthHref = new URL("/signup", appOrigin).toString();
-  const farmerHref = onboardingIntentHref(appOrigin, "sell_maize");
-  const buyerHref = onboardingIntentHref(appOrigin, "request_maize_supply");
+  const previewAccessEnabled =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
+  const appAuthHref = new URL(
+    previewAccessEnabled ? "/" : "/signup",
+    appOrigin,
+  ).toString();
+  const farmerHref = previewAccessEnabled
+    ? roleEntryHref(appOrigin, "farmer")
+    : onboardingIntentHref(appOrigin, "sell_maize");
+  const buyerHref = previewAccessEnabled
+    ? roleEntryHref(appOrigin, "buyer")
+    : onboardingIntentHref(appOrigin, "request_maize_supply");
   const appLoginHref = getAppLoginHref();
   const params = await searchParams;
   const inviteToken =
@@ -107,7 +123,13 @@ export default async function LandingPage({
   );
 }
 
-function HeroSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
+function HeroSection({
+  farmerHref,
+  buyerHref,
+}: {
+  farmerHref: string;
+  buyerHref: string;
+}) {
   return (
     <section className="relative flex min-h-[82vh] items-end overflow-hidden sm:min-h-[85vh]">
       <Image
@@ -268,7 +290,13 @@ function HowItWorks() {
   );
 }
 
-function AudienceSection({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
+function AudienceSection({
+  farmerHref,
+  buyerHref,
+}: {
+  farmerHref: string;
+  buyerHref: string;
+}) {
   return (
     <section
       id="people"
@@ -311,11 +339,37 @@ function WarehouseProgression() {
   return (
     <section className="bg-brand-ink py-20 text-white sm:py-24">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:items-start">
-        <div><p className="eyebrow text-[#8ae0a8]">What comes later</p><h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">Warehouses follow evidence. They do not come first.</h2></div>
+        <div>
+          <p className="eyebrow text-[#8ae0a8]">What comes later</p>
+          <h2 className="mt-4 font-display text-[length:var(--text-h2)] font-bold leading-tight">
+            Warehouses follow evidence. They do not come first.
+          </h2>
+        </div>
         <div className="grid gap-5 text-white/72 sm:grid-cols-3">
-          <div><strong className="text-white">1 · Prove transactions</strong><p className="mt-2 leading-relaxed">Repeat buyer demand, accepted quality, reliable delivery, payment behaviour and actual costs are recorded first.</p></div>
-          <div><strong className="text-white">2 · Use storage when justified</strong><p className="mt-2 leading-relaxed">Existing partner facilities may be assessed for a specific transaction when storage adds real value.</p></div>
-          <div><strong className="text-white">3 · Invest conditionally</strong><p className="mt-2 leading-relaxed">A future Kuapa Dwaso warehouse depends on proven volume, utilisation, location and sustainable economics. None is currently implied.</p></div>
+          <div>
+            <strong className="text-white">1 · Prove transactions</strong>
+            <p className="mt-2 leading-relaxed">
+              Repeat buyer demand, accepted quality, reliable delivery, payment
+              behaviour and actual costs are recorded first.
+            </p>
+          </div>
+          <div>
+            <strong className="text-white">
+              2 · Use storage when justified
+            </strong>
+            <p className="mt-2 leading-relaxed">
+              Existing partner facilities may be assessed for a specific
+              transaction when storage adds real value.
+            </p>
+          </div>
+          <div>
+            <strong className="text-white">3 · Invest conditionally</strong>
+            <p className="mt-2 leading-relaxed">
+              A future Kuapa Dwaso warehouse depends on proven volume,
+              utilisation, location and sustainable economics. None is currently
+              implied.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -460,7 +514,13 @@ function InvitedAccess({
   );
 }
 
-function FinalCta({ farmerHref, buyerHref }: { farmerHref: string; buyerHref: string }) {
+function FinalCta({
+  farmerHref,
+  buyerHref,
+}: {
+  farmerHref: string;
+  buyerHref: string;
+}) {
   return (
     <section className="relative overflow-hidden bg-brand-field py-16 text-center sm:py-20">
       <div className="final-cta-pattern absolute inset-0" aria-hidden="true" />

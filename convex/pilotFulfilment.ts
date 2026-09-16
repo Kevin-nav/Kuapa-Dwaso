@@ -1655,6 +1655,7 @@ export const listDriverJobs = query({
       if (programme === null || request === null) continue;
       page.push({
         planId: plan._id,
+        programmeId: plan.programmeId,
         programmeName: programme.name,
         dataMode: programme.datasetProvenance,
         status: plan.status,

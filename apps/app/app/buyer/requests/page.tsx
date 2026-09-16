@@ -23,17 +23,26 @@ type RequestItem = {
 };
 
 const statusTone = (status: string) => {
-  if (["confirmed", "fulfilling", "delivered", "closed"].includes(status)) return "success" as const;
-  if (["submitted", "under_review", "quoted"].includes(status)) return "info" as const;
+  if (["confirmed", "fulfilling", "delivered", "closed"].includes(status))
+    return "success" as const;
+  if (["submitted", "under_review", "quoted"].includes(status))
+    return "info" as const;
   if (status === "draft") return "neutral" as const;
   return "warning" as const;
 };
 
 export default function BuyerRequestsPage() {
-  const programmes = useQuery(api.pilotProgrammes.listAvailable, { limit: 20 }) as
-    | { page: Programme[] }
-    | undefined;
-  const programme = programmes?.page.find((item) => item.status === "active");
+  const previewAccessEnabled =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
+  const previewProgrammeId = process.env.NEXT_PUBLIC_PREVIEW_PROGRAMME_ID;
+  const programmes = useQuery(api.pilotProgrammes.listAvailable, {
+    limit: 20,
+  }) as { page: Programme[] } | undefined;
+  const programme = programmes?.page.find(
+    (item) =>
+      item.status === "active" &&
+      (!previewAccessEnabled || item.id === previewProgrammeId),
+  );
   const requests = useQuery(
     api.pilotRequests.listMine,
     programme === undefined ? "skip" : { programmeId: programme.id, limit: 50 },
@@ -57,17 +66,27 @@ export default function BuyerRequestsPage() {
         <section className="pilot-buyer-empty">
           <PackageSearch size={32} />
           <h2>Maize requests are temporarily unavailable</h2>
-          <p>Kuapa Dwaso will let you know when sourcing is ready for new requests.</p>
+          <p>
+            Kuapa Dwaso will let you know when sourcing is ready for new
+            requests.
+          </p>
         </section>
       ) : null}
 
-      <section aria-labelledby="pilot-requests-title" className="pilot-buyer-section">
+      <section
+        aria-labelledby="pilot-requests-title"
+        className="pilot-buyer-section"
+      >
         <div className="section-title-row">
           <div>
             <span className="pilot-buyer-kicker">Your requests</span>
-            <h2 id="pilot-requests-title" className="section-title">Maize supply requests</h2>
+            <h2 id="pilot-requests-title" className="section-title">
+              Maize supply requests
+            </h2>
           </div>
-          <span className="pilot-buyer-count">{requests?.page.length ?? 0}</span>
+          <span className="pilot-buyer-count">
+            {requests?.page.length ?? 0}
+          </span>
         </div>
         {programme !== undefined && requests === undefined ? (
           <div className="skeleton" style={{ height: 150, borderRadius: 16 }} />
@@ -76,19 +95,34 @@ export default function BuyerRequestsPage() {
           <div className="pilot-buyer-empty">
             <PackageSearch size={30} />
             <h3>No supply requests yet</h3>
-            <p>Tell Kuapa Dwaso what you need. Sourcing progress will appear here.</p>
+            <p>
+              Tell Kuapa Dwaso what you need. Sourcing progress will appear
+              here.
+            </p>
           </div>
         ) : null}
         <div className="pilot-request-list">
           {requests?.page.map((request) => (
-            <Link className="pilot-request-row" href={`/buyer/requests/${request.requestId}`} key={request.requestId}>
+            <Link
+              className="pilot-request-row"
+              href={`/buyer/requests/${request.requestId}`}
+              key={request.requestId}
+            >
               <div className="pilot-request-row-top">
                 <strong>{request.maizeType}</strong>
-                <PilotStatus label={request.status.replaceAll("_", " ")} tone={statusTone(request.status)} />
+                <PilotStatus
+                  label={request.status.replaceAll("_", " ")}
+                  tone={statusTone(request.status)}
+                />
               </div>
               <div className="pilot-request-metrics">
-                <span><b>{formatPilotQuantity(request.requestedGrams)}</b> requested</span>
-                <span><b>{formatPilotQuantity(request.confirmedGrams ?? 0)}</b> confirmed</span>
+                <span>
+                  <b>{formatPilotQuantity(request.requestedGrams)}</b> requested
+                </span>
+                <span>
+                  <b>{formatPilotQuantity(request.confirmedGrams ?? 0)}</b>{" "}
+                  confirmed
+                </span>
               </div>
               <div className="pilot-request-destination">
                 <span>{request.destination.label}</span>

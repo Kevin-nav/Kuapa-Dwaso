@@ -1,6 +1,17 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { BadRequestException, Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
-import type { SmsDeliveryStatus, SmsMessageKind, SmsProvider, SmsProviderErrorClass } from "@kuapa-dwaso/types";
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import type {
+  SmsDeliveryStatus,
+  SmsMessageKind,
+  SmsProvider,
+  SmsProviderErrorClass,
+} from "@kuapa-dwaso/types";
 import {
   estimateSmsSegments,
   normalizeGhanaPhoneNumber,
@@ -8,6 +19,7 @@ import {
   type SmsSegmentEstimate,
 } from "@kuapa-dwaso/utils";
 import { getApiEnvironment } from "../config/env.js";
+import { PreviewSmsPolicy } from "./preview-sms-policy.js";
 
 const arkeselSmsEndpoint = "https://sms.arkesel.com/api/v2/sms/send";
 const maxHighFrequencySegments = 3;
@@ -73,15 +85,29 @@ type ArkeselSendResponse = {
 @Injectable()
 export class TransactionalSmsProvider {
   private readonly logger = new Logger(TransactionalSmsProvider.name);
+  private readonly previewPolicy = new PreviewSmsPolicy();
 
   async sendSms(input: SmsInput): Promise<SmsDeliveryResult> {
     const env = getApiEnvironment();
     if (env.sms.unsupportedProvider !== undefined) {
-      throw new ServiceUnavailableException(`Unsupported SMS provider: ${env.sms.unsupportedProvider}.`);
+      throw new ServiceUnavailableException(
+        `Unsupported SMS provider: ${env.sms.unsupportedProvider}.`,
+      );
     }
 
     const normalized = normalizeSmsInput(input);
     warnForExpensiveHighFrequencyMessage(normalized, this.logger);
+    this.previewPolicy.assertAllowedAndReserve({
+      configuration: {
+        ...env.sms.previewPolicy,
+        recipientAllowlist: normalizePreviewRecipientAllowlist(
+          env.sms.previewPolicy.recipientAllowlist,
+        ),
+      },
+      recipients: normalized.recipients,
+      segmentsPerRecipient: normalized.segmentEstimate.segments,
+      messageKind: normalized.kind,
+    });
 
     if (env.sms.provider === "mock") {
       return sendMockSms(normalized);
@@ -98,16 +124,46 @@ export class TransactionalSmsProvider {
   }
 }
 
-export function normalizeArkeselDeliveryReport(payload: unknown): ArkeselDeliveryReport {
+function normalizePreviewRecipientAllowlist(
+  recipients: readonly string[],
+): string[] {
+  return recipients.flatMap((recipient) => {
+    try {
+      return [normalizeGhanaPhoneNumber(recipient)];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function normalizeArkeselDeliveryReport(
+  payload: unknown,
+): ArkeselDeliveryReport {
   if (!isRecord(payload)) {
-    throw new BadRequestException("Arkesel delivery report payload must be a JSON object.");
+    throw new BadRequestException(
+      "Arkesel delivery report payload must be a JSON object.",
+    );
   }
 
-  const providerMessageId = readString(payload, ["message_id", "messageId", "id"]);
+  const providerMessageId = readString(payload, [
+    "message_id",
+    "messageId",
+    "id",
+  ]);
   const recipient = readString(payload, ["recipient", "to", "number"]);
-  const rawStatus = readString(payload, ["status", "delivery_status", "deliveryStatus"]);
-  if (providerMessageId === undefined || recipient === undefined || rawStatus === undefined) {
-    throw new BadRequestException("Arkesel delivery report is missing message id, recipient, or status.");
+  const rawStatus = readString(payload, [
+    "status",
+    "delivery_status",
+    "deliveryStatus",
+  ]);
+  if (
+    providerMessageId === undefined ||
+    recipient === undefined ||
+    rawStatus === undefined
+  ) {
+    throw new BadRequestException(
+      "Arkesel delivery report is missing message id, recipient, or status.",
+    );
   }
 
   const report: ArkeselDeliveryReport = {
@@ -123,12 +179,19 @@ export function normalizeArkeselDeliveryReport(payload: unknown): ArkeselDeliver
     report.network = network;
   }
 
-  const providerTimestamp = parseProviderTimestamp(payload.timestamp ?? payload.delivered_at ?? payload.updated_at);
+  const providerTimestamp = parseProviderTimestamp(
+    payload.timestamp ?? payload.delivered_at ?? payload.updated_at,
+  );
   if (providerTimestamp !== undefined) {
     report.providerTimestamp = providerTimestamp;
   }
 
-  const creditsCharged = readNumber(payload, ["credits_charged", "creditsCharged", "credits_used", "creditsUsed"]);
+  const creditsCharged = readNumber(payload, [
+    "credits_charged",
+    "creditsCharged",
+    "credits_used",
+    "creditsUsed",
+  ]);
   if (creditsCharged !== undefined) {
     report.creditsCharged = creditsCharged;
   }
@@ -144,7 +207,10 @@ export function assertArkeselWebhookSignature(input: {
   if (input.secret === undefined || input.secret.trim().length === 0) {
     return;
   }
-  if (input.signatureHeader === undefined || input.signatureHeader.trim().length === 0) {
+  if (
+    input.signatureHeader === undefined ||
+    input.signatureHeader.trim().length === 0
+  ) {
     throw new UnauthorizedException("Missing Arkesel webhook signature.");
   }
 
@@ -154,19 +220,28 @@ export function assertArkeselWebhookSignature(input: {
   const supplied = input.signatureHeader.trim().replace(/^sha256=/, "");
   const expectedBuffer = Buffer.from(expected, "hex");
   const suppliedBuffer = Buffer.from(supplied, "hex");
-  if (expectedBuffer.length !== suppliedBuffer.length || !timingSafeEqual(expectedBuffer, suppliedBuffer)) {
+  if (
+    expectedBuffer.length !== suppliedBuffer.length ||
+    !timingSafeEqual(expectedBuffer, suppliedBuffer)
+  ) {
     throw new UnauthorizedException("Invalid Arkesel webhook signature.");
   }
 }
 
 function normalizeSmsInput(input: SmsInput): NormalizedSmsInput {
-  const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map((recipient) => {
-    try {
-      return normalizeGhanaPhoneNumber(recipient);
-    } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : "SMS recipient phone number is invalid.");
-    }
-  });
+  const recipients = (Array.isArray(input.to) ? input.to : [input.to]).map(
+    (recipient) => {
+      try {
+        return normalizeGhanaPhoneNumber(recipient);
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error
+            ? error.message
+            : "SMS recipient phone number is invalid.",
+        );
+      }
+    },
+  );
   if (recipients.length === 0) {
     throw new BadRequestException("At least one SMS recipient is required.");
   }
@@ -225,7 +300,9 @@ function sendMockSms(input: NormalizedSmsInput): SmsDeliveryResult {
     messageId: providerMessageId,
     providerMessageId,
     recipients: input.recipients,
-    recipientMessageIds: Object.fromEntries(input.recipients.map((recipient) => [recipient, providerMessageId])),
+    recipientMessageIds: Object.fromEntries(
+      input.recipients.map((recipient) => [recipient, providerMessageId]),
+    ),
     status: "sent",
     creditsUsed: input.segmentEstimate.credits * input.recipients.length,
     segmentEstimate: input.segmentEstimate,
@@ -238,7 +315,9 @@ async function sendArkeselSms(
 ): Promise<SmsDeliveryResult> {
   const sender = validateArkeselSender(config.sender);
   if (config.apiKey === undefined || config.apiKey.trim().length === 0) {
-    throw new ServiceUnavailableException("Arkesel SMS API key is not configured.");
+    throw new ServiceUnavailableException(
+      "Arkesel SMS API key is not configured.",
+    );
   }
 
   const response = await fetch(arkeselSmsEndpoint, {
@@ -259,16 +338,22 @@ async function sendArkeselSms(
     throw new ServiceUnavailableException({
       message: "Arkesel SMS delivery failed.",
       provider: "arkesel",
-      rawCode: body.code === undefined ? String(response.status) : String(body.code),
+      rawCode:
+        body.code === undefined ? String(response.status) : String(body.code),
       rawMessage: body.message,
-      errorClass: isRetryableHttpStatus(response.status) ? "retryable" : "nonretryable",
+      errorClass: isRetryableHttpStatus(response.status)
+        ? "retryable"
+        : "nonretryable",
     });
   }
 
   const receipts = extractArkeselSendReceipts(body.data, input.recipients);
-  const providerMessageId = receipts.recipientMessageIds[receipts.recipients[0] ?? ""];
+  const providerMessageId =
+    receipts.recipientMessageIds[receipts.recipients[0] ?? ""];
   if (providerMessageId === undefined) {
-    throw new ServiceUnavailableException("Arkesel SMS response did not include a message id.");
+    throw new ServiceUnavailableException(
+      "Arkesel SMS response did not include a message id.",
+    );
   }
 
   const result: SmsDeliveryResult = {
@@ -305,7 +390,12 @@ function extractArkeselSendReceipts(
     if (!isRecord(entry)) {
       continue;
     }
-    const messageId = readString(entry, ["id", "message_id", "messageId", "ID"]);
+    const messageId = readString(entry, [
+      "id",
+      "message_id",
+      "messageId",
+      "ID",
+    ]);
     if (messageId === undefined) {
       continue;
     }
@@ -327,7 +417,9 @@ function extractArkeselSendReceipts(
     }
   }
 
-  const recipients = requestedRecipients.filter((recipient) => recipientMessageIds[recipient] !== undefined);
+  const recipients = requestedRecipients.filter(
+    (recipient) => recipientMessageIds[recipient] !== undefined,
+  );
   return { recipients, recipientMessageIds };
 }
 
@@ -337,7 +429,9 @@ function extractArkeselCreditsUsed(data: unknown): number | undefined {
     .filter(isRecord)
     .map((entry) => readNumber(entry, ["credits_used", "creditsUsed"]))
     .filter((value): value is number => value !== undefined);
-  return credits.length > 0 ? credits.reduce((total, value) => total + value, 0) : undefined;
+  return credits.length > 0
+    ? credits.reduce((total, value) => total + value, 0)
+    : undefined;
 }
 
 function validateArkeselSender(sender: string | undefined): string {
@@ -346,12 +440,16 @@ function validateArkeselSender(sender: string | undefined): string {
   }
   const normalized = sender.trim();
   if (!/^(?=.*[A-Za-z])[A-Za-z0-9]{1,11}$/.test(normalized)) {
-    throw new ServiceUnavailableException("SMS sender name must be 1-11 alphanumeric characters with at least one letter.");
+    throw new ServiceUnavailableException(
+      "SMS sender name must be 1-11 alphanumeric characters with at least one letter.",
+    );
   }
   return normalized;
 }
 
-async function readJsonResponse(response: Response): Promise<ArkeselSendResponse> {
+async function readJsonResponse(
+  response: Response,
+): Promise<ArkeselSendResponse> {
   try {
     return (await response.json()) as ArkeselSendResponse;
   } catch {

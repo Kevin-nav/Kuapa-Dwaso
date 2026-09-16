@@ -9,9 +9,20 @@ import { BuyersModule } from "./modules/buyers/buyers.module.js";
 import { ConvexUserProfilesProvider } from "./providers/convex-user-profiles.provider.js";
 import { FirebaseAdminTokenVerifier } from "./providers/firebase-auth.provider.js";
 import { NotificationsModule } from "./modules/notifications/notifications.module.js";
+import { PreviewAccessModule } from "./modules/preview-access/preview-access.module.js";
 
 @Module({
-  imports: [HealthModule, FoundationModule, InvitationsModule, PaymentsModule, SmsModule, UploadsModule, BuyersModule, NotificationsModule],
-  providers: [FirebaseAdminTokenVerifier, ConvexUserProfilesProvider]
+  imports: [
+    HealthModule,
+    FoundationModule,
+    InvitationsModule,
+    PaymentsModule,
+    SmsModule,
+    UploadsModule,
+    BuyersModule,
+    NotificationsModule,
+    PreviewAccessModule,
+  ],
+  providers: [FirebaseAdminTokenVerifier, ConvexUserProfilesProvider],
 })
 export class AppModule {}

@@ -1,5 +1,17 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
-import { cert, getApp, getApps, initializeApp, type App, type AppOptions, type ServiceAccount } from "firebase-admin/app";
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import {
+  cert,
+  getApp,
+  getApps,
+  initializeApp,
+  type App,
+  type AppOptions,
+  type ServiceAccount,
+} from "firebase-admin/app";
 import { getAuth, type DecodedIdToken } from "firebase-admin/auth";
 import { getApiEnvironment } from "../config/env.js";
 import type { VerifiedAuthToken } from "../lib/auth-principal.js";
@@ -8,8 +20,14 @@ export type FirebaseTokenVerifier = {
   verifyIdToken(idToken: string): Promise<VerifiedAuthToken>;
 };
 
+export type FirebaseCustomTokenIssuer = {
+  createCustomToken(uid: string): Promise<string>;
+};
+
 @Injectable()
-export class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
+export class FirebaseAdminTokenVerifier
+  implements FirebaseTokenVerifier, FirebaseCustomTokenIssuer
+{
   private app: App | undefined;
 
   async verifyIdToken(idToken: string): Promise<VerifiedAuthToken> {
@@ -23,6 +41,18 @@ export class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
     }
   }
 
+  async createCustomToken(uid: string): Promise<string> {
+    try {
+      const auth = getAuth(this.getOrCreateApp());
+      await auth.getUser(uid);
+      return await auth.createCustomToken(uid);
+    } catch {
+      throw new ServiceUnavailableException(
+        "Preview sign-in is not configured.",
+      );
+    }
+  }
+
   private getOrCreateApp(): App {
     if (this.app !== undefined) {
       return this.app;
@@ -30,13 +60,17 @@ export class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
 
     const env = getApiEnvironment();
     if (env.auth.firebaseProjectId === undefined) {
-      throw new UnauthorizedException("Firebase token verification is not configured.");
+      throw new UnauthorizedException(
+        "Firebase token verification is not configured.",
+      );
     }
 
     const appOptions: AppOptions = {
-      projectId: env.auth.firebaseProjectId
+      projectId: env.auth.firebaseProjectId,
     };
-    const credential = parseServiceAccountCredential(env.auth.firebaseServiceAccountJson);
+    const credential = parseServiceAccountCredential(
+      env.auth.firebaseServiceAccountJson,
+    );
     if (credential !== undefined) {
       appOptions.credential = credential;
     }
@@ -47,7 +81,9 @@ export class FirebaseAdminTokenVerifier implements FirebaseTokenVerifier {
   }
 }
 
-function parseServiceAccountCredential(serviceAccountJson: string | undefined): ReturnType<typeof cert> | undefined {
+function parseServiceAccountCredential(
+  serviceAccountJson: string | undefined,
+): ReturnType<typeof cert> | undefined {
   if (serviceAccountJson === undefined || serviceAccountJson.length === 0) {
     return undefined;
   }
@@ -55,18 +91,23 @@ function parseServiceAccountCredential(serviceAccountJson: string | undefined): 
   try {
     const serviceAccount = JSON.parse(serviceAccountJson) as ServiceAccount;
     if (typeof serviceAccount.privateKey === "string") {
-      serviceAccount.privateKey = serviceAccount.privateKey.replaceAll("\\n", "\n");
+      serviceAccount.privateKey = serviceAccount.privateKey.replaceAll(
+        "\\n",
+        "\n",
+      );
     }
     return cert(serviceAccount);
   } catch {
-    throw new UnauthorizedException("Firebase service account configuration is invalid.");
+    throw new UnauthorizedException(
+      "Firebase service account configuration is invalid.",
+    );
   }
 }
 
 function toVerifiedAuthToken(decodedToken: DecodedIdToken): VerifiedAuthToken {
   const verifiedToken: VerifiedAuthToken = {
     authProvider: "firebase",
-    authProviderId: decodedToken.uid
+    authProviderId: decodedToken.uid,
   };
 
   if (decodedToken.email !== undefined) {

@@ -123,6 +123,18 @@ jobs:
           fi
           printf 'NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK=%s\n' "$actor_fallback" >> "$GITHUB_ENV"
 
+          preview_access="${NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED:-false}"
+          if [[ "$preview_access" != "true" && "$preview_access" != "false" ]]; then
+            echo "NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED must be true or false when configured." >&2
+            exit 1
+          fi
+          if [[ "$preview_access" == "true" && -z "${NEXT_PUBLIC_PREVIEW_PROGRAMME_ID:-}" ]]; then
+            echo "NEXT_PUBLIC_PREVIEW_PROGRAMME_ID is required when shared preview access is enabled." >&2
+            exit 1
+          fi
+          printf 'NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED=%s\n' "$preview_access" >> "$GITHUB_ENV"
+          printf 'NEXT_PUBLIC_PREVIEW_PROGRAMME_ID=%s\n' "${NEXT_PUBLIC_PREVIEW_PROGRAMME_ID:-}" >> "$GITHUB_ENV"
+
           rm -f infisical-build.env
         env:
           BUILD_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'production' && 'production' || 'staging') }}
@@ -161,6 +173,8 @@ jobs:
             NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
             NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
             NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK=${{ env.NEXT_PUBLIC_ENABLE_DEV_ACTOR_FALLBACK }}
+            NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED=${{ env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED }}
+            NEXT_PUBLIC_PREVIEW_PROGRAMME_ID=${{ env.NEXT_PUBLIC_PREVIEW_PROGRAMME_ID }}
             START_COMMAND=${{ matrix.surface.start_command }}
           tags: |
             ${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}

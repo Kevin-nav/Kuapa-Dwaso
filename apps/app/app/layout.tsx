@@ -9,13 +9,23 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "KuapaDwaso App",
-  description: "Maize supply, orders, collections, and payments with Kuapa Dwaso.",
+  description:
+    "Maize supply, orders, collections, and payments with Kuapa Dwaso.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "Kuapa Dwaso", statusBarStyle: "default" },
+  appleWebApp: {
+    capable: true,
+    title: "Kuapa Dwaso",
+    statusBarStyle: "default",
+  },
   icons: { apple: "/pwa/apple-touch-icon.png" },
 };
 
-export const viewport: Viewport = { themeColor: "#173d2b", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export const viewport: Viewport = {
+  themeColor: "#173d2b",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 type RootLayoutProps = {
   children: ReactNode;
@@ -26,9 +36,22 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en">
       <body>
         <ConvexClientProvider>
-          <AuthProvider><AppOutboxReplayer />{process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" ? <PilotDemoIndicator /> : null}{children}</AuthProvider>
+          <AuthProvider>
+            <AppOutboxReplayer />
+            {process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" &&
+            process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED !== "true" ? (
+              <PilotDemoIndicator />
+            ) : null}
+            {children}
+          </AuthProvider>
         </ConvexClientProvider>
-        <PwaRuntime enabled={process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_PWA_DEV === "true"} />
+        <PwaRuntime
+          enabled={
+            process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED !== "true" &&
+            (process.env.NODE_ENV === "production" ||
+              process.env.NEXT_PUBLIC_PWA_DEV === "true")
+          }
+        />
       </body>
     </html>
   );

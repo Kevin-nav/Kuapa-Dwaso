@@ -32,26 +32,32 @@ type PilotOperationsContextValue = {
   isLoading: boolean;
 };
 
-const PilotOperationsContext = createContext<PilotOperationsContextValue | undefined>(
-  undefined,
-);
+const PilotOperationsContext = createContext<
+  PilotOperationsContextValue | undefined
+>(undefined);
 
 export function PilotOperationsProvider({ children }: { children: ReactNode }) {
   const { principal } = useOpsAuth();
-  const canLoad = principal?.role === "warehouse_agent" && principal.status === "active";
+  const canLoad =
+    principal?.role === "warehouse_agent" && principal.status === "active";
   const result = useQuery(
     api.pilotProgrammes.listAvailable,
     canLoad ? { limit: 20 } : "skip",
   ) as { page: PilotProgrammeOption[] } | undefined;
   const demoPresentation = process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true";
+  const previewAccessEnabled =
+    process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
+  const previewProgrammeId = process.env.NEXT_PUBLIC_PREVIEW_PROGRAMME_ID;
   const programmes = useMemo(
     () =>
       (result?.page ?? []).filter((programme) =>
-        demoPresentation
-          ? programme.datasetProvenance === "sample_only"
-          : programme.datasetProvenance === "live",
+        previewAccessEnabled
+          ? programme.id === previewProgrammeId
+          : demoPresentation
+            ? programme.datasetProvenance === "sample_only"
+            : programme.datasetProvenance === "live",
       ),
-    [demoPresentation, result],
+    [demoPresentation, previewAccessEnabled, previewProgrammeId, result],
   );
   const storageKey =
     principal === null || principal === undefined
@@ -59,16 +65,19 @@ export function PilotOperationsProvider({ children }: { children: ReactNode }) {
       : `kuapa_ops_pilot_programme:${principal.userId}`;
   const [selectedId, setSelectedId] = useState<Id<"pilotProgrammes">>();
   useEffect(() => {
-    if (storageKey === undefined) {
-      setSelectedId(undefined);
-      return;
-    }
-    const saved = window.localStorage.getItem(storageKey);
-    setSelectedId(
-      saved !== null && programmes.some((programme) => programme.id === saved)
-        ? (saved as Id<"pilotProgrammes">)
-        : undefined,
-    );
+    const timeoutId = window.setTimeout(() => {
+      if (storageKey === undefined) {
+        setSelectedId(undefined);
+        return;
+      }
+      const saved = window.localStorage.getItem(storageKey);
+      setSelectedId(
+        saved !== null && programmes.some((programme) => programme.id === saved)
+          ? (saved as Id<"pilotProgrammes">)
+          : undefined,
+      );
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
   }, [programmes, storageKey]);
   const activeProgramme =
     programmes.find((item) => item.id === selectedId) ?? programmes[0];
@@ -80,7 +89,8 @@ export function PilotOperationsProvider({ children }: { children: ReactNode }) {
       setActiveProgrammeId: (programmeId) => {
         if (!programmes.some((item) => item.id === programmeId)) return;
         setSelectedId(programmeId);
-        if (storageKey !== undefined) window.localStorage.setItem(storageKey, programmeId);
+        if (storageKey !== undefined)
+          window.localStorage.setItem(storageKey, programmeId);
       },
       isLoading: canLoad && result === undefined,
     }),
@@ -97,6 +107,8 @@ export function PilotOperationsProvider({ children }: { children: ReactNode }) {
 export function usePilotOperations(): PilotOperationsContextValue {
   const context = useContext(PilotOperationsContext);
   if (context === undefined)
-    throw new Error("usePilotOperations must be used within PilotOperationsProvider.");
+    throw new Error(
+      "usePilotOperations must be used within PilotOperationsProvider.",
+    );
   return context;
 }
