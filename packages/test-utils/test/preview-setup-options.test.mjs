@@ -269,15 +269,15 @@ test("setup rejects a Convex URL from a different cleanup deployment", () => {
   );
 });
 
-test("starter records use exact 50 kg bags at presentation-scale quantities", () => {
+test("starter records use exact 50 kg bags in the hundreds", () => {
   const records = buildPreviewStarterRecords(now);
   assert.deepEqual(
     records.map((record) => record.bags),
-    [40, 60, 100],
+    [100, 150, 200],
   );
   assert.deepEqual(
     records.map((record) => record.kilograms),
-    [2_000, 3_000, 5_000],
+    [5_000, 7_500, 10_000],
   );
   assert.ok(
     records.every((record) => record.grams === record.bags * 50 * 1_000),

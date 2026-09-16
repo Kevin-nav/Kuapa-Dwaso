@@ -445,7 +445,7 @@ async function createAuthenticatedConvexClient(auth, apiKey, convexUrl, uid) {
     );
   }
   const client = new ConvexHttpClient(convexUrl);
-  client.setAuth(async () => body.idToken);
+  client.setAuth(body.idToken);
   return client;
 }
 

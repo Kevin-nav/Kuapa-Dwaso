@@ -272,7 +272,7 @@ export function parsePreviewSetupOptions(
 }
 
 export function buildPreviewStarterRecords(startAt) {
-  const bagCounts = [40, 60, 100];
+  const bagCounts = [100, 150, 200];
   return bagCounts.map((bags, index) => ({
     bags,
     kilograms: bags * 50,

@@ -13,8 +13,9 @@ The setup command creates or reuses these Firebase and Convex identities:
 | Transporter | Kwame Asare    | Three ready, assigned collection jobs  |
 | Operations  | Akosua Boateng | Three inspections and collection plans |
 
-Every prepared quantity uses 50 kg bags. The records contain 40, 60, and 100
-bags, equal to 2,000 kg, 3,000 kg, and 5,000 kg.
+Every prepared quantity uses 50 kg bags. The records contain 100, 150, and 200
+bags, equal to 5,000 kg, 7,500 kg, and 10,000 kg. The interface presents these
+as hundreds of bags; kilograms remain the canonical stored unit.
 
 ## Before setup
 
