@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 import {
   CommercialTermsSummary,
   formatPilotMoney,
@@ -117,6 +118,7 @@ type Activity = {
 };
 
 export default function FarmerOfferDetailPage() {
+  const { showToast } = useToast();
   const { id } = useParams<{ id: string }>();
   const offerId = id as Id<"pilotFarmerOffers">;
   const offer = useQuery(api.pilotOffers.get, { offerId }) as Offer | undefined;
@@ -211,6 +213,11 @@ export default function FarmerOfferDetailPage() {
         expectedOfferVersion: offer.version,
         idempotencyKey: crypto.randomUUID(),
       });
+      showToast(
+        decision === "accepted"
+          ? "Offer accepted. Operations can now arrange inspection."
+          : "Offer declined.",
+      );
     } catch (cause) {
       setError(
         cause instanceof Error

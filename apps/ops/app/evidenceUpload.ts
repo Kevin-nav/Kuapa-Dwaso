@@ -1,16 +1,11 @@
 "use client";
 
 import type { User } from "firebase/auth";
-import type { UploadAccessLevel, UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
-
-type PresignResponse = {
-  uploadAssetId: string;
-  method: "PUT";
-  uploadUrl: string;
-  objectKey: string;
-  headers: Record<string, string>;
-  expiresAt: number;
-};
+import type {
+  UploadAccessLevel,
+  UploadAssetPurpose,
+  UploadRelatedEntityType,
+} from "@kuapa-dwaso/types";
 
 export async function uploadEvidenceFile(input: {
   firebaseUser: User | null;
@@ -20,6 +15,7 @@ export async function uploadEvidenceFile(input: {
   relatedEntityId?: string;
   ownerUserId?: string;
   accessLevel?: UploadAccessLevel;
+  pilotProgrammeId?: string;
 }): Promise<string> {
   if (input.firebaseUser === null) {
     throw new Error("Sign in is required before uploading evidence.");
@@ -29,66 +25,40 @@ export async function uploadEvidenceFile(input: {
     throw new Error("NEXT_PUBLIC_API_URL is required to upload evidence.");
   }
   const token = await input.firebaseUser.getIdToken();
-  if (input.purpose === "produce_intake_photo" && input.accessLevel === "public_read") {
-    const response = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/uploads/produce-photo`, {
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${token}`,
+    "content-type": input.file.type,
+    "x-file-name": encodeURIComponent(input.file.name),
+    "x-upload-purpose": input.purpose,
+    "x-upload-access-level": input.accessLevel ?? "private",
+  };
+  if (input.relatedEntityType !== undefined)
+    headers["x-related-entity-type"] = input.relatedEntityType;
+  if (input.relatedEntityId !== undefined)
+    headers["x-related-entity-id"] = input.relatedEntityId;
+  if (input.ownerUserId !== undefined)
+    headers["x-owner-user-id"] = input.ownerUserId;
+  if (input.pilotProgrammeId !== undefined)
+    headers["x-pilot-programme-id"] = input.pilotProgrammeId;
+  const response = await fetch(
+    `${apiBaseUrl.replace(/\/$/, "")}/uploads/file`,
+    {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": input.file.type,
-        "x-file-name": input.file.name,
-      },
+      headers,
       body: input.file,
-    });
-    if (!response.ok) throw new Error(await readErrorMessage(response, "Could not upload the produce photo."));
-    return ((await response.json()) as { uploadAssetId: string }).uploadAssetId;
-  }
-  const presignResponse = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/uploads/presign`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
     },
-    body: JSON.stringify({
-      purpose: input.purpose,
-      contentType: input.file.type,
-      sizeBytes: input.file.size,
-      fileName: input.file.name,
-      relatedEntityType: input.relatedEntityType,
-      relatedEntityId: input.relatedEntityId,
-      ownerUserId: input.ownerUserId,
-      accessLevel: input.accessLevel ?? "private",
-    }),
-  });
-  if (!presignResponse.ok) {
-    throw new Error(await readErrorMessage(presignResponse, "Could not prepare evidence upload."));
-  }
-  const presigned = (await presignResponse.json()) as PresignResponse;
-  const putResponse = await fetch(presigned.uploadUrl, {
-    method: presigned.method,
-    headers: presigned.headers,
-    body: input.file,
-  });
-  if (!putResponse.ok) {
-    throw new Error("Storage upload failed. Please retry from a stable connection.");
-  }
-  const completeResponse = await fetch(`${apiBaseUrl.replace(/\/$/, "")}/uploads/complete`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      uploadAssetId: presigned.uploadAssetId,
-      sizeBytes: input.file.size,
-    }),
-  });
-  if (!completeResponse.ok) {
-    throw new Error(await readErrorMessage(completeResponse, "Could not complete evidence upload."));
-  }
-  return presigned.uploadAssetId;
+  );
+  if (!response.ok)
+    throw new Error(
+      await readErrorMessage(response, "Could not upload evidence."),
+    );
+  return ((await response.json()) as { uploadAssetId: string }).uploadAssetId;
 }
 
-async function readErrorMessage(response: Response, fallback: string): Promise<string> {
+async function readErrorMessage(
+  response: Response,
+  fallback: string,
+): Promise<string> {
   try {
     const body = (await response.json()) as { message?: unknown };
     return typeof body.message === "string" ? body.message : fallback;

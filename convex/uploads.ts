@@ -612,12 +612,17 @@ export const createPending = mutation({
     const isBlogMedia =
       args.purpose === "blog_hero_image" ||
       args.purpose === "blog_content_image";
+    const isStagedInspectionEvidence =
+      args.purpose === "pilot_inspection_evidence" &&
+      args.relatedEntityType === undefined &&
+      relatedEntityId === undefined;
     assertAllowed(
       !isPilotEvidence || args.pilotProgrammeId !== undefined,
       "Pilot evidence requires a programme.",
     );
     assertAllowed(
       !isPilotEvidence ||
+        isStagedInspectionEvidence ||
         (args.relatedEntityType !== undefined &&
           pilotRelatedEntityTypes.includes(args.relatedEntityType) &&
           relatedEntityId !== undefined),
@@ -629,6 +634,14 @@ export const createPending = mutation({
         args.accessLevel === "private",
       "Pilot evidence must remain private.",
     );
+    if (isStagedInspectionEvidence) {
+      await requirePilotCapability(
+        ctx,
+        actor,
+        args.pilotProgrammeId!,
+        "quality:record",
+      );
+    }
     assertAllowed(
       actorCanCreateUploadForOwner(actor, ownerUserId),
       "Actor cannot create uploads for this owner.",
@@ -662,14 +675,16 @@ export const createPending = mutation({
       (args.purpose === "pilot_collection_evidence" ||
         args.purpose === "pilot_custody_evidence" ||
         args.purpose === "pilot_acceptance_evidence");
-    await requireActorCanUseRelatedEntity(
-      ctx,
-      actor,
-      stagedLotEvidence ? "read" : "manage",
-      args.relatedEntityType,
-      relatedEntityId,
-      args.pilotProgrammeId,
-    );
+    if (!isStagedInspectionEvidence) {
+      await requireActorCanUseRelatedEntity(
+        ctx,
+        actor,
+        stagedLotEvidence ? "read" : "manage",
+        args.relatedEntityType,
+        relatedEntityId,
+        args.pilotProgrammeId,
+      );
+    }
 
     const now = Date.now();
     const placeholderObjectKey =

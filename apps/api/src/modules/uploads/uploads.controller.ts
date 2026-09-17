@@ -77,15 +77,18 @@ export class UploadsController {
       sizeBytes: body.byteLength,
     });
     const bucket = this.r2.getBucketName("public_read");
-    const pending = await this.convex.createPendingUpload({
-      actorUserId: principal.userId,
-      purpose: "produce_intake_photo",
-      contentType: normalizedContentType,
-      sizeBytes: body.byteLength,
-      accessLevel: "public_read",
-      bucket,
-      ...(fileName === undefined ? {} : { fileName }),
-    }, principal.firebaseIdToken);
+    const pending = await this.convex.createPendingUpload(
+      {
+        actorUserId: principal.userId,
+        purpose: "produce_intake_photo",
+        contentType: normalizedContentType,
+        sizeBytes: body.byteLength,
+        accessLevel: "public_read",
+        bucket,
+        ...(fileName === undefined ? {} : { fileName }),
+      },
+      principal.firebaseIdToken,
+    );
     try {
       await this.r2.uploadObject({
         objectKey: pending.objectKey,
@@ -94,18 +97,162 @@ export class UploadsController {
         body,
       });
     } catch (error) {
-      await this.convex.discardUpload({
-        actorUserId: principal.userId,
-        uploadAssetId: pending.uploadAssetId,
-        reason: "R2 object write failed before upload completion.",
-      }, principal.firebaseIdToken);
+      await this.convex.discardUpload(
+        {
+          actorUserId: principal.userId,
+          uploadAssetId: pending.uploadAssetId,
+          reason: "R2 object write failed before upload completion.",
+        },
+        principal.firebaseIdToken,
+      );
       throw error;
     }
-    return await this.convex.completeUpload({
-      actorUserId: principal.userId,
-      uploadAssetId: pending.uploadAssetId,
+    return await this.convex.completeUpload(
+      {
+        actorUserId: principal.userId,
+        uploadAssetId: pending.uploadAssetId,
+        sizeBytes: body.byteLength,
+      },
+      principal.firebaseIdToken,
+    );
+  }
+
+  @Post("file")
+  @RequirePermissions("uploads:create")
+  async uploadFile(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Headers("content-type") contentType: string | undefined,
+    @Headers("x-file-name") encodedFileName: string | undefined,
+    @Headers("x-upload-purpose") purpose: UploadAssetPurpose | undefined,
+    @Headers("x-owner-user-id") ownerUserId: string | undefined,
+    @Headers("x-owner-profile-type") ownerProfileType: ProfileType | undefined,
+    @Headers("x-owner-profile-id") ownerProfileId: string | undefined,
+    @Headers("x-related-entity-type")
+    relatedEntityType: UploadRelatedEntityType | undefined,
+    @Headers("x-related-entity-id") relatedEntityId: string | undefined,
+    @Headers("x-pilot-programme-id") pilotProgrammeId: string | undefined,
+    @Headers("x-upload-access-level")
+    requestedAccessLevel: UploadAccessLevel | "public_read" | undefined,
+    @Body() body: Buffer,
+  ): Promise<{ uploadAssetId: string; status: "uploaded" | "attached" }> {
+    if (principal.userId === undefined) {
+      throw new UnauthorizedException("Convex user profile is required.");
+    }
+    if (!Buffer.isBuffer(body) || purpose === undefined) {
+      throw new BadRequestException("An upload purpose and file are required.");
+    }
+    const env = getApiEnvironment();
+    const rateLimit = this.rateLimits.check({
+      key: `upload-file:${principal.userId}`,
+      limit: env.rateLimit.uploadPresignMax,
+      windowMs: env.rateLimit.windowMs,
+    });
+    if (!rateLimit.allowed) {
+      throw new HttpException(
+        "Too many upload attempts. Try again after the rate-limit window resets.",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    const normalizedContentType = contentType?.split(";", 1)[0] ?? "";
+    this.r2.assertPresignPolicy({
+      purpose,
+      contentType: normalizedContentType,
       sizeBytes: body.byteLength,
-    }, principal.firebaseIdToken);
+    });
+    const publicPurposes: UploadAssetPurpose[] = [
+      "produce_intake_photo",
+      "blog_hero_image",
+      "blog_content_image",
+    ];
+    const accessLevel: UploadAccessLevel =
+      requestedAccessLevel === "public_read" ? "public_read" : "private";
+    if (accessLevel === "public_read" && !publicPurposes.includes(purpose)) {
+      throw new BadRequestException(
+        "Only approved public media purposes may use public read access.",
+      );
+    }
+    const isBlogMedia =
+      purpose === "blog_hero_image" || purpose === "blog_content_image";
+    if (
+      isBlogMedia &&
+      (accessLevel !== "public_read" ||
+        relatedEntityType !== "blog_post" ||
+        !relatedEntityId?.trim())
+    ) {
+      throw new BadRequestException(
+        "Public story media must be linked to an existing story.",
+      );
+    }
+    const isPilotEvidence =
+      purpose.startsWith("pilot_") ||
+      relatedEntityType?.startsWith("pilot") === true;
+    const isStagedInspectionEvidence = purpose === "pilot_inspection_evidence";
+    if (isPilotEvidence && !pilotProgrammeId?.trim()) {
+      throw new BadRequestException("Pilot evidence requires a programme.");
+    }
+    if (
+      isPilotEvidence &&
+      !isStagedInspectionEvidence &&
+      (relatedEntityType === undefined || !relatedEntityId?.trim())
+    ) {
+      throw new BadRequestException(
+        "Pilot evidence requires a related pilot entity.",
+      );
+    }
+    if (isPilotEvidence && accessLevel === "public_read") {
+      throw new BadRequestException("Pilot evidence must remain private.");
+    }
+
+    const bucket = this.r2.getBucketName(accessLevel);
+    const createUploadArgs: Parameters<
+      ConvexPlatformProvider["createPendingUpload"]
+    >[0] = {
+      actorUserId: principal.userId,
+      purpose,
+      contentType: normalizedContentType,
+      sizeBytes: body.byteLength,
+      accessLevel,
+      bucket,
+      ...(ownerUserId === undefined ? {} : { ownerUserId }),
+      ...(ownerProfileType === undefined ? {} : { ownerProfileType }),
+      ...(ownerProfileId === undefined ? {} : { ownerProfileId }),
+      ...(relatedEntityType === undefined ? {} : { relatedEntityType }),
+      ...(relatedEntityId === undefined ? {} : { relatedEntityId }),
+      ...(pilotProgrammeId === undefined ? {} : { pilotProgrammeId }),
+      ...(encodedFileName === undefined
+        ? {}
+        : { fileName: decodeUploadFileName(encodedFileName) }),
+    };
+    const pending = await this.convex.createPendingUpload(
+      createUploadArgs,
+      principal.firebaseIdToken,
+    );
+    try {
+      await this.r2.uploadObject({
+        objectKey: pending.objectKey,
+        contentType: normalizedContentType,
+        bucket,
+        body,
+      });
+    } catch (error) {
+      await this.convex.discardUpload(
+        {
+          actorUserId: principal.userId,
+          uploadAssetId: pending.uploadAssetId,
+          reason: "R2 object write failed before upload completion.",
+        },
+        principal.firebaseIdToken,
+      );
+      throw error;
+    }
+    return await this.convex.completeUpload(
+      {
+        actorUserId: principal.userId,
+        uploadAssetId: pending.uploadAssetId,
+        sizeBytes: body.byteLength,
+      },
+      principal.firebaseIdToken,
+    );
   }
 
   @Post("presign")
@@ -168,12 +315,25 @@ export class UploadsController {
         "Only approved public media purposes may use public read access.",
       );
     }
-    const isPilotEvidence = body.purpose.startsWith("pilot_") || body.relatedEntityType?.startsWith("pilot") === true;
-    if (isPilotEvidence && (body.pilotProgrammeId === undefined || body.pilotProgrammeId.trim().length === 0)) {
+    const isPilotEvidence =
+      body.purpose.startsWith("pilot_") ||
+      body.relatedEntityType?.startsWith("pilot") === true;
+    if (
+      isPilotEvidence &&
+      (body.pilotProgrammeId === undefined ||
+        body.pilotProgrammeId.trim().length === 0)
+    ) {
       throw new BadRequestException("Pilot evidence requires a programme.");
     }
-    if (isPilotEvidence && (body.relatedEntityType === undefined || body.relatedEntityId === undefined || body.relatedEntityId.trim().length === 0)) {
-      throw new BadRequestException("Pilot evidence requires a related pilot entity.");
+    if (
+      isPilotEvidence &&
+      (body.relatedEntityType === undefined ||
+        body.relatedEntityId === undefined ||
+        body.relatedEntityId.trim().length === 0)
+    ) {
+      throw new BadRequestException(
+        "Pilot evidence requires a related pilot entity.",
+      );
     }
     if (isPilotEvidence && body.accessLevel === "public_read") {
       throw new BadRequestException("Pilot evidence must remain private.");
@@ -212,7 +372,10 @@ export class UploadsController {
     if (body.pilotProgrammeId !== undefined) {
       createUploadArgs.pilotProgrammeId = body.pilotProgrammeId;
     }
-    const pending = await this.convex.createPendingUpload(createUploadArgs, principal.firebaseIdToken);
+    const pending = await this.convex.createPendingUpload(
+      createUploadArgs,
+      principal.firebaseIdToken,
+    );
     const presigned = this.r2.presignPutObject({
       objectKey: pending.objectKey,
       contentType: body.contentType,
@@ -248,7 +411,10 @@ export class UploadsController {
     if (body.checksumSha256 !== undefined) {
       completeArgs.checksumSha256 = body.checksumSha256;
     }
-    return await this.convex.completeUpload(completeArgs, principal.firebaseIdToken);
+    return await this.convex.completeUpload(
+      completeArgs,
+      principal.firebaseIdToken,
+    );
   }
 
   @Post("presign-read")
@@ -266,10 +432,13 @@ export class UploadsController {
     if (principal.userId === undefined) {
       throw new UnauthorizedException("Convex user profile is required.");
     }
-    const asset = await this.convex.getReadableUploadObject({
-      actorUserId: principal.userId,
-      uploadAssetId: body.uploadAssetId,
-    }, principal.firebaseIdToken);
+    const asset = await this.convex.getReadableUploadObject(
+      {
+        actorUserId: principal.userId,
+        uploadAssetId: body.uploadAssetId,
+      },
+      principal.firebaseIdToken,
+    );
     if (asset === null) {
       throw new NotFoundException("Upload asset was not found.");
     }
@@ -290,5 +459,13 @@ export class UploadsController {
       contentType: asset.contentType,
       expiresAt: presigned?.expiresAt ?? 0,
     };
+  }
+}
+
+function decodeUploadFileName(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }

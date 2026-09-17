@@ -3,8 +3,17 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useQuery } from "convex/react";
-import { Camera, CheckCircle, ExternalLink, FileImage, Upload } from "lucide-react";
-import type { UploadAssetPurpose, UploadRelatedEntityType } from "@kuapa-dwaso/types";
+import {
+  Camera,
+  CheckCircle,
+  ExternalLink,
+  FileImage,
+  Upload,
+} from "lucide-react";
+import type {
+  UploadAssetPurpose,
+  UploadRelatedEntityType,
+} from "@kuapa-dwaso/types";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useOpsAuth } from "./auth/OpsAuthProvider";
@@ -50,7 +59,9 @@ export function EvidencePanel({
           limit: 12,
         },
   ) as EvidenceAsset[] | undefined;
-  const readableEvidence = evidence?.filter((asset) => !["pending_upload", "deleted", "expired"].includes(asset.status));
+  const readableEvidence = evidence?.filter(
+    (asset) => !["pending_upload", "deleted", "expired"].includes(asset.status),
+  );
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -66,10 +77,14 @@ export function EvidencePanel({
       purpose,
       relatedEntityType,
       relatedEntityId,
-      ...(purpose === "produce_intake_photo" ? { accessLevel: "public_read" as const } : {}),
+      accessLevel: "private",
     })
       .catch((uploadError: unknown) => {
-        setError(uploadError instanceof Error ? uploadError.message : "Could not upload evidence.");
+        setError(
+          uploadError instanceof Error
+            ? uploadError.message
+            : "Could not upload evidence.",
+        );
       })
       .finally(() => setIsUploading(false));
   };
@@ -91,25 +106,57 @@ export function EvidencePanel({
       })
       .catch((openError: unknown) => {
         tab?.close();
-        setError(openError instanceof Error ? openError.message : "Could not open evidence.");
+        setError(
+          openError instanceof Error
+            ? openError.message
+            : "Could not open evidence.",
+        );
       })
       .finally(() => setOpeningAssetId(null));
   };
 
   return (
-    <div className="info-card" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 800 }}>
+    <div
+      className="info-card"
+      style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            fontWeight: 800,
+          }}
+        >
           <Camera size={16} />
           <span>{title}</span>
         </div>
         {canAttach && (
           <>
-            <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} hidden />
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileChange}
+              hidden
+            />
             <button
               type="button"
               className="btn btn-outline"
-              style={{ width: "auto", height: "34px", padding: "0 10px", fontSize: "12px" }}
+              style={{
+                width: "auto",
+                height: "34px",
+                padding: "0 10px",
+                fontSize: "12px",
+              }}
               disabled={isUploading || actorUserId === undefined}
               onClick={() => inputRef.current?.click()}
             >
@@ -119,13 +166,39 @@ export function EvidencePanel({
           </>
         )}
       </div>
-      {error && <div style={{ color: "var(--color-danger)", fontSize: "13px", fontWeight: 700 }}>{error}</div>}
+      {error && (
+        <div
+          style={{
+            color: "var(--color-danger)",
+            fontSize: "13px",
+            fontWeight: 700,
+          }}
+        >
+          {error}
+        </div>
+      )}
       {readableEvidence === undefined ? (
-        <div style={{ color: "var(--gray-500)", fontSize: "13px" }}>Loading evidence...</div>
+        <div style={{ color: "var(--gray-500)", fontSize: "13px" }}>
+          Loading evidence...
+        </div>
       ) : readableEvidence.length === 0 ? (
-        <div style={{ color: "var(--gray-500)", fontSize: "13px", fontStyle: "italic" }}>No evidence attached yet.</div>
+        <div
+          style={{
+            color: "var(--gray-500)",
+            fontSize: "13px",
+            fontStyle: "italic",
+          }}
+        >
+          No evidence attached yet.
+        </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))", gap: "8px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(92px, 1fr))",
+            gap: "8px",
+          }}
+        >
           {readableEvidence.map((asset) => (
             <button
               key={asset._id}
@@ -147,11 +220,26 @@ export function EvidencePanel({
                 textAlign: "left",
               }}
             >
-              {openingAssetId === asset._id ? <ExternalLink size={18} /> : <FileImage size={18} />}
-              <span style={{ fontSize: "11px", color: "var(--gray-600)", overflowWrap: "anywhere" }}>
+              {openingAssetId === asset._id ? (
+                <ExternalLink size={18} />
+              ) : (
+                <FileImage size={18} />
+              )}
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "var(--gray-600)",
+                  overflowWrap: "anywhere",
+                }}
+              >
                 {asset.status.replace(/_/g, " ")}
               </span>
-              {asset.status === "verified" && <CheckCircle size={14} style={{ color: "var(--color-success)" }} />}
+              {asset.status === "verified" && (
+                <CheckCircle
+                  size={14}
+                  style={{ color: "var(--color-success)" }}
+                />
+              )}
             </button>
           ))}
         </div>

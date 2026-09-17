@@ -2,7 +2,7 @@
 
 /* eslint-disable react-hooks/purity */
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -22,6 +22,7 @@ import { api } from "../../../../../../convex/_generated/api";
 import { useOpsAuth } from "../../../auth/OpsAuthProvider";
 import { uploadEvidenceFile } from "../../../evidenceUpload";
 import { usePilotOperations } from "../../../context/PilotOperationsContext";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 
 type RequestDetail = {
   request: {
@@ -36,6 +37,8 @@ type RequestDetail = {
     deliveryWindowEndAt: number;
     status: string;
     version: number;
+    createdAt: number;
+    updatedAt: number;
   };
   commitmentSummary: {
     provisionalGrams: number;
@@ -171,6 +174,8 @@ type DriverOption = {
   vehicleCapacityUnit?: string;
 };
 
+type WorkAction = "source" | "inspect" | "collection";
+
 const kg = (grams: number) => `${(grams / 1_000).toLocaleString()} kg`;
 const money = (pesewas: number) =>
   `GH₵${(pesewas / 100).toLocaleString("en-GH", { minimumFractionDigits: 2 })}`;
@@ -182,6 +187,7 @@ export default function PilotRequestWorkspacePage() {
   const requestId = params.id as Id<"pilotBuyerRequests">;
   const { activeProgrammeId } = usePilotOperations();
   const { firebaseUser } = useOpsAuth();
+  const { showToast } = useToast();
   const [notice, setNotice] = useState<{
     tone: "success" | "error";
     message: string;
@@ -205,6 +211,11 @@ export default function PilotRequestWorkspacePage() {
   const [driverId, setDriverId] = useState("");
   const [vehicleRegistration, setVehicleRegistration] = useState("");
   const [vehicleCapacityKg, setVehicleCapacityKg] = useState("5000");
+  const [activeAction, setActiveAction] = useState<WorkAction>();
+
+  useEffect(() => {
+    if (notice?.tone === "success") showToast(notice.message);
+  }, [notice, showToast]);
 
   const requestDetail = useQuery(api.pilotRequests.get, { requestId }) as
     | RequestDetail
@@ -277,6 +288,45 @@ export default function PilotRequestWorkspacePage() {
     (sum, lot) => sum + lot.clearedGrams,
     0,
   );
+  const targetGramsForActions =
+    requestDetail?.agreement?.quantityGrams ?? readiness?.targetGrams ?? 0;
+  const pendingInspectionCount = acceptedOffers.filter(
+    (row) =>
+      row.offer.quantity !== null &&
+      row.offer.quantity.committedGrams > row.offer.quantity.clearedGrams,
+  ).length;
+  const actionOptions = useMemo(() => {
+    if (
+      requestDetail === null ||
+      requestDetail === undefined ||
+      readiness === undefined
+    )
+      return [];
+    const next: WorkAction[] = [];
+    const termsAcknowledged = requestDetail.agreement?.state === "acknowledged";
+    if (termsAcknowledged && readiness.shortfallGrams > 0) next.push("source");
+    if (pendingInspectionCount > 0) next.push("inspect");
+    if (
+      (plan === null &&
+        availableLotGrams === targetGramsForActions &&
+        targetGramsForActions > 0) ||
+      (plan !== null && plan !== undefined && plan.plan.status !== "delivered")
+    )
+      next.push("collection");
+    return next;
+  }, [
+    availableLotGrams,
+    pendingInspectionCount,
+    plan,
+    readiness,
+    requestDetail,
+    targetGramsForActions,
+  ]);
+
+  const currentAction =
+    activeAction !== undefined && actionOptions.includes(activeAction)
+      ? activeAction
+      : actionOptions[0];
 
   function requireOnline(): boolean {
     if (navigator.onLine) return true;
@@ -360,7 +410,7 @@ export default function PilotRequestWorkspacePage() {
             code: "recorded_handover",
             label: "Recorded handover",
             detail:
-              "Custody changes only through a confirmed collection event with evidence.",
+              "Custody changes through a confirmed collection event. A supporting photo is optional.",
           },
         ],
         cancellationTerms: [
@@ -494,6 +544,9 @@ export default function PilotRequestWorkspacePage() {
         file,
         purpose: "pilot_inspection_evidence",
         accessLevel: "private",
+        ...(requestDetail?.request.programmeId === undefined
+          ? {}
+          : { pilotProgrammeId: requestDetail.request.programmeId }),
       });
       setInspectionEvidenceIds((current) => [
         ...current,
@@ -708,6 +761,13 @@ export default function PilotRequestWorkspacePage() {
               ? "Kuapa Dwaso purchase"
               : "Coordination"}
           </p>
+          <small>
+            Created{" "}
+            {new Date(requestDetail.request.createdAt).toLocaleString("en-GH", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </small>
         </div>
         <span className="badge badge-info">
           {requestDetail.request.status.replaceAll("_", " ")}
@@ -747,9 +807,105 @@ export default function PilotRequestWorkspacePage() {
         </div>
       </section>
 
-      <section className="ops-stage-card">
+      {readiness.openIssues.length === 0 ? null : (
+        <section
+          className="ops-blocker-banner"
+          aria-labelledby="request-blockers-title"
+        >
+          <div className="ops-blocker-banner__heading">
+            <AlertTriangle size={22} />
+            <div>
+              <p className="ops-eyebrow">Needs attention</p>
+              <h2 id="request-blockers-title">
+                {readiness.openIssues.length} open blocker
+                {readiness.openIssues.length === 1 ? "" : "s"}
+              </h2>
+            </div>
+          </div>
+          <div className="ops-issue-list">
+            {readiness.openIssues.map((issue) => (
+              <article key={issue.issueId} className="ops-issue-card">
+                <div>
+                  <strong>{issue.summary}</strong>
+                  <p>{issue.nextStep}</p>
+                  <small>
+                    {issue.issueType.replaceAll("_", " ")}
+                    {issue.deadlineAt === undefined
+                      ? ""
+                      : ` · due ${new Date(issue.deadlineAt).toLocaleString("en-GH")}`}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={busy === issue.issueId}
+                  onClick={() => void resolve(issue)}
+                >
+                  Resolve blocker
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section
+        className="ops-current-work"
+        aria-labelledby="current-work-title"
+      >
+        <div>
+          <p className="ops-eyebrow">What needs attention now</p>
+          <h2 id="current-work-title">
+            {currentAction === "source"
+              ? `Source ${kg(readiness.shortfallGrams)}`
+              : currentAction === "inspect"
+                ? `Inspect ${pendingInspectionCount} accepted ${pendingInspectionCount === 1 ? "supply lot" : "supply lots"}`
+                : currentAction === "collection"
+                  ? plan == null
+                    ? "Create the collection plan"
+                    : plan.plan.driverUserId === undefined
+                      ? "Assign the collection driver"
+                      : plan.plan.status === "ready"
+                        ? "Collection is ready"
+                        : "Run the collection readiness check"
+                  : requestDetail.agreement?.state !== "acknowledged"
+                    ? "Waiting for buyer-approved terms"
+                    : "No operation is required right now"}
+          </h2>
+          <p>
+            {currentAction === undefined
+              ? "The next valid action will appear when the current prerequisite changes."
+              : "Only actions allowed by the request's current state appear below."}
+          </p>
+        </div>
+        {actionOptions.length > 1 ? (
+          <div
+            className="ops-work-switcher"
+            aria-label="Available request actions"
+          >
+            {actionOptions.map((action) => (
+              <button
+                className={currentAction === action ? "active" : ""}
+                key={action}
+                onClick={() => setActiveAction(action)}
+                type="button"
+              >
+                {action === "source"
+                  ? "Source supply"
+                  : action === "inspect"
+                    ? "Inspect supply"
+                    : "Collection"}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="ops-stage-card" hidden={currentAction !== "source"}>
         <div className="ops-stage-heading">
-          <span>1</span>
+          <span>
+            <Send size={18} />
+          </span>
           <div>
             <h2>Source and offer</h2>
             <p>
@@ -876,9 +1032,11 @@ export default function PilotRequestWorkspacePage() {
         </div>
       </section>
 
-      <section className="ops-stage-card">
+      <section className="ops-stage-card" hidden={currentAction !== "inspect"}>
         <div className="ops-stage-heading">
-          <span>2</span>
+          <span>
+            <ClipboardCheck size={18} />
+          </span>
           <div>
             <h2>Inspect accepted supply</h2>
             <p>
@@ -1042,9 +1200,14 @@ export default function PilotRequestWorkspacePage() {
         </div>
       </section>
 
-      <section className="ops-stage-card">
+      <section
+        className="ops-stage-card"
+        hidden={currentAction !== "collection"}
+      >
         <div className="ops-stage-heading">
-          <span>3</span>
+          <span>
+            <Truck size={18} />
+          </span>
           <div>
             <h2>
               {previewAccess ? "Plan collection" : "Fund and plan collection"}
@@ -1225,48 +1388,54 @@ export default function PilotRequestWorkspacePage() {
         )}
       </section>
 
-      <section className="ops-stage-card">
+      <section className="ops-stage-card ops-record-summary">
         <div className="ops-stage-heading">
-          <span>!</span>
+          <span>
+            <ClipboardCheck size={18} />
+          </span>
           <div>
-            <h2>Blockers and next actions</h2>
-            <p>
-              Quality failures and operational exceptions stay visible until
-              resolved.
-            </p>
+            <h2>Request records</h2>
+            <p>Completed work stays readable without leaving old forms open.</p>
           </div>
         </div>
-        {readiness.openIssues.length === 0 ? (
-          <div className="ops-clear-state">
-            <CheckCircle2 size={20} /> No unresolved issue for this request.
-          </div>
-        ) : (
-          <div className="ops-issue-list">
-            {readiness.openIssues.map((issue) => (
-              <article key={issue.issueId} className="ops-issue-card">
-                <div className="ops-issue-icon overdue">
-                  <AlertTriangle size={20} />
-                </div>
-                <div>
-                  <div className="ops-issue-heading">
-                    <strong>{issue.summary}</strong>
-                    <span className="badge badge-warning">{issue.status}</span>
-                  </div>
-                  <p>{issue.nextStep}</p>
-                  <small>{issue.issueType.replaceAll("_", " ")}</small>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  disabled={busy === issue.issueId}
-                  onClick={() => void resolve(issue)}
-                >
-                  Resolve
-                </button>
-              </article>
-            ))}
-          </div>
-        )}
+        <div className="ops-record-grid">
+          <article>
+            <span>Farmer offers</span>
+            <strong>{offers?.page.length ?? 0}</strong>
+            <small>{acceptedOffers.length} accepted</small>
+          </article>
+          <article>
+            <span>Inspected lots</span>
+            <strong>{lots?.page.length ?? 0}</strong>
+            <small>{kg(readiness.clearedGrams)} cleared</small>
+          </article>
+          <article>
+            <span>Collection</span>
+            <strong>
+              {plan?.plan.status?.replaceAll("_", " ") ?? "Not planned"}
+            </strong>
+            <small>
+              {plan === null || plan === undefined
+                ? "No route yet"
+                : `${plan.stops.length} stops`}
+            </small>
+          </article>
+          <article>
+            <span>Last updated</span>
+            <strong>
+              {new Date(requestDetail.request.updatedAt).toLocaleDateString(
+                "en-GH",
+                { day: "numeric", month: "short" },
+              )}
+            </strong>
+            <small>
+              {new Date(requestDetail.request.updatedAt).toLocaleTimeString(
+                "en-GH",
+                { hour: "2-digit", minute: "2-digit" },
+              )}
+            </small>
+          </article>
+        </div>
       </section>
     </div>
   );

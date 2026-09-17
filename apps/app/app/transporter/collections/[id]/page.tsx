@@ -51,7 +51,11 @@ type DriverJob = {
     vehicleRegistration?: string;
     version: number;
   };
-  programme: { name: string; dataMode: "live" | "sample_only" };
+  programme: {
+    id: Id<"pilotProgrammes">;
+    name: string;
+    dataMode: "live" | "sample_only";
+  };
   destination: { label: string };
   stops: DriverStop[];
   buyerAcceptanceStatus: "pending" | "recorded";
@@ -206,6 +210,7 @@ export default function DriverCollectionDetailPage({ params }: Props) {
                         </a>
                       </div>
                       <CustodyAction
+                        programmeId={job.programme.id}
                         planId={job.plan.planId}
                         planVersion={job.plan.version}
                         planStatus={job.plan.status}

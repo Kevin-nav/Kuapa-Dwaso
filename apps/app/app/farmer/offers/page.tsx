@@ -23,6 +23,8 @@ type OfferProjection = {
     expectedNetPesewas: number;
   };
   finalAmounts: null | { expectedNetPesewas: number };
+  createdAt: number;
+  updatedAt: number;
 };
 type SupplyPage = {
   declaration: {
@@ -31,6 +33,8 @@ type SupplyPage = {
     availableGrams: number;
     unallocatedGrams: number;
     status: string;
+    createdAt: number;
+    updatedAt: number;
   };
   offers: OfferProjection[];
 };
@@ -62,9 +66,14 @@ export default function FarmerOffersPage() {
     programme === undefined ? "skip" : { programmeId: programme.id, limit: 50 },
   ) as { page: SupplyPage[] } | undefined;
   const offers =
-    supply?.page.flatMap((item) =>
-      item.offers.map((offer) => ({ ...offer, declaration: item.declaration })),
-    ) ?? [];
+    supply?.page
+      .flatMap((item) =>
+        item.offers.map((offer) => ({
+          ...offer,
+          declaration: item.declaration,
+        })),
+      )
+      .sort((left, right) => right.createdAt - left.createdAt) ?? [];
 
   return (
     <div className="pilot-farmer-stack">
@@ -152,6 +161,11 @@ export default function FarmerOffersPage() {
                   {offer.commercialMode === "kuapa_purchase"
                     ? "Kuapa Dwaso will owe payment"
                     : "Coordinated farmer sale"}
+                  {" · "}
+                  {new Date(offer.createdAt).toLocaleString("en-GH", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
                 </span>
                 <ArrowRight size={17} />
               </div>
@@ -183,6 +197,13 @@ export default function FarmerOffersPage() {
                   committed
                 </span>
               </div>
+              <small>
+                Added{" "}
+                {new Date(declaration.createdAt).toLocaleString("en-GH", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </small>
             </article>
           ))}
         </div>

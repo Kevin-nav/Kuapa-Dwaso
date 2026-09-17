@@ -14,7 +14,7 @@ export function Button({ label }: ButtonProps) {
         color: "white",
         font: "inherit",
         fontWeight: 700,
-        padding: spacing.controlPadding
+        padding: spacing.controlPadding,
       }}
       type="button"
     >

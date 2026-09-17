@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.tsx",
     "./pilot": "./src/pilot/index.tsx",
-    "./pwa": "./src/pwa/index.tsx"
+    "./pwa": "./src/pwa/index.tsx",
+    "./toast": "./src/Toast.tsx"
   },
   "files": [
     "dist",

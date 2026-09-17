@@ -100,6 +100,7 @@ export default function PilotAdminPage() {
           confirmedGrams?: number;
           commercialMode: string;
           deliveryWindowEndAt: number;
+          createdAt: number;
         }>;
       }
     | undefined;
@@ -324,6 +325,10 @@ export default function PilotAdminPage() {
                         {request.commercialMode.replaceAll("_", " ")} ·{" "}
                         {request.status.replaceAll("_", " ")}
                       </span>
+                      <small>
+                        Created{" "}
+                        {new Date(request.createdAt).toLocaleString("en-GH")}
+                      </small>
                     </div>
                     <span>
                       {previewAccess ? "Coordination summary" : "Statement"} →

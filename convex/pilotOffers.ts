@@ -202,6 +202,8 @@ async function offerSummary(
     commercialMode: offer.commercialMode,
     status: offer.status,
     version: offer.version,
+    createdAt: offer.createdAt,
+    updatedAt: offer.updatedAt,
     expiresAt: offer.expiresAt,
     currentRevision: {
       revisionId: revision._id,

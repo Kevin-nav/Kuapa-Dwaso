@@ -17,6 +17,7 @@ import {
   QuantityProgress,
   TransactionTimeline,
 } from "@kuapa-dwaso/ui/pilot";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 import { useAuth } from "@/app/auth/AuthProvider";
 import { uploadPrivateEvidence } from "@/app/uploads/client";
 
@@ -88,6 +89,15 @@ type Activity = {
     createdAt: number;
     views: Array<{ title: string; detail: string }>;
   }>;
+};
+type PaymentClaim = null | {
+  id: Id<"pilotBuyerPaymentClaims">;
+  amountPesewas: number;
+  status: "pending_verification" | "verified" | "rejected";
+  buyerReference?: string;
+  reviewReason?: string;
+  claimedAt: number;
+  version: number;
 };
 
 function nextAction(detail: RequestDetail) {
@@ -174,14 +184,21 @@ export default function BuyerRequestDetailPage() {
     requestId,
     limit: 30,
   }) as Activity | undefined;
+  const paymentClaim = useQuery(api.pilotFinance.getBuyerPaymentClaim, {
+    requestId,
+  }) as PaymentClaim | undefined;
   const acknowledge = useMutation(api.pilotRequests.acknowledgeAgreement);
   const reject = useMutation(api.pilotRequests.rejectAgreement);
   const acceptDelivery = useMutation(api.pilotFulfilment.acceptDelivery);
+  const claimPayment = useMutation(api.pilotFinance.claimBuyerPayment);
+  const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [rejectedLotId, setRejectedLotId] = useState<string>("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [evidenceFile, setEvidenceFile] = useState<File>();
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
 
   if (detail === undefined)
     return (
@@ -213,11 +230,12 @@ export default function BuyerRequestDetailPage() {
     plan?.plan.status === "delivered" &&
     agreement !== null;
 
-  async function run(task: () => Promise<unknown>) {
+  async function run(task: () => Promise<unknown>, successMessage?: string) {
     setBusy(true);
     setError(undefined);
     try {
       await task();
+      if (successMessage !== undefined) showToast(successMessage);
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -227,6 +245,22 @@ export default function BuyerRequestDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function reportPayment() {
+    await claimPayment({
+      requestId,
+      ...(paymentReference.trim()
+        ? { buyerReference: paymentReference.trim() }
+        : {}),
+      ...(paymentNote.trim() ? { buyerNote: paymentNote.trim() } : {}),
+      idempotencyKey: crypto.randomUUID(),
+    });
+    showToast({
+      message:
+        "Payment reported. Finance will confirm when the funds have cleared.",
+      tone: "success",
+    });
   }
 
   async function recordAcceptance(acknowledgedAt: number) {
@@ -282,6 +316,13 @@ export default function BuyerRequestDetailPage() {
       })),
       acknowledgedAt,
       idempotencyKey: crypto.randomUUID(),
+    });
+    showToast({
+      message:
+        rejectedLotId === ""
+          ? "Delivery decision recorded. The delivered lots were accepted."
+          : "Delivery decision recorded. The accepted and rejected quantities are now on record.",
+      tone: "success",
     });
   }
 
@@ -398,13 +439,15 @@ export default function BuyerRequestDetailPage() {
                   : {})}
                 isSubmitting={busy}
                 onConfirm={() =>
-                  run(() =>
-                    acknowledge({
-                      requestId,
-                      agreementRevisionId: agreement.revisionId,
-                      expectedRequestVersion: detail.request.version,
-                      idempotencyKey: crypto.randomUUID(),
-                    }),
+                  run(
+                    () =>
+                      acknowledge({
+                        requestId,
+                        agreementRevisionId: agreement.revisionId,
+                        expectedRequestVersion: detail.request.version,
+                        idempotencyKey: crypto.randomUUID(),
+                      }),
+                    "Quotation approved. Sourcing can continue.",
                   )
                 }
               />
@@ -416,14 +459,16 @@ export default function BuyerRequestDetailPage() {
                 requireReason
                 isSubmitting={busy}
                 onConfirm={(reason) =>
-                  run(() =>
-                    reject({
-                      requestId,
-                      agreementRevisionId: agreement.revisionId,
-                      expectedRequestVersion: detail.request.version,
-                      reason: reason ?? "Terms need revision",
-                      idempotencyKey: crypto.randomUUID(),
-                    }),
+                  run(
+                    () =>
+                      reject({
+                        requestId,
+                        agreementRevisionId: agreement.revisionId,
+                        expectedRequestVersion: detail.request.version,
+                        reason: reason ?? "Terms need revision",
+                        idempotencyKey: crypto.randomUUID(),
+                      }),
+                    "Revision request sent to operations.",
                   )
                 }
               />
@@ -488,6 +533,86 @@ export default function BuyerRequestDetailPage() {
             isSubmitting={busy}
             onConfirm={() => run(() => recordAcceptance(Date.now()))}
           />
+        </section>
+      ) : null}
+
+      {statement !== undefined &&
+      (statement.totals.outstandingPesewas > 0 ||
+        paymentClaim?.status === "verified") &&
+      detail.request.status === "delivered" ? (
+        <section className="pilot-acceptance-panel">
+          <span className="pilot-buyer-kicker">Payment</span>
+          {paymentClaim?.status === "pending_verification" ? (
+            <>
+              <h2>Payment reported</h2>
+              <p>
+                Your report for {formatPilotMoney(paymentClaim.amountPesewas)}
+                {paymentClaim.buyerReference
+                  ? ` (${paymentClaim.buyerReference})`
+                  : ""}{" "}
+                is waiting for finance to confirm cleared funds.
+              </p>
+            </>
+          ) : paymentClaim?.status === "verified" ? (
+            <>
+              <h2>Payment confirmed</h2>
+              <p>
+                Finance confirmed the buyer payment. This sale is recorded;
+                farmer settlement continues as a separate step.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>Have you paid for this delivery?</h2>
+              <p>
+                Report the transfer after you have paid. This does not mark the
+                order paid until finance verifies cleared funds.
+              </p>
+              {paymentClaim?.status === "rejected" ? (
+                <div className="attention-card" role="status">
+                  <AlertTriangle size={20} />
+                  <div className="attention-body">
+                    <span className="attention-title">
+                      Previous report was not confirmed
+                    </span>
+                    <span className="attention-text">
+                      {paymentClaim.reviewReason ??
+                        "Check the transfer details and report it again."}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              <label className="form-group">
+                <span className="form-label">
+                  Transfer reference (optional)
+                </span>
+                <input
+                  className="form-input"
+                  maxLength={120}
+                  value={paymentReference}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                  placeholder="e.g. mobile money or bank reference"
+                />
+              </label>
+              <label className="form-group">
+                <span className="form-label">Note (optional)</span>
+                <textarea
+                  className="form-input"
+                  maxLength={500}
+                  value={paymentNote}
+                  onChange={(event) => setPaymentNote(event.target.value)}
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void run(reportPayment)}
+                type="button"
+              >
+                {busy ? "Reporting payment…" : "I have paid"}
+              </button>
+            </>
+          )}
         </section>
       ) : null}
 

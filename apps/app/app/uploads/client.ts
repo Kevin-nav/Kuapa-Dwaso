@@ -17,6 +17,7 @@ type PresignUploadOptions = {
   ownerProfileId?: string;
   relatedEntityType?: UploadRelatedEntityType;
   relatedEntityId?: string;
+  pilotProgrammeId?: string;
 };
 
 type UploadResult = {
@@ -47,42 +48,54 @@ async function apiJson<TResponse>(
   return (await response.json()) as TResponse;
 }
 
-export async function uploadPrivateEvidence(options: PresignUploadOptions): Promise<UploadResult> {
-  const presign = await apiJson<{
-    uploadAssetId: string;
-    method: "PUT";
-    uploadUrl: string;
-    headers: Record<string, string>;
-  }>(options.user, "/uploads/presign", {
-    purpose: options.purpose,
-    contentType: options.file.type,
-    sizeBytes: options.file.size,
-    fileName: options.file.name,
-    ownerProfileType: options.ownerProfileType,
-    ownerProfileId: options.ownerProfileId,
-    relatedEntityType: options.relatedEntityType,
-    relatedEntityId: options.relatedEntityId,
-    accessLevel: "private",
-  });
-
-  const uploadResponse = await fetch(presign.uploadUrl, {
-    method: presign.method,
-    headers: presign.headers,
-    body: options.file,
-  });
-  if (!uploadResponse.ok) {
-    throw new Error("Signed upload failed. Please try again.");
+export async function uploadPrivateEvidence(
+  options: PresignUploadOptions,
+): Promise<UploadResult> {
+  if (apiBaseUrl === undefined) {
+    throw new Error("NEXT_PUBLIC_API_URL is required for evidence uploads.");
   }
-
-  return await apiJson<UploadResult>(options.user, "/uploads/complete", {
-    uploadAssetId: presign.uploadAssetId,
-    sizeBytes: options.file.size,
-  });
+  const idToken = await options.user.getIdToken();
+  const headers: Record<string, string> = {
+    authorization: `Bearer ${idToken}`,
+    "content-type": options.file.type,
+    "x-file-name": encodeURIComponent(options.file.name),
+    "x-upload-purpose": options.purpose,
+    "x-upload-access-level": "private",
+  };
+  if (options.ownerProfileType !== undefined)
+    headers["x-owner-profile-type"] = options.ownerProfileType;
+  if (options.ownerProfileId !== undefined)
+    headers["x-owner-profile-id"] = options.ownerProfileId;
+  if (options.relatedEntityType !== undefined)
+    headers["x-related-entity-type"] = options.relatedEntityType;
+  if (options.relatedEntityId !== undefined)
+    headers["x-related-entity-id"] = options.relatedEntityId;
+  if (options.pilotProgrammeId !== undefined)
+    headers["x-pilot-programme-id"] = options.pilotProgrammeId;
+  const uploadResponse = await fetch(
+    `${apiBaseUrl.replace(/\/$/, "")}/uploads/file`,
+    {
+      method: "POST",
+      headers,
+      body: options.file,
+    },
+  );
+  if (!uploadResponse.ok) {
+    throw new Error(await uploadResponse.text());
+  }
+  return (await uploadResponse.json()) as UploadResult;
 }
 
-export async function getSignedReadUrl(user: User, uploadAssetId: string): Promise<string> {
-  const result = await apiJson<{ readUrl: string }>(user, "/uploads/presign-read", {
-    uploadAssetId,
-  });
+export async function getSignedReadUrl(
+  user: User,
+  uploadAssetId: string,
+): Promise<string> {
+  const result = await apiJson<{ readUrl: string }>(
+    user,
+    "/uploads/presign-read",
+    {
+      uploadAssetId,
+    },
+  );
   return result.readUrl;
 }

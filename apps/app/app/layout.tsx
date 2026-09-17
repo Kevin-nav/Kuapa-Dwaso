@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { ToastProvider } from "@kuapa-dwaso/ui/toast";
 import { PwaRuntime } from "@kuapa-dwaso/ui/pwa";
 import { ConvexClientProvider } from "./ConvexClientProvider";
 import { AuthProvider } from "./auth/AuthProvider";
@@ -17,7 +18,11 @@ export const metadata: Metadata = {
     title: "Kuapa Dwaso",
     statusBarStyle: "default",
   },
-  icons: { apple: "/pwa/apple-touch-icon.png" },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+    apple: "/pwa/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -35,16 +40,18 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body>
-        <ConvexClientProvider>
-          <AuthProvider>
-            <AppOutboxReplayer />
-            {process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" &&
-            process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED !== "true" ? (
-              <PilotDemoIndicator />
-            ) : null}
-            {children}
-          </AuthProvider>
-        </ConvexClientProvider>
+        <ToastProvider>
+          <ConvexClientProvider>
+            <AuthProvider>
+              <AppOutboxReplayer />
+              {process.env.NEXT_PUBLIC_DEMO_PRESENTATION === "true" &&
+              process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED !== "true" ? (
+                <PilotDemoIndicator />
+              ) : null}
+              {children}
+            </AuthProvider>
+          </ConvexClientProvider>
+        </ToastProvider>
         <PwaRuntime
           enabled={
             process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED !== "true" &&

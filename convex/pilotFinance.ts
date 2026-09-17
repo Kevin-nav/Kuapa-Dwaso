@@ -2081,6 +2081,288 @@ async function financialEntryState(
   });
 }
 
+async function outstandingBuyerObligations(
+  ctx: QueryCtx | MutationCtx,
+  requestId: Id<"pilotBuyerRequests">,
+  now: number,
+) {
+  const entries = await ctx.db
+    .query("pilotFinancialEntries")
+    .withIndex("by_request_created_at", (q) => q.eq("requestId", requestId))
+    .collect();
+  const obligations = [];
+  for (const entry of entries) {
+    if (entry.postingKind !== "obligation" || entry.payer.kind !== "buyer") {
+      continue;
+    }
+    const state = await financialEntryState(ctx, entry, now);
+    if (state.outstandingPesewas > 0) obligations.push({ entry, state });
+  }
+  return obligations;
+}
+
+export const getBuyerPaymentClaim = query({
+  args: { requestId: v.id("pilotBuyerRequests") },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const request = await ctx.db.get(args.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    await requirePilotRequestRead(ctx, principal, request);
+    const claim = await ctx.db
+      .query("pilotBuyerPaymentClaims")
+      .withIndex("by_request_created_at", (q) => q.eq("requestId", request._id))
+      .order("desc")
+      .first();
+    return claim === null ? null : { ...claim, id: claim._id };
+  },
+});
+
+export const claimBuyerPayment = mutation({
+  args: {
+    requestId: v.id("pilotBuyerRequests"),
+    buyerReference: v.optional(v.string()),
+    buyerNote: v.optional(v.string()),
+    idempotencyKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const principal = await requirePilotPrincipal(ctx);
+    const request = await ctx.db.get(args.requestId);
+    assertAllowed(request !== null, "Pilot request was not found.");
+    assertAllowed(
+      principal.role === "buyer" && request.status === "delivered",
+      "Only the buyer can report payment after delivery.",
+    );
+    const buyer = await ctx.db.get(request.buyerId);
+    assertAllowed(
+      buyer !== null && buyer.userId === principal._id,
+      "This request belongs to another buyer.",
+    );
+    const idempotencyKey = cleanText(args.idempotencyKey, "Idempotency key");
+    const replay = await ctx.db
+      .query("pilotBuyerPaymentClaims")
+      .withIndex("by_idempotency_key", (q) =>
+        q.eq("idempotencyKey", idempotencyKey),
+      )
+      .unique();
+    if (replay !== null) {
+      assertAllowed(
+        replay.requestId === request._id && replay.buyerId === buyer._id,
+        "Idempotency key was already used for another payment claim.",
+      );
+      return { claimId: replay._id, status: replay.status };
+    }
+    const acceptance = await ctx.db
+      .query("pilotBuyerAcceptances")
+      .withIndex("by_request_revision", (q) => q.eq("requestId", request._id))
+      .order("desc")
+      .first();
+    assertAllowed(
+      acceptance !== null,
+      "Accept the delivered maize before reporting payment.",
+    );
+    const pending = await ctx.db
+      .query("pilotBuyerPaymentClaims")
+      .withIndex("by_request_created_at", (q) => q.eq("requestId", request._id))
+      .order("desc")
+      .first();
+    assertAllowed(
+      pending?.status !== "pending_verification",
+      "A payment claim is already awaiting verification.",
+    );
+    const now = Date.now();
+    const obligations = await outstandingBuyerObligations(
+      ctx,
+      request._id,
+      now,
+    );
+    const amountPesewas = obligations.reduce(
+      (sum, item) => sum + item.state.outstandingPesewas,
+      0,
+    );
+    assertAllowed(
+      amountPesewas > 0,
+      "This request has no outstanding buyer payment.",
+    );
+    const buyerReference = args.buyerReference?.trim();
+    const buyerNote = args.buyerNote?.trim();
+    assertAllowed(
+      (buyerReference?.length ?? 0) <= 120 && (buyerNote?.length ?? 0) <= 500,
+      "Payment reference or note is too long.",
+    );
+    const claimId = await ctx.db.insert("pilotBuyerPaymentClaims", {
+      programmeId: request.programmeId,
+      requestId: request._id,
+      buyerId: buyer._id,
+      amountPesewas,
+      currency: "GHS",
+      status: "pending_verification",
+      ...(buyerReference ? { buyerReference } : {}),
+      ...(buyerNote ? { buyerNote } : {}),
+      claimedByUserId: principal._id,
+      claimedAt: now,
+      idempotencyKey,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await insertPilotActivityEvent(ctx, {
+      programmeId: request.programmeId,
+      requestId: request._id,
+      entityType: "pilotBuyerPaymentClaims",
+      entityId: claimId,
+      entityRevision: 1,
+      eventName: "pilot.buyer_payment.claimed",
+      actorUserId: principal._id,
+      recipientViews: [
+        {
+          audience: "buyer",
+          targetId: buyer._id,
+          title: "Payment reported",
+          detail: "Your payment report is waiting for finance verification.",
+        },
+        {
+          audience: "finance",
+          title: "Buyer payment needs verification",
+          detail: `Verify GHS ${(amountPesewas / 100).toFixed(2)} against cleared funds.`,
+        },
+      ],
+      createdAt: now,
+    });
+    return { claimId, status: "pending_verification" as const };
+  },
+});
+
+export const reviewBuyerPaymentClaim = mutation({
+  args: {
+    claimId: v.id("pilotBuyerPaymentClaims"),
+    decision: v.union(v.literal("verified"), v.literal("rejected")),
+    reviewReason: v.optional(v.string()),
+    expectedVersion: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const claim = await ctx.db.get(args.claimId);
+    assertAllowed(claim !== null, "Payment claim was not found.");
+    const principal = await requireFinance(
+      ctx,
+      claim.programmeId,
+      "pilotFinance:manage",
+    );
+    assertExpectedVersion(args.expectedVersion);
+    assertAllowed(
+      claim.version === args.expectedVersion &&
+        claim.status === "pending_verification",
+      "Payment claim is stale or has already been reviewed.",
+    );
+    const reviewReason = args.reviewReason?.trim();
+    assertAllowed(
+      args.decision === "verified" || Boolean(reviewReason),
+      "Explain why the payment claim is being rejected.",
+    );
+    assertAllowed(
+      (reviewReason?.length ?? 0) <= 500,
+      "Review reason is too long.",
+    );
+    const now = Date.now();
+    let receiptIds: FinancialEntryId[] = [];
+    if (args.decision === "verified") {
+      const obligations = await outstandingBuyerObligations(
+        ctx,
+        claim.requestId,
+        now,
+      );
+      const outstandingPesewas = obligations.reduce(
+        (sum, item) => sum + item.state.outstandingPesewas,
+        0,
+      );
+      assertAllowed(
+        outstandingPesewas > 0 && outstandingPesewas === claim.amountPesewas,
+        "The outstanding balance changed. Reject this claim and ask the buyer to report the current balance.",
+      );
+      for (const { entry, state } of obligations) {
+        const postingKey = `buyer-payment-claim:${claim._id}:${entry._id}`;
+        await assertPostingKeyAvailable(ctx, postingKey);
+        receiptIds.push(
+          await ctx.db.insert("pilotFinancialEntries", {
+            programmeId: entry.programmeId,
+            requestId: claim.requestId,
+            ...(entry.lotId === undefined ? {} : { lotId: entry.lotId }),
+            ...(entry.offerRevisionId === undefined
+              ? {}
+              : { offerRevisionId: entry.offerRevisionId }),
+            ...(entry.acceptanceId === undefined
+              ? {}
+              : { acceptanceId: entry.acceptanceId }),
+            postingKind: "receipt",
+            purpose: entry.purpose,
+            basis: "actual",
+            payer: entry.payer,
+            payee: entry.payee,
+            amountPesewas: state.outstandingPesewas,
+            currency: "GHS",
+            settlesEntryId: entry._id,
+            postingKey,
+            evidenceUploadAssetIds: [],
+            provenance: entry.provenance,
+            reasonCode: "buyer_payment_claim_verified",
+            recordedByUserId: principal._id,
+            createdAt: now,
+          }),
+        );
+      }
+      await activateFarmerDeadlinesAfterBuyerFunds(ctx, {
+        requestId: claim.requestId,
+        actorUserId: principal._id,
+        clearedAt: now,
+        sourcePaymentEntryId: receiptIds[0]!,
+      });
+    }
+    await ctx.db.patch(claim._id, {
+      status: args.decision,
+      ...(reviewReason ? { reviewReason } : {}),
+      reviewedByUserId: principal._id,
+      reviewedAt: now,
+      version: claim.version + 1,
+      updatedAt: now,
+    });
+    await insertPilotActivityEvent(ctx, {
+      programmeId: claim.programmeId,
+      requestId: claim.requestId,
+      entityType: "pilotBuyerPaymentClaims",
+      entityId: claim._id,
+      entityRevision: claim.version + 1,
+      eventName: `pilot.buyer_payment.${args.decision}`,
+      actorUserId: principal._id,
+      recipientViews: [
+        {
+          audience: "buyer",
+          targetId: claim.buyerId,
+          title:
+            args.decision === "verified"
+              ? "Payment confirmed"
+              : "Payment report needs attention",
+          detail:
+            args.decision === "verified"
+              ? "Finance confirmed the cleared funds. Farmer settlement is now due separately."
+              : reviewReason!,
+        },
+        {
+          audience: "finance",
+          title:
+            args.decision === "verified"
+              ? "Buyer payment confirmed"
+              : "Buyer payment report rejected",
+          detail:
+            args.decision === "verified"
+              ? `GHS ${(claim.amountPesewas / 100).toFixed(2)} was confirmed.`
+              : reviewReason!,
+        },
+      ],
+      createdAt: now,
+    });
+    return { status: args.decision, receiptIds };
+  },
+});
+
 export const recordExternalSettlement = mutation({
   args: {
     obligationId: v.id("pilotFinancialEntries"),
