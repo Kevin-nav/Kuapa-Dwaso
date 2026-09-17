@@ -284,11 +284,10 @@ export async function acceptCollectionPurchaseHandler(
     "This lot has already been collected.",
   );
   assertAllowed(
-    args.evidenceUploadAssetIds.length > 0 &&
-      args.evidenceUploadAssetIds.length <= 20 &&
+    args.evidenceUploadAssetIds.length <= 20 &&
       new Set(args.evidenceUploadAssetIds).size ===
         args.evidenceUploadAssetIds.length,
-    "Collection requires one to twenty distinct evidence files.",
+    "Collection may include up to twenty distinct evidence files.",
   );
   for (const assetId of args.evidenceUploadAssetIds) {
     const asset = await ctx.db.get(assetId);

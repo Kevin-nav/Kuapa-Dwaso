@@ -1,6 +1,13 @@
-import { uploadAssetPurposes, type UploadAssetPurpose } from "@kuapa-dwaso/types";
+import {
+  uploadAssetPurposes,
+  type UploadAssetPurpose,
+} from "@kuapa-dwaso/types";
 import { assertUploadMetadata } from "@kuapa-dwaso/utils";
-import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { createHmac, createHash } from "node:crypto";
 import { getApiEnvironment } from "../config/env.js";
 
@@ -25,7 +32,9 @@ export type PresignPutObjectResult = {
 
 @Injectable()
 export class R2UploadProvider {
-  async uploadObject(input: PresignPutObjectInput & { body: Buffer }): Promise<void> {
+  async uploadObject(
+    input: PresignPutObjectInput & { body: Buffer },
+  ): Promise<void> {
     const target = this.presignPutObject(input);
     const response = await fetch(target.uploadUrl, {
       method: "PUT",
@@ -33,23 +42,32 @@ export class R2UploadProvider {
       body: new Uint8Array(input.body),
     });
     if (!response.ok) {
-      throw new ServiceUnavailableException("Cloudflare R2 could not store the produce photo.");
+      throw new ServiceUnavailableException(
+        "Cloudflare R2 could not store the produce photo.",
+      );
     }
   }
 
   getPublicReadUrl(objectKey: string): string {
     const baseUrl = getApiEnvironment().uploads.r2PublicBaseUrl;
     if (baseUrl === undefined) {
-      throw new ServiceUnavailableException("Cloudflare R2 public reads are not configured.");
+      throw new ServiceUnavailableException(
+        "Cloudflare R2 public reads are not configured.",
+      );
     }
     return `${baseUrl}/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
   }
 
   getBucketName(accessLevel: "private" | "public_read" = "private"): string {
     const uploads = getApiEnvironment().uploads;
-    const bucket = accessLevel === "public_read" ? uploads.r2PublicBucket : uploads.r2Bucket;
+    const bucket =
+      accessLevel === "public_read"
+        ? uploads.r2PublicBucket
+        : uploads.r2Bucket;
     if (bucket === undefined) {
-      throw new ServiceUnavailableException("Cloudflare R2 uploads are not configured.");
+      throw new ServiceUnavailableException(
+        "Cloudflare R2 uploads are not configured.",
+      );
     }
     return bucket;
   }
@@ -59,30 +77,34 @@ export class R2UploadProvider {
       method: "PUT",
       objectKey: input.objectKey,
       ttlSeconds: getApiEnvironment().uploads.presignTtlSeconds,
-      ...(input.bucket === undefined ? {} : { bucket: input.bucket })
+      ...(input.bucket === undefined ? {} : { bucket: input.bucket }),
     });
 
     return {
       uploadUrl: presigned.url,
       headers: {
-        "Content-Type": input.contentType
+        "Content-Type": input.contentType,
       },
       expiresAt: presigned.expiresAt,
-      bucket: presigned.bucket
+      bucket: presigned.bucket,
     };
   }
 
-  presignGetObject(input: { objectKey: string }): { readUrl: string; expiresAt: number; bucket: string } {
+  presignGetObject(input: { objectKey: string }): {
+    readUrl: string;
+    expiresAt: number;
+    bucket: string;
+  } {
     const presigned = this.presignObject({
       method: "GET",
       objectKey: input.objectKey,
-      ttlSeconds: getApiEnvironment().uploads.readPresignTtlSeconds
+      ttlSeconds: getApiEnvironment().uploads.readPresignTtlSeconds,
     });
 
     return {
       readUrl: presigned.url,
       expiresAt: presigned.expiresAt,
-      bucket: presigned.bucket
+      bucket: presigned.bucket,
     };
   }
 
@@ -96,10 +118,12 @@ export class R2UploadProvider {
       assertUploadMetadata({
         contentType: input.contentType,
         sizeBytes: input.sizeBytes,
-        maxSizeBytes: env.uploads.maxSizeBytes
+        maxSizeBytes: env.uploads.maxSizeBytes,
       });
     } catch (error) {
-      throw new BadRequestException(error instanceof Error ? error.message : "Upload metadata is invalid.");
+      throw new BadRequestException(
+        error instanceof Error ? error.message : "Upload metadata is invalid.",
+      );
     }
   }
 
@@ -120,7 +144,9 @@ export class R2UploadProvider {
       secretAccessKey === undefined ||
       bucket === undefined
     ) {
-      throw new ServiceUnavailableException("Cloudflare R2 uploads are not configured.");
+      throw new ServiceUnavailableException(
+        "Cloudflare R2 uploads are not configured.",
+      );
     }
 
     const region = "auto";
@@ -131,7 +157,10 @@ export class R2UploadProvider {
     const dateStamp = amzDate.slice(0, 8);
     const expires = Math.max(60, Math.min(input.ttlSeconds, 3600));
     const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-    const encodedKey = input.objectKey.split("/").map(encodeURIComponent).join("/");
+    const encodedKey = input.objectKey
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
     const canonicalUri = `/${bucket}/${encodedKey}`;
     const signedHeaders = "host";
     const queryParams = new URLSearchParams({
@@ -139,11 +168,14 @@ export class R2UploadProvider {
       "X-Amz-Credential": `${accessKeyId}/${credentialScope}`,
       "X-Amz-Date": amzDate,
       "X-Amz-Expires": String(expires),
-      "X-Amz-SignedHeaders": signedHeaders
+      "X-Amz-SignedHeaders": signedHeaders,
     });
     const canonicalQueryString = [...queryParams.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .map(
+        ([key, value]) =>
+          `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+      )
       .join("&");
     const canonicalRequest = [
       input.method,
@@ -151,22 +183,27 @@ export class R2UploadProvider {
       canonicalQueryString,
       `host:${host}\n`,
       signedHeaders,
-      "UNSIGNED-PAYLOAD"
+      "UNSIGNED-PAYLOAD",
     ].join("\n");
     const stringToSign = [
       "AWS4-HMAC-SHA256",
       amzDate,
       credentialScope,
-      sha256Hex(canonicalRequest)
+      sha256Hex(canonicalRequest),
     ].join("\n");
-    const signingKey = getSignatureKey(secretAccessKey, dateStamp, region, service);
+    const signingKey = getSignatureKey(
+      secretAccessKey,
+      dateStamp,
+      region,
+      service,
+    );
     const signature = hmacHex(signingKey, stringToSign);
     queryParams.set("X-Amz-Signature", signature);
 
     return {
       url: `https://${host}${canonicalUri}?${queryParams.toString()}`,
       expiresAt: now.getTime() + expires * 1000,
-      bucket
+      bucket,
     };
   }
 }
@@ -187,7 +224,12 @@ function hmacHex(key: Buffer, value: string): string {
   return createHmac("sha256", key).update(value, "utf8").digest("hex");
 }
 
-function getSignatureKey(secretAccessKey: string, dateStamp: string, regionName: string, serviceName: string): Buffer {
+function getSignatureKey(
+  secretAccessKey: string,
+  dateStamp: string,
+  regionName: string,
+  serviceName: string,
+): Buffer {
   const kDate = hmac(`AWS4${secretAccessKey}`, dateStamp);
   const kRegion = hmac(kDate, regionName);
   const kService = hmac(kRegion, serviceName);

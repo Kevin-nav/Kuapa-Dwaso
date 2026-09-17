@@ -2595,6 +2595,108 @@ textarea:focus-visible {
   display: grid;
   gap: 16px;
 }
+.ops-stage-card[hidden] {
+  display: none !important;
+}
+.ops-current-work,
+.ops-blocker-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 20px 22px;
+  border-radius: 18px;
+}
+.ops-current-work {
+  border: 1px solid #315f47;
+  background: #173d2b;
+  color: #fff;
+  box-shadow: 0 14px 34px rgba(15, 31, 20, 0.14);
+}
+.ops-current-work .ops-eyebrow,
+.ops-current-work p {
+  color: #c9ddcf;
+}
+.ops-current-work h2 {
+  margin: 2px 0 4px;
+  font-size: clamp(1.2rem, 2vw, 1.65rem);
+}
+.ops-work-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.ops-work-switcher button {
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.ops-work-switcher button.active {
+  border-color: #fff;
+  background: #fff;
+  color: #173d2b;
+}
+.ops-blocker-banner {
+  align-items: flex-start;
+  border: 1px solid var(--color-warning-border);
+  background: #fffaf0;
+}
+.ops-blocker-banner__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 210px;
+  color: #8a4b08;
+}
+.ops-blocker-banner__heading h2 {
+  margin-top: 2px;
+  font-size: 1.1rem;
+}
+.ops-blocker-banner .ops-issue-list {
+  flex: 1;
+  gap: 8px;
+}
+.ops-record-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.ops-record-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background: #f8faf6;
+}
+.ops-record-grid span,
+.ops-record-grid small {
+  color: var(--gray-500);
+  font-size: 0.76rem;
+}
+.ops-record-grid strong {
+  text-transform: capitalize;
+}
+@media (max-width: 760px) {
+  .ops-current-work,
+  .ops-blocker-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ops-work-switcher {
+    justify-content: flex-start;
+  }
+  .ops-record-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .ops-stage-heading {
   justify-content: flex-start;
 }

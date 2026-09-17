@@ -101,6 +101,7 @@ const pilotEntityType = v.union(
   v.literal("pilotFulfilmentStops"),
   v.literal("pilotCustodyEvents"),
   v.literal("pilotBuyerAcceptances"),
+  v.literal("pilotBuyerPaymentClaims"),
   v.literal("pilotPurchasingBudgets"),
   v.literal("pilotFundingReservations"),
   v.literal("pilotBudgetEvents"),
@@ -783,6 +784,33 @@ export const pilotTables = {
     .index("by_due_at", ["dueAt"])
     .index("by_settles_entry", ["settlesEntryId"])
     .index("by_reverses_entry", ["reversesEntryId"]),
+
+  pilotBuyerPaymentClaims: defineTable({
+    programmeId: v.id("pilotProgrammes"),
+    requestId: v.id("pilotBuyerRequests"),
+    buyerId: v.id("buyers"),
+    amountPesewas: v.number(),
+    currency: v.literal("GHS"),
+    status: v.union(
+      v.literal("pending_verification"),
+      v.literal("verified"),
+      v.literal("rejected"),
+    ),
+    buyerReference: v.optional(v.string()),
+    buyerNote: v.optional(v.string()),
+    reviewReason: v.optional(v.string()),
+    claimedByUserId: v.id("users"),
+    reviewedByUserId: v.optional(v.id("users")),
+    claimedAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+    idempotencyKey: v.string(),
+    version: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_request_created_at", ["requestId", "createdAt"])
+    .index("by_status_created_at", ["status", "createdAt"])
+    .index("by_idempotency_key", ["idempotencyKey"]),
 
   pilotPaymentTransactions: defineTable({
     programmeId: v.id("pilotProgrammes"),

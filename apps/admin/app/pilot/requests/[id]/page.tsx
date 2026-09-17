@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, ArrowLeft, FileCheck2 } from "lucide-react";
 import { api } from "../../../../../../convex/_generated/api";
 import type { Id } from "../../../../../../convex/_generated/dataModel";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 import { useAdminAuth } from "../../../auth/AdminAuthProvider";
 import { uploadFinancialEvidence } from "../../evidenceUpload";
 
@@ -47,7 +48,18 @@ type RequestDetail = {
     requestedGrams: number;
     confirmedGrams?: number;
     destination: { label: string };
+    createdAt: number;
   };
+};
+type PaymentClaim = null | {
+  id: Id<"pilotBuyerPaymentClaims">;
+  amountPesewas: number;
+  status: "pending_verification" | "verified" | "rejected";
+  buyerReference?: string;
+  buyerNote?: string;
+  reviewReason?: string;
+  claimedAt: number;
+  version: number;
 };
 
 export default function PilotStatementPage() {
@@ -75,8 +87,15 @@ export default function PilotStatementPage() {
   const statement = useQuery(api.pilotFinance.getRequestStatement, {
     requestId,
   }) as Statement | undefined;
+  const paymentClaim = useQuery(api.pilotFinance.getBuyerPaymentClaim, {
+    requestId,
+  }) as PaymentClaim | undefined;
   const settle = useMutation(api.pilotFinance.recordExternalSettlement);
   const recordCost = useMutation(api.pilotFinance.recordCoordinationActualCost);
+  const reviewPaymentClaim = useMutation(
+    api.pilotFinance.reviewBuyerPaymentClaim,
+  );
+  const { showToast } = useToast();
   const [files, setFiles] = useState<Record<string, File | undefined>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [costAmount, setCostAmount] = useState("");
@@ -84,9 +103,15 @@ export default function PilotStatementPage() {
   const [costFile, setCostFile] = useState<File>();
   const [busy, setBusy] = useState<string>();
   const [message, setMessage] = useState<string>();
+  const [claimReviewReason, setClaimReviewReason] = useState("");
   const [pageNow] = useState(() => Date.now());
 
-  if (detail === undefined || statement === undefined || access === undefined)
+  if (
+    detail === undefined ||
+    statement === undefined ||
+    paymentClaim === undefined ||
+    access === undefined
+  )
     return (
       <main className="pilot-admin">
         <section className="pilot-admin__panel">
@@ -111,6 +136,103 @@ export default function PilotStatementPage() {
   const previewAccess =
     process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
 
+  async function reviewClaim(decision: "verified" | "rejected") {
+    if (paymentClaim == null) return;
+    setBusy("payment-claim");
+    setMessage(undefined);
+    try {
+      await reviewPaymentClaim({
+        claimId: paymentClaim.id,
+        decision,
+        expectedVersion: paymentClaim.version,
+        ...(claimReviewReason.trim()
+          ? { reviewReason: claimReviewReason.trim() }
+          : {}),
+      });
+      showToast({
+        message:
+          decision === "verified"
+            ? "Buyer payment confirmed. Cleared funds are recorded and farmer settlement is now due."
+            : "Payment report rejected. The buyer can correct the details and report payment again.",
+        tone: decision === "verified" ? "success" : "info",
+      });
+      setClaimReviewReason("");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Payment review was not saved.",
+      );
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  const paymentClaimPanel =
+    paymentClaim === null ? null : (
+      <section className="pilot-admin__panel">
+        <div className="pilot-admin__panel-head">
+          <div>
+            <span className="pilot-admin__eyebrow">Buyer payment</span>
+            <h2>
+              {paymentClaim.status === "pending_verification"
+                ? "Confirm cleared funds"
+                : paymentClaim.status === "verified"
+                  ? "Payment confirmed"
+                  : "Payment report rejected"}
+            </h2>
+          </div>
+          <strong>{money(paymentClaim.amountPesewas)}</strong>
+        </div>
+        <p className="pilot-admin__muted">
+          Reported {new Date(paymentClaim.claimedAt).toLocaleString("en-GH")}
+          {paymentClaim.buyerReference
+            ? ` · reference ${paymentClaim.buyerReference}`
+            : ""}
+          {paymentClaim.buyerNote ? ` · ${paymentClaim.buyerNote}` : ""}
+        </p>
+        {paymentClaim.status === "pending_verification" ? (
+          <>
+            <label className="pilot-admin__form">
+              Review note (required when rejecting)
+              <textarea
+                maxLength={500}
+                value={claimReviewReason}
+                onChange={(event) => setClaimReviewReason(event.target.value)}
+              />
+            </label>
+            <div className="pilot-admin__actions">
+              <button
+                className="primary"
+                disabled={!canManage || busy !== undefined}
+                onClick={() => void reviewClaim("verified")}
+                type="button"
+              >
+                Confirm cleared funds
+              </button>
+              <button
+                disabled={
+                  !canManage ||
+                  busy !== undefined ||
+                  claimReviewReason.trim().length === 0
+                }
+                onClick={() => void reviewClaim("rejected")}
+                type="button"
+              >
+                Reject report
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="pilot-admin__muted">
+            {paymentClaim.status === "verified"
+              ? "The sale is recorded. Farmer settlement remains a separate ledger action."
+              : paymentClaim.reviewReason}
+          </p>
+        )}
+      </section>
+    );
+
   if (previewAccess) {
     return (
       <main className="pilot-admin">
@@ -130,6 +252,10 @@ export default function PilotStatementPage() {
                 detail.request.requestedGrams) / 1000}{" "}
               kg · {detail.request.status.replaceAll("_", " ")}
             </p>
+            <small>
+              Created{" "}
+              {new Date(detail.request.createdAt).toLocaleString("en-GH")}
+            </small>
           </div>
         </header>
         <section className="pilot-admin__metrics">
@@ -144,6 +270,7 @@ export default function PilotStatementPage() {
             danger={statement.totals.outstandingPesewas > 0}
           />
         </section>
+        {paymentClaimPanel}
         <section className="pilot-admin__panel">
           <div className="pilot-admin__panel-head">
             <div>
@@ -218,6 +345,7 @@ export default function PilotStatementPage() {
       setMessage(
         "Settlement recorded against the obligation. The ledger—not the button—determines whether it is paid in full.",
       );
+      showToast("Settlement recorded against the financial obligation.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Settlement was not recorded.",
@@ -253,6 +381,7 @@ export default function PilotStatementPage() {
       setMessage(
         "Actual transport cost and its payable obligation were posted.",
       );
+      showToast("Actual transport cost recorded.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Cost was not recorded.",
@@ -281,6 +410,9 @@ export default function PilotStatementPage() {
             kg · {detail.request.commercialMode.replaceAll("_", " ")} ·{" "}
             {detail.request.status.replaceAll("_", " ")}
           </p>
+          <small>
+            Created {new Date(detail.request.createdAt).toLocaleString("en-GH")}
+          </small>
         </div>
       </header>
       {demoPresentation && sample ? (
@@ -310,6 +442,7 @@ export default function PilotStatementPage() {
           danger={statement.costCompleteness?.status === "incomplete"}
         />
       </section>
+      {paymentClaimPanel}
       {message ? (
         <p className="pilot-admin__message" role="status">
           {message}

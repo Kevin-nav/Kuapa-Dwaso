@@ -109,8 +109,8 @@ const farmer = await clients.farmer.mutation(
   {
     identity: identity("farmer"),
     fullName: actorDefinition("farmer").name,
-    community: "Ejura",
-    region: "Ashanti",
+    community: "Tarkwa",
+    region: "Western",
   },
 );
 const buyer = await clients.buyer.mutation(
@@ -121,7 +121,7 @@ const buyer = await clients.buyer.mutation(
     displayName: "Adwoa's Maize Trading",
     buyerType: "market_trader",
     organizationName: "Adwoa's Maize Trading",
-    destinationMarket: "Kumasi Central Market",
+    destinationMarket: "Takoradi buyer receiving point",
   },
 );
 const transporter = await clients.transporter.mutation(
@@ -132,9 +132,9 @@ const transporter = await clients.transporter.mutation(
     vehicleType: "Cargo truck",
     vehicleCapacity: 200,
     vehicleCapacityUnit: "50kg bags",
-    baseLocation: "Ejura",
-    routesServed: ["Ejura to Kumasi"],
-    destinationsServed: ["Kumasi Central Market"],
+    baseLocation: "Tarkwa",
+    routesServed: ["Tarkwa to Takoradi"],
+    destinationsServed: ["Takoradi buyer receiving point"],
   },
 );
 const operationsUserId = await clients.operations.mutation(

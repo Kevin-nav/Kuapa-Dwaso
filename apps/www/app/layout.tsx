@@ -29,6 +29,10 @@ export const metadata: Metadata = {
     description:
       "A clearer journey from buyer demand to farmer supply and delivery.",
   },
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+  },
 };
 
 const jakarta = Plus_Jakarta_Sans({

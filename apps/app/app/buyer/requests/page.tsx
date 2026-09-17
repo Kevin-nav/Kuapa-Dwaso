@@ -20,6 +20,8 @@ type RequestItem = {
   destination: { label: string };
   status: string;
   version: number;
+  createdAt: number;
+  updatedAt: number;
 };
 
 const statusTone = (status: string) => {
@@ -125,7 +127,13 @@ export default function BuyerRequestsPage() {
                 </span>
               </div>
               <div className="pilot-request-destination">
-                <span>{request.destination.label}</span>
+                <span>
+                  {request.destination.label} · created{" "}
+                  {new Date(request.createdAt).toLocaleString("en-GH", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </span>
                 <ArrowRight size={17} aria-hidden="true" />
               </div>
             </Link>

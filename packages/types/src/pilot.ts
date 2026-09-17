@@ -703,6 +703,25 @@ export type PilotPaymentTransaction = PilotTimestampFields & {
   providerMessage?: string;
 };
 
+export type PilotBuyerPaymentClaim = PilotTimestampFields & {
+  id: string;
+  programmeId: string;
+  requestId: string;
+  buyerId: string;
+  amountPesewas: number;
+  currency: "GHS";
+  status: "pending_verification" | "verified" | "rejected";
+  buyerReference?: string;
+  buyerNote?: string;
+  reviewReason?: string;
+  claimedByUserId: string;
+  reviewedByUserId?: string;
+  claimedAt: number;
+  reviewedAt?: number;
+  idempotencyKey: string;
+  version: number;
+};
+
 export type PilotActivityRecipientView = {
   audience:
     | "buyer"

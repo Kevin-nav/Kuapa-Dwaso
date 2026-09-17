@@ -11,14 +11,14 @@ const datasetId = "temporary-public-preview-2026-09";
 const hour = 60 * 60 * 1_000;
 
 const location = {
-  label: "Ejura collection point",
-  region: "Ashanti",
-  district: "Ejura Sekyedumase",
+  label: "Tarkwa collection point",
+  region: "Western",
+  district: "Tarkwa-Nsuaem Municipal",
 };
 const destination = {
-  label: "Kumasi Central Market",
-  region: "Ashanti",
-  district: "Kumasi Metropolitan",
+  label: "Takoradi buyer receiving point",
+  region: "Western",
+  district: "Sekondi-Takoradi Metropolitan",
 };
 const qualityPolicy = {
   maizeType: "Yellow maize",
@@ -142,16 +142,22 @@ export const run = mutation({
     });
     await Promise.all([
       ctx.db.patch(farmer._id, {
+        community: "Tarkwa",
+        region: "Western",
         verificationStatus: "verified",
         status: "active",
         updatedAt: now,
       }),
       ctx.db.patch(buyer._id, {
+        destinationMarket: destination.label,
         verificationStatus: "verified",
         status: "active",
         updatedAt: now,
       }),
       ctx.db.patch(transporter._id, {
+        baseLocation: "Tarkwa",
+        routesServed: ["Tarkwa to Takoradi"],
+        destinationsServed: [destination.label],
         verificationStatus: "verified",
         status: "active",
         vehicleCapacity: 200,
@@ -170,13 +176,13 @@ export const run = mutation({
       ensureBackgroundFarmer(ctx, {
         farmerCode: "PREVIEW-FARMER-KOFI-2026",
         fullName: "Kofi Antwi",
-        community: "Afrancho",
+        community: "Nsuta",
         phoneNumber: farmer.phoneNumber,
       }),
       ensureBackgroundFarmer(ctx, {
         farmerCode: "PREVIEW-FARMER-ABENA-2026",
         fullName: "Abena Serwaa",
-        community: "Hiawoanwu",
+        community: "Aboso",
         phoneNumber: farmer.phoneNumber,
       }),
     ]);
@@ -194,19 +200,19 @@ export const run = mutation({
                   {
                     farmerId: farmer._id,
                     fullName: farmer.fullName,
-                    collectionLabel: "Ama Mensah farm gate, Ejura",
+                    collectionLabel: "Ama Mensah farm gate, Tarkwa",
                     bags: 40,
                   },
                   {
                     farmerId: backgroundFarmers[0].farmerId,
                     fullName: backgroundFarmers[0].fullName,
-                    collectionLabel: "Kofi Antwi farm gate, Afrancho",
+                    collectionLabel: "Kofi Antwi farm gate, Nsuta",
                     bags: 30,
                   },
                   {
                     farmerId: backgroundFarmers[1].farmerId,
                     fullName: backgroundFarmers[1].fullName,
-                    collectionLabel: "Abena Serwaa farm gate, Hiawoanwu",
+                    collectionLabel: "Abena Serwaa farm gate, Aboso",
                     bags: 30,
                   },
                 ]
@@ -214,7 +220,7 @@ export const run = mutation({
                   {
                     farmerId: farmer._id,
                     fullName: farmer.fullName,
-                    collectionLabel: "Ama Mensah farm gate, Ejura",
+                    collectionLabel: "Ama Mensah farm gate, Tarkwa",
                     bags,
                   },
                 ],
@@ -258,6 +264,9 @@ async function ensureProgramme(
       "The preview programme code belongs to unrelated data.",
     );
     await ctx.db.patch(existing._id, {
+      name: "Tarkwa maize connections",
+      region: "Western",
+      district: "Tarkwa-Nsuaem Municipal",
       status: "active",
       previewCoordinationUntil: cutoffAt,
       commercialConfigurationStatus: "approved",
@@ -269,12 +278,12 @@ async function ensureProgramme(
   }
   const id = await ctx.db.insert("pilotProgrammes", {
     code: programmeCode,
-    name: "Ashanti maize connections",
+    name: "Tarkwa maize connections",
     countryCode: "GH",
     currency: "GHS",
     timezone: "Africa/Accra",
-    region: "Ashanti",
-    district: "Ejura Sekyedumase",
+    region: "Western",
+    district: "Tarkwa-Nsuaem Municipal",
     status: "active",
     datasetProvenance: "live",
     datasetId,
@@ -462,7 +471,7 @@ async function ensureBackgroundFarmer(
       fullName: input.fullName,
       phoneNumber: input.phoneNumber,
       community: input.community,
-      region: "Ashanti",
+      region: "Western",
       verificationStatus: "verified",
       status: "active",
       updatedAt: now,
@@ -490,7 +499,7 @@ async function ensureBackgroundFarmer(
     fullName: input.fullName,
     phoneNumber: input.phoneNumber,
     community: input.community,
-    region: "Ashanti",
+    region: "Western",
     registrationSource: "admin",
     verificationStatus: "verified",
     status: "active",
@@ -580,6 +589,58 @@ async function ensureReadyJob(
         entries.length === 0,
         "A non-finance preview route contains unexpected financial entries.",
       );
+    }
+    const now = Date.now();
+    await ctx.db.patch(existing._id, { destination, updatedAt: now });
+    const offers = await ctx.db
+      .query("pilotFarmerOffers")
+      .withIndex("by_request_status", (query) =>
+        query.eq("requestId", existing._id),
+      )
+      .collect();
+    for (const offer of offers) {
+      const declaration = await ctx.db.get(offer.declarationId);
+      const source = input.farmerSources.find(
+        (candidate) => candidate.farmerId === offer.farmerId,
+      );
+      if (declaration !== null && source !== undefined) {
+        await ctx.db.patch(declaration._id, {
+          collectionLocation: { ...location, label: source.collectionLabel },
+          updatedAt: now,
+        });
+      }
+    }
+    for (const lot of lots) {
+      const source = input.farmerSources.find(
+        (candidate) => candidate.farmerId === lot.farmerId,
+      );
+      if (source !== undefined) {
+        await ctx.db.patch(lot._id, {
+          currentLocation: { ...location, label: source.collectionLabel },
+          updatedAt: now,
+        });
+      }
+    }
+    const stops = await ctx.db
+      .query("pilotFulfilmentStops")
+      .withIndex("by_plan_sequence", (query) =>
+        query.eq("planId", plans[0]!._id),
+      )
+      .collect();
+    for (const stop of stops) {
+      if (stop.stopType === "destination") {
+        await ctx.db.patch(stop._id, { location: destination });
+        continue;
+      }
+      const stopLot = lots.find((lot) => stop.lotIds.includes(lot._id));
+      const source = input.farmerSources.find(
+        (candidate) => candidate.farmerId === stopLot?.farmerId,
+      );
+      if (source !== undefined) {
+        await ctx.db.patch(stop._id, {
+          location: { ...location, label: source.collectionLabel },
+        });
+      }
     }
     return {
       bags: input.bags,

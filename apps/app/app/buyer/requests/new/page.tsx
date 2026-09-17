@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Check, CloudOff } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 
 const DRAFT_KEY = "kuapa:buyer-maize-request:v1";
 type Draft = {
@@ -34,6 +35,7 @@ const previewProgrammeId = process.env.NEXT_PUBLIC_PREVIEW_PROGRAMME_ID;
 
 export default function NewBuyerRequestPage() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [restored, setRestored] = useState(false);
   const [error, setError] = useState<string>();
@@ -188,6 +190,7 @@ export default function NewBuyerRequestPage() {
         idempotencyKey: crypto.randomUUID(),
       });
       window.localStorage.removeItem(DRAFT_KEY);
+      showToast("Maize request submitted. You can track it here.");
       router.push(`/buyer/requests/${created.requestId}`);
     } catch (cause) {
       setError(

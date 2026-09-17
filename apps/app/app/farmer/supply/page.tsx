@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, MapPin, Sprout } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@kuapa-dwaso/ui/toast";
 
 export default function FarmerSupplyPage() {
   const previewAccessEnabled =
     process.env.NEXT_PUBLIC_PREVIEW_ACCESS_ENABLED === "true";
   const previewProgrammeId = process.env.NEXT_PUBLIC_PREVIEW_PROGRAMME_ID;
   const router = useRouter();
+  const { showToast } = useToast();
   const programmes = useQuery(api.pilotProgrammes.listAvailable, {
     limit: 20,
   }) as
@@ -66,6 +68,7 @@ export default function FarmerSupplyPage() {
         collectionLocation: { label: location },
         idempotencyKey: crypto.randomUUID(),
       });
+      showToast("Maize supply added. It is now at the top of your list.");
       router.push("/farmer/offers");
     } catch (cause) {
       setError(

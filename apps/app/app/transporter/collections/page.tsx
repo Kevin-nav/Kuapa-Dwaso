@@ -19,6 +19,8 @@ type DriverJob = {
   collectionWindowStartAt: number;
   destination: { label: string };
   vehicleRegistration?: string;
+  createdAt: number;
+  updatedAt: number;
 };
 
 export default function DriverCollectionsPage() {
@@ -100,6 +102,13 @@ export default function DriverCollectionsPage() {
                   {new Date(job.collectionWindowStartAt).toLocaleString(
                     "en-GH",
                   )}
+                </span>
+                <span>
+                  Assigned{" "}
+                  {new Date(job.updatedAt).toLocaleString("en-GH", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
                 </span>
               </div>
               <div className="driver-job-foot">

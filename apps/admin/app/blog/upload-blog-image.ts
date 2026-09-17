@@ -34,45 +34,24 @@ export async function uploadBlogImage({
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
-  const presign = await fetch(`${apiUrl}/uploads/presign`, {
+  const upload = await fetch(`${apiUrl}/uploads/file`, {
     method: "POST",
-    headers: authHeaders,
-    body: JSON.stringify({
-      purpose,
-      contentType: file.type,
-      sizeBytes: file.size,
-      fileName: file.name,
-      relatedEntityType: "blog_post",
-      relatedEntityId: postId,
-      accessLevel: "public_read",
-    }),
-    signal: requestSignal(signal),
-  });
-  if (!presign.ok) throw new Error(await presign.text());
-  const target = (await presign.json()) as {
-    uploadAssetId: Id<"uploadAssets">;
-    uploadUrl: string;
-    headers: Record<string, string>;
-  };
-
-  const put = await fetch(target.uploadUrl, {
-    method: "PUT",
-    headers: target.headers,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": file.type,
+      "x-file-name": encodeURIComponent(file.name),
+      "x-upload-purpose": purpose,
+      "x-related-entity-type": "blog_post",
+      "x-related-entity-id": postId,
+      "x-upload-access-level": "public_read",
+    },
     body: file,
     signal: requestSignal(signal),
   });
-  if (!put.ok) throw new Error("The image could not be uploaded.");
-
-  const complete = await fetch(`${apiUrl}/uploads/complete`, {
-    method: "POST",
-    headers: authHeaders,
-    body: JSON.stringify({
-      uploadAssetId: target.uploadAssetId,
-      sizeBytes: file.size,
-    }),
-    signal: requestSignal(signal),
-  });
-  if (!complete.ok) throw new Error(await complete.text());
+  if (!upload.ok) throw new Error(await upload.text());
+  const target = (await upload.json()) as {
+    uploadAssetId: Id<"uploadAssets">;
+  };
 
   const read = await fetch(`${apiUrl}/uploads/presign-read`, {
     method: "POST",

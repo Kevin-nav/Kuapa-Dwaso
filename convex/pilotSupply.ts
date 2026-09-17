@@ -170,6 +170,8 @@ export async function pilotDeclarationSummary(
     verificationStatus: declaration.verificationStatus,
     status: declaration.status,
     version: declaration.version,
+    createdAt: declaration.createdAt,
+    updatedAt: declaration.updatedAt,
   };
 }
 
@@ -206,6 +208,8 @@ async function farmerOfferProjection(
     status: offer.status,
     expiresAt: offer.expiresAt,
     version: offer.version,
+    createdAt: offer.createdAt,
+    updatedAt: offer.updatedAt,
     terms:
       revision === null
         ? null

@@ -126,6 +126,8 @@ function requestSummary(request: Doc<"pilotBuyerRequests">) {
     cancellationState: request.cancellationState,
     currentAgreementRevisionId: request.currentAgreementRevisionId,
     version: request.version,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
   };
 }
 

@@ -110,6 +110,8 @@ function planSummary(plan: Doc<"pilotFulfilmentPlans">) {
     readinessBlockers: plan.readinessBlockers,
     cancellationState: plan.cancellationState,
     version: plan.version,
+    createdAt: plan.createdAt,
+    updatedAt: plan.updatedAt,
   };
 }
 
@@ -878,7 +880,9 @@ async function validateLotEvidence(
   lot: Doc<"pilotProcurementLots">,
   assetIds: Id<"uploadAssets">[],
   purposes: readonly string[],
+  required = true,
 ) {
+  if (!required && assetIds.length === 0) return;
   assertAllowed(
     assetIds.length > 0 && new Set(assetIds).size === assetIds.length,
     "Completed evidence is required without duplicates.",
@@ -1044,6 +1048,7 @@ export const recordCustody = mutation({
       lot,
       args.evidenceUploadAssetIds,
       ["pilot_collection_evidence", "pilot_custody_evidence"],
+      false,
     );
     const transporterId = plan.transporterId;
     assertAllowed(
@@ -1710,6 +1715,8 @@ export const listDriverJobs = query({
         deliveryWindowEndAt: plan.deliveryWindowEndAt,
         destination: request.destination,
         vehicleRegistration: plan.vehicleRegistration,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
       });
     }
     return { page, isDone: plans.length < args.limit };
@@ -1837,6 +1844,7 @@ export const getDriverJob = query({
     return {
       plan: planSummary(plan),
       programme: {
+        id: programme._id,
         name: programme.name,
         dataMode: programme.datasetProvenance,
       },
