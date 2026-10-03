@@ -1,0 +1,110 @@
+name: kuapa-dwaso
+
+x-service: &service
+  restart: unless-stopped
+  init: true
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  cpus: 0.25
+  mem_limit: 384m
+  memswap_limit: 512m
+  pids_limit: 64
+  logging:
+    driver: local
+    options:
+      max-size: "5m"
+      max-file: "2"
+
+x-web: &web
+  <<: *service
+  env_file:
+    - path: ${KUAPA_RELEASE_DIR:?}/frontend.env
+      format: raw
+  environment:
+    PORT: "3000"
+    NODE_OPTIONS: --max-old-space-size=192
+  healthcheck:
+    test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 60s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
+
+services:
+  www:
+    <<: *web
+    image: ghcr.io/kevin-nav/kuapa-dwaso/www:${IMAGE_TAG:?}
+    working_dir: /repo/apps/www
+    command: [node, node_modules/next/dist/bin/next, start, -H, 0.0.0.0, -p, "3000"]
+    tmpfs: ["/tmp:mode=1777,size=32m", "/repo/apps/www/.next/cache:uid=1000,gid=1000,size=32m"]
+    networks:
+      kuapa:
+        aliases: [www.kuapa-dwaso-staging.svc.cluster.local]
+  app:
+    <<: *web
+    image: ghcr.io/kevin-nav/kuapa-dwaso/app:${IMAGE_TAG:?}
+    working_dir: /repo/apps/app
+    command: [node, node_modules/next/dist/bin/next, start, -H, 0.0.0.0, -p, "3000"]
+    tmpfs: ["/tmp:mode=1777,size=32m", "/repo/apps/app/.next/cache:uid=1000,gid=1000,size=32m"]
+    networks:
+      kuapa:
+        aliases: [app.kuapa-dwaso-staging.svc.cluster.local]
+  admin:
+    <<: *web
+    image: ghcr.io/kevin-nav/kuapa-dwaso/admin:${IMAGE_TAG:?}
+    working_dir: /repo/apps/admin
+    command: [node, node_modules/next/dist/bin/next, start, -H, 0.0.0.0, -p, "3000"]
+    tmpfs: ["/tmp:mode=1777,size=32m", "/repo/apps/admin/.next/cache:uid=1000,gid=1000,size=32m"]
+    networks:
+      kuapa:
+        aliases: [admin.kuapa-dwaso-staging.svc.cluster.local]
+  ops:
+    <<: *web
+    image: ghcr.io/kevin-nav/kuapa-dwaso/ops:${IMAGE_TAG:?}
+    working_dir: /repo/apps/ops
+    command: [node, node_modules/next/dist/bin/next, start, -H, 0.0.0.0, -p, "3000"]
+    tmpfs: ["/tmp:mode=1777,size=32m", "/repo/apps/ops/.next/cache:uid=1000,gid=1000,size=32m"]
+    networks:
+      kuapa:
+        aliases: [ops.kuapa-dwaso-staging.svc.cluster.local]
+  api:
+    <<: *service
+    image: ghcr.io/kevin-nav/kuapa-dwaso/api:${IMAGE_TAG:?}
+    working_dir: /repo
+    command: [node, apps/api/dist/main.js]
+    cpus: 0.5
+    env_file:
+      - path: ${KUAPA_RELEASE_DIR:?}/api.env
+        format: raw
+    environment:
+      PORT: "4000"
+      NODE_OPTIONS: --max-old-space-size=192
+    tmpfs: ["/tmp:mode=1777,size=32m"]
+    networks:
+      kuapa:
+        aliases: [api.kuapa-dwaso-staging.svc.cluster.local]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+  cloudflared:
+    <<: *service
+    image: cloudflare/cloudflared:2026.6.1
+    user: "65532:65532"
+    mem_limit: 128m
+    memswap_limit: 192m
+    cpus: 0.1
+    env_file:
+      - path: ${KUAPA_RELEASE_DIR:?}/tunnel.env
+        format: raw
+    command: [tunnel, --no-autoupdate, --metrics, "0.0.0.0:2000", run]
+    tmpfs: ["/tmp:mode=1777,size=8m"]
+    networks: [kuapa]
+
+networks:
+  kuapa:
+    driver: bridge

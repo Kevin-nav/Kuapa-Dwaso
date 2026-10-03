@@ -36,7 +36,9 @@ jobs:
     name: Deploy to ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'production' && 'production' || 'staging') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Staging/public demo now deploys through deploy-compose.yml. Retain the
+    # Kubernetes production lane until that environment is migrated explicitly.
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.environment == 'production') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'production') }}
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.event.workflow_run.head_branch == 'production' && 'production' || 'staging') }}
 
     steps:

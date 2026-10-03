@@ -1,0 +1,11 @@
+[Unit]
+Description=Process Kuapa notification deliveries every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+AccuracySec=30s
+Unit=kuapa-notifications.service
+
+[Install]
+WantedBy=timers.target

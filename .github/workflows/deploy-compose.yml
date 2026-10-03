@@ -1,0 +1,60 @@
+name: Deploy Compose
+
+on:
+  workflow_run:
+    workflows: [Build and Publish Images]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Immutable sha-<12 hex> image tag; defaults to this commit.
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kuapa-compose-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - name: Prepare deployment request and pinned SSH credentials
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
+          INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          VPS_DEPLOY_KNOWN_HOSTS: ${{ vars.VPS_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_DEPLOY_SSH_KEY" > ~/.ssh/kuapa_deploy
+          test -n "$VPS_DEPLOY_KNOWN_HOSTS"
+          printf '%s\n' "$VPS_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          python3 - <<'PY'
+          import json, os, re
+          tag = os.environ.get('IMAGE_TAG') or 'sha-' + os.environ['DEPLOY_SHA'][:12]
+          if not re.fullmatch(r'sha-[a-f0-9]{12}', tag):
+              raise SystemExit('Expected immutable sha-<12 hex> image tag')
+          with open('request.json', 'w') as stream:
+              json.dump({'image_tag': tag, 'client_id': os.environ['INFISICAL_CLIENT_ID'], 'client_secret': os.environ['INFISICAL_CLIENT_SECRET']}, stream)
+          PY
+      - name: Deploy and verify services on the VPS
+        env:
+          VPS_DEPLOY_HOST: ${{ secrets.VPS_DEPLOY_HOST }}
+          VPS_DEPLOY_USER: ${{ secrets.VPS_DEPLOY_USER }}
+          VPS_DEPLOY_PORT: ${{ vars.VPS_DEPLOY_PORT || '22' }}
+        run: |
+          request="gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          trap 'rm -f request.json ~/.ssh/kuapa_deploy' EXIT
+          scp -i ~/.ssh/kuapa_deploy -P "$VPS_DEPLOY_PORT" request.json "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST:/opt/kuapa-dwaso/incoming/$request"
+          ssh -i ~/.ssh/kuapa_deploy -p "$VPS_DEPLOY_PORT" "$VPS_DEPLOY_USER@$VPS_DEPLOY_HOST" "sudo -n /usr/local/sbin/kuapa-deploy '$request'"
