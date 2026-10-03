@@ -1,5 +1,12 @@
 # GitHub Actions and Secrets Contract
 
+The public staging/demo VPS now uses `Deploy Compose`, the dedicated
+`kuapa-deploy` account, and the root-owned deployment helper described in
+[the shared VPS runbook](shared-vps-compose.md). The Kubernetes contract below
+remains applicable to the separate production lane only. Staging credentials
+and known-host values must point at the new VPS; runtime and build-time values
+remain in Infisical staging.
+
 This repo uses GitHub-hosted runners only.
 
 - Pull requests and pushes run CI without production secrets.

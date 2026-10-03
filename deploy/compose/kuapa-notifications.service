@@ -1,0 +1,10 @@
+[Unit]
+Description=Kuapa notification delivery
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kuapa-deploy --notify
+TimeoutStartSec=120
+Nice=10

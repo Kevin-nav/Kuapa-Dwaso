@@ -27,6 +27,15 @@ Stable rules:
 15. Offline mutation queues synchronize in the foreground and must use server
     idempotency plus conflict validation. Background Sync is not a product guarantee.
 
+## Shared VPS runtime
+
+For the low-traffic public staging/demo deployment, use the isolated Compose
+runtime described in ADR-0006. Build images off-host, enforce container CPU,
+RAM, swap, PID, and log limits, and measure idle usage. Do not add persistent
+workers or replicas without a demonstrated workload need. Keep all app ports
+private behind Cloudflare Tunnel. Demo access and provider behavior must be
+preserved when changing deployment infrastructure.
+
 ## Measurement
 
 - Use `corepack pnpm benchmark:performance` against production builds for repeatable lab measurements.

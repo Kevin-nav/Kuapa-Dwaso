@@ -1,5 +1,9 @@
 # Kubernetes, Cloudflare Tunnel, and Infisical Deployment Runbook
 
+The public staging/demo deployment has moved to the low-traffic Compose runtime
+in [the shared VPS runbook](shared-vps-compose.md), as accepted in ADR-0006.
+This Kubernetes foundation is retained for the separate production environment.
+
 This foundation deploys `www`, `app`, `admin`, `ops`, and `api` to a VPS
 Kubernetes cluster, including K3s-compatible clusters. Public traffic enters
 only through Cloudflare Tunnel. Kubernetes services are `ClusterIP` and should
